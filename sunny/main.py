@@ -12,6 +12,7 @@ from sunny.logging_config import setup_logging
 from sunny.components.dashboard import create_dashboard_app
 from sunny.components.briefing_api import create_briefing_router
 from sunny.components.tasks_api import create_tasks_router
+from sunny.components.chatbot_ui import create_chatbot_router
 
 
 logger = logging.getLogger(__name__)
@@ -57,6 +58,10 @@ class SunnyCore:
         # Task endpoints
         tasks_router = create_tasks_router()
         app.include_router(tasks_router, prefix="/api")
+
+        # Chatbot UI
+        chatbot_router = create_chatbot_router()
+        app.include_router(chatbot_router)
 
         return app
 
