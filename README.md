@@ -64,13 +64,14 @@ Clock (ESP32-S3)        Brain (Lenovo Mini PC)      External APIs
 
 ## Current Status
 
-**Phase 0** — Foundations (in progress)
-- Ubuntu Server 26.04 LTS install pending on Lenovo
-- BIOS restore-on-AC-loss requirement specified
-- Obsidian vault structure ready
-- Comprehensive documentation complete
+**Phase 0** — Foundations (✓ Complete)
+- ✓ Ubuntu Server 20.04+ on Lenovo mini PC
+- ✓ Briefing system with Q&A engine
+- ✓ Task management system
+- ✓ Web chatbot UI over Tailscale
+- ✓ Comprehensive documentation
 
-**Next** — Phase 1: Tailscale networking, Phase 2: Briefing engine, Phase 3-5: Voice, clock hardware, phone integration.
+**Next** — Phase 1: Tailscale networking verified, Phase 2: Clock hardware & voice I/O
 
 See `sunny-vault/docs/phases.md` for full build timeline.
 
