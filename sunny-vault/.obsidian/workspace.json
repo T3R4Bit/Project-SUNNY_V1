@@ -182,5 +182,24 @@
     }
   },
   "active": "44a3f36fab39c5eb",
-  "lastOpenFiles": []
+  "lastOpenFiles": [
+    "archive/README.md",
+    "archive",
+    "log/README.md",
+    "log",
+    "state/system-state.md",
+    "state",
+    "staging",
+    "inbox",
+    "reference/design-principles.md",
+    "reference/design-principles.md.tmp.31200.c2548430d5bf",
+    "reference/task-system.md",
+    "reference/task-system.md.tmp.31200.d4bac6cf1c30",
+    "reference/hardware-specs.md",
+    "reference/build-timeline.md",
+    "reference/build-timeline.md.tmp.31200.5bc8d8a92de7",
+    "reference/architecture.md",
+    "reference/project-overview.md",
+    "reference"
+  ]
 }

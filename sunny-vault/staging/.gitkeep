@@ -1,0 +1,26 @@
+# Staging
+
+Structured items awaiting Notion push. Each file here has full frontmatter and is ready to sync.
+
+## Frontmatter Format
+
+```yaml
+---
+id: <UUID>
+type: task|note|event|action
+status: pending|synced|archived
+source: discord|voice|email|manual
+created: <ISO8601>
+notion_id: <UUID or empty>
+tags: [tag1, tag2]
+---
+```
+
+## Sync Process
+
+1. Sweeper scans for `status: pending`
+2. Batches files into single Notion API call
+3. Writes back `notion_id` and sets `status: synced`
+4. Moves file to `archive/`
+
+The `id` field makes retries safe — re-running push against same IDs won't create duplicates.

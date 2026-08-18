@@ -1,0 +1,19 @@
+# Inbox
+
+Raw capture, unparsed input. Quick notes, voice transcriptions, links, ideas go here before being organized.
+
+## Structure
+
+One file per capture event. Frontmatter optional at inbox stage.
+
+Example:
+```
+---
+captured: 2026-08-18T14:30:00Z
+source: voice
+---
+
+Fix the engine issue where...
+```
+
+Later, items are moved to `staging/` for processing and tagging.
