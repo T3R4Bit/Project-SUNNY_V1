@@ -49,6 +49,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "dashboard.md",
         "Mind-Map.md",
         "brain.md",
         "clock.md",
@@ -123,6 +124,10 @@
       "isHidden": false
     },
     "docs/phases.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/dashboard.md": {
       "isPinned": false,
       "isHidden": false
     }

@@ -63,12 +63,12 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 - [ ] Install Tailscale on Lenovo [[brain]]
 - [ ] Generate stable private IP for Lenovo (100.x.x.x)
-- [ ] Install Tailscale on TrueNAS server
-- [ ] Verify TrueNAS connectivity to Lenovo
+- [x] Install Tailscale on TrueNAS server
+- [x] Verify TrueNAS connectivity to Lenovo
 - [ ] Flash MicroLink firmware on future ESP32 [[clock]]
-- [ ] Test ESP32-Clock WiFi + Tailscale connectivity
+
 - [ ] Configure Tailscale ACLs (optional, all devices trust each other for now)
-- [ ] Install Tailscale on phone
+- [x] Install Tailscale on phone
 - [ ] Test phone dashboard access via Tailscale
 - [ ] Document all device IPs and hostnames
 
