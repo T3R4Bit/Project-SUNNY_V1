@@ -15,27 +15,25 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ## Phase 0: Foundations (IN PROGRESS)
 
 **Timeline**: This week  
-**Current Status**: Ubuntu Server 20.04 installed, BIOS configured  
+**Current Status**: Ubuntu Server 26.04 LTS install pending, BIOS decisions finalized  
 **Deliverable**: Sunny process running locally, basic logging, systemd autostart
 
 ### Setup Tasks
 
-- [x] Decide on headless Linux OS (Ubuntu Server 20.04)
-- [x] Decide on LiFePO4 battery specs
-- [x] Decide on BIOS restore-on-AC-loss
-- [x] Install Ubuntu Server 20.04 on Lenovo
-- [x] Configure BIOS (power restore, boot order, disable PXE)
+- [x] Decide on headless Linux OS (Ubuntu Server 26.04 LTS, switched from Debian)
+- [x] Decide on LiFePO4 battery swap and matching charger/cell sizing
+- [x] Decide on BIOS restore-on-AC-loss requirement
+- [ ] Install Ubuntu Server 26.04 LTS on Lenovo mini PC
+- [ ] Skip Featured Server Snaps at install (avoid snapd entirely rather than purging later)
 - [ ] Set BIOS to restore power state on AC loss
-- [ ] Disable unattended-upgrades auto-reboot (or pin to window)
-- [ ] Set up Python virtual environment
-- [ ] Create project folder structure (config, logs, scripts, etc.)
-- [ ] Set up secrets handling (env vars + config file)
-- [ ] Create git repo + folder structure
-- [ ] Structured logging module (with levels, rotating files)
+- [ ] Set up Sunny as a systemd unit with Restart=always
+- [ ] Disable unattended-upgrades auto-reboot, or pin to a window
+- [ ] Python env setup on the Lenovo
+- [ ] Secrets via env vars + config file
+- [ ] Git repo + folder structure
+- [ ] Logging from the start
 - [ ] Set up Obsidian vault structure (inbox/staging/archive/log/state)
-- [ ] Set up systemd unit (Restart=always)
-- [ ] Create basic dashboard skeleton (FastAPI, bound to Tailscale)
-- [ ] SQLite setup (sunny.db for metrics)
+- [ ] Set up local dashboard skeleton (FastAPI, bound to Tailscale interface, sunny.db)
 
 ### Deliverables When Complete
 

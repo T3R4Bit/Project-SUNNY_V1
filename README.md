@@ -65,10 +65,10 @@ Clock (ESP32-S3)        Brain (Lenovo Mini PC)      External APIs
 ## Current Status
 
 **Phase 0** — Foundations (in progress)
-- Ubuntu Server 20.04 installed on Lenovo
-- BIOS configured for auto-boot on power loss
+- Ubuntu Server 26.04 LTS install pending on Lenovo
+- BIOS restore-on-AC-loss requirement specified
 - Obsidian vault structure ready
-- Documentation complete
+- Comprehensive documentation complete
 
 **Next** — Phase 1: Tailscale networking, Phase 2: Briefing engine, Phase 3-5: Voice, clock hardware, phone integration.
 
@@ -110,11 +110,12 @@ Hard spending caps enforced at provider accounts.
 
 ## Getting Started
 
-1. Install Ubuntu Server 20.04 on Lenovo mini PC
+1. Install Ubuntu Server 26.04 LTS on Lenovo mini PC (skip Featured Server Snaps)
 2. Configure BIOS (restore power on AC loss, disable PXE)
-3. Set up Python venv and systemd unit
-4. Join Tailscale mesh
-5. See `sunny-vault/docs/phases.md` for detailed steps
+3. Set up Python venv and systemd unit with Restart=always
+4. Disable unattended-upgrades auto-reboot or pin to a window
+5. Join Tailscale mesh
+6. See `sunny-vault/docs/phases.md` for detailed build phases
 
 ---
 
