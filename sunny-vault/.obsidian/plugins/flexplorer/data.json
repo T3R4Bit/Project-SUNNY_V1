@@ -1,0 +1,132 @@
+{
+  "items": {
+    "/": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "archive",
+        "docs",
+        "inbox",
+        "log",
+        "staging",
+        "state"
+      ]
+    },
+    "archive": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "README.md"
+      ]
+    },
+    "archive/README.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs": {
+      "isPinned": true,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "README.md",
+        "TASK_SYSTEM.md",
+        "architecture"
+      ]
+    },
+    "docs/README.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/TASK_SYSTEM.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "index.md",
+        "brain.md",
+        "clock.md",
+        "briefing-engine.md",
+        "voice-io.md",
+        "networking.md",
+        "llm-integration.md"
+      ]
+    },
+    "docs/architecture/index.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/brain.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/clock.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/briefing-engine.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/voice-io.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/networking.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/llm-integration.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "inbox": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": []
+    },
+    "log": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "README.md"
+      ]
+    },
+    "log/README.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "staging": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": []
+    },
+    "state": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "system-state.md"
+      ]
+    },
+    "state/system-state.md": {
+      "isPinned": false,
+      "isHidden": false
+    }
+  },
+  "pinnedFiles": [
+    "docs"
+  ],
+  "showHidden": false,
+  "newItemPlacement": "top",
+  "persistOrderOnCreateDelete": true,
+  "debugMode": false
+}

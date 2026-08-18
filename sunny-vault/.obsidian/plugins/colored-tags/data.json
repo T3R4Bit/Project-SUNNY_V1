@@ -1,0 +1,52 @@
+{
+  "palette": {
+    "seed": 0,
+    "selected": "adaptive-soft",
+    "custom": "e12729-f37324-f8cc1b-72b043-007f4e"
+  },
+  "mixColors": true,
+  "transition": true,
+  "accessibility": {
+    "highTextContrast": false
+  },
+  "knownTags": {
+    "activity": 1,
+    "api": 2,
+    "architecture": 3,
+    "archive": 4,
+    "audio": 5,
+    "audit": 6,
+    "brain": 7,
+    "briefing": 8,
+    "claude": 9,
+    "clock": 10,
+    "compute": 11,
+    "config": 12,
+    "device": 13,
+    "esp32": 14,
+    "feature": 15,
+    "hardware": 16,
+    "history": 17,
+    "io": 18,
+    "llm": 19,
+    "logging": 20,
+    "mesh": 21,
+    "morning": 22,
+    "networking": 23,
+    "overview": 24,
+    "reasoning": 25,
+    "runtime": 26,
+    "scheduler": 27,
+    "security": 28,
+    "state": 29,
+    "stt": 30,
+    "system-design": 31,
+    "tailscale": 32,
+    "tasks": 33,
+    "tts": 34,
+    "voice": 35,
+    "warnings": 36
+  },
+  "tagColors": {},
+  "_version": 4
+}
