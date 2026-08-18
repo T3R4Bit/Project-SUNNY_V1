@@ -1,0 +1,193 @@
+"""Task management engine — combines DB, parsing, and formatting."""
+
+import logging
+from typing import Dict, List, Tuple
+from datetime import datetime
+
+from sunny.components.tasks_db import TaskDB
+from sunny.components.tasks_parser import TaskCommandParser
+
+logger = logging.getLogger(__name__)
+
+
+class TaskEngine:
+    """High-level task management with command execution."""
+
+    def __init__(self, db: TaskDB):
+        self.db = db
+        self.parser = TaskCommandParser()
+
+    async def execute_command(self, command: str) -> Tuple[bool, str]:
+        """Execute a task command and return (success, message)."""
+        try:
+            cmd_type, success, data = self.parser.parse_command(command)
+
+            if not success:
+                return False, f"❌ {data.get('error', 'Invalid command')}"
+
+            if cmd_type == "add":
+                return await self._execute_add(data)
+            elif cmd_type == "update":
+                return await self._execute_update(data)
+            elif cmd_type == "delete":
+                return await self._execute_delete(data)
+            elif cmd_type == "list":
+                return await self._execute_list(data)
+            else:
+                return False, "❌ Unknown command type"
+
+        except Exception as e:
+            logger.error(f"Command execution error: {e}")
+            return False, f"❌ Error: {str(e)}"
+
+    async def _execute_add(self, data: Dict) -> Tuple[bool, str]:
+        """Create a new task."""
+        try:
+            task_id = self.db.create_task(
+                title=data["title"],
+                tag=data.get("tag", "General"),
+                priority=data.get("priority", 3),
+                description=data.get("description"),
+                due_date=data.get("due_date"),
+            )
+
+            message = f"""✅ Task created: `{task_id}`
+Title: {data['title']}
+Tag: {data.get('tag', 'General')}
+Priority: {data.get('priority', 3)}/5"""
+
+            if data.get("due_date"):
+                message += f"\nDue: {data['due_date']}"
+
+            return True, message
+
+        except ValueError as e:
+            return False, f"❌ {str(e)}"
+
+    async def _execute_update(self, data: Dict) -> Tuple[bool, str]:
+        """Update a task field."""
+        try:
+            task_id = data["task_id"]
+            field = data["field"]
+            value = data["value"]
+
+            # Map field names for database
+            field_map = {
+                "status": "status",
+                "priority": "priority",
+                "tag": "tag",
+                "title": "title",
+                "describe": "description",
+                "due": "due_date",
+            }
+
+            db_field = field_map.get(field, field)
+
+            success = self.db.update_task(task_id, **{db_field: value})
+
+            if not success:
+                return False, f"❌ Task not found: `{task_id}`"
+
+            return True, f"✅ Updated `{task_id}` {field} → {value}"
+
+        except ValueError as e:
+            return False, f"❌ {str(e)}"
+
+    async def _execute_delete(self, data: Dict) -> Tuple[bool, str]:
+        """Delete a task."""
+        task_id = data["task_id"]
+        task = self.db.get_task(task_id)
+
+        if not task:
+            return False, f"❌ Task not found: `{task_id}`"
+
+        self.db.delete_task(task_id)
+        return True, f"✅ Deleted task `{task_id}`: {task['title']}"
+
+    async def _execute_list(self, data: Dict) -> Tuple[bool, str]:
+        """List tasks with optional filtering."""
+        # Determine which tasks to show
+        if data.get("due_soon"):
+            tasks = self.db.get_tasks_due_soon(days=7)
+            title = "📌 DUE SOON (next 7 days)"
+        elif "status" in data:
+            tasks = self.db.get_tasks_by_status(data["status"])
+            status_names = {"open": "OPEN", "done": "DONE", "in_progress": "IN PROGRESS"}
+            title = f"📋 {status_names.get(data['status'], data['status'].upper())}"
+        elif "tag" in data:
+            tasks = self.db.get_tasks_by_tag(data["tag"])
+            title = f"📋 {data['tag'].upper()}"
+        elif "min_priority" in data:
+            tasks = self.db.get_high_priority_tasks(data["min_priority"])
+            title = f"🔴 PRIORITY {data['min_priority']}+"
+        else:
+            tasks = self.db.get_open_tasks()
+            title = "📋 OPEN TASKS"
+
+        if not tasks:
+            return True, f"{title}\n(None)"
+
+        # Format tasks
+        message = f"{title}\n"
+        for task in tasks:
+            priority_indicator = "🔴" * task["priority"]
+            status_icon = {
+                "open": "◯",
+                "in_progress": "→",
+                "done": "✓",
+            }.get(task["status"], "•")
+
+            line = f"{status_icon} [{priority_indicator}] {task['title']}"
+
+            if task["due_date"]:
+                line += f" (due {task['due_date']})"
+
+            message += f"`{task['id'][:6]}` {line}\n"
+
+        stats = self.db.get_stats()
+        message += f"\n━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        message += f"Open: {stats['open']} | In Progress: {stats['in_progress']} | Done: {stats['done']}"
+
+        return True, message
+
+    def format_dashboard(self) -> str:
+        """Format complete task dashboard for Discord embed."""
+        dashboard = "📋 YOUR TASKS\n"
+        dashboard += "━" * 50 + "\n\n"
+
+        # Open tasks by tag
+        all_open = self.db.get_open_tasks()
+        tags_dict = {}
+
+        for task in all_open:
+            tag = task["tag"]
+            if tag not in tags_dict:
+                tags_dict[tag] = []
+            tags_dict[tag].append(task)
+
+        for tag in ["School", "Motorsports", "General", "Project Ideas"]:
+            if tag in tags_dict:
+                tasks = tags_dict[tag]
+                tag_emoji = {"School": "🎓", "Motorsports": "🏍️ ", "General": "📝", "Project Ideas": "💡"}.get(tag, "•")
+                dashboard += f"{tag_emoji} {tag} ({len(tasks)})\n"
+
+                for task in tasks[:3]:  # Show top 3
+                    priority_bar = "▰" * task["priority"] + "▱" * (5 - task["priority"])
+                    due_str = f" (due {task['due_date']})" if task["due_date"] else ""
+                    dashboard += f"  [{priority_bar}] {task['title']}{due_str}\n"
+
+                if len(tasks) > 3:
+                    dashboard += f"  ... and {len(tasks) - 3} more\n"
+                dashboard += "\n"
+
+        # Stats
+        stats = self.db.get_stats()
+        dashboard += "━" * 50 + "\n"
+        dashboard += f"✅ Done: {stats['done']} | ⏳ In Progress: {stats['in_progress']} | 📌 Open: {stats['open']}\n"
+
+        # Due soon
+        due_soon = self.db.get_tasks_due_soon(days=7)
+        if due_soon:
+            dashboard += f"\n⚠️  {len(due_soon)} tasks due this week\n"
+
+        return dashboard

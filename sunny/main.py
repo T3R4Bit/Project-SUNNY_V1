@@ -11,6 +11,7 @@ from sunny.config import get_settings
 from sunny.logging_config import setup_logging
 from sunny.components.dashboard import create_dashboard_app
 from sunny.components.briefing_api import create_briefing_router
+from sunny.components.tasks_api import create_tasks_router
 
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,10 @@ class SunnyCore:
         # Briefing endpoints
         briefing_router = create_briefing_router()
         app.include_router(briefing_router, prefix="/api")
+
+        # Task endpoints
+        tasks_router = create_tasks_router()
+        app.include_router(tasks_router, prefix="/api")
 
         return app
 
