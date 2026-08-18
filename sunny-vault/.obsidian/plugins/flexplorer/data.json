@@ -30,6 +30,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "phases.md",
         "README.md",
         "TASK_SYSTEM.md",
         "architecture"
@@ -48,7 +49,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
-        "index.md",
+        "Mind-Map.md",
         "brain.md",
         "clock.md",
         "briefing-engine.md",
@@ -56,10 +57,6 @@
         "networking.md",
         "llm-integration.md"
       ]
-    },
-    "docs/architecture/index.md": {
-      "isPinned": false,
-      "isHidden": false
     },
     "docs/architecture/brain.md": {
       "isPinned": false,
@@ -118,6 +115,14 @@
       ]
     },
     "state/system-state.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/Mind-Map.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/phases.md": {
       "isPinned": false,
       "isHidden": false
     }

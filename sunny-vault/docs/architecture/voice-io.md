@@ -42,15 +42,8 @@ Speaker (Clock)
 - **Cost**: ~$0.01-0.02 per minute of audio
 - **Fallback**: If API down, buffer audio, retry later
 
-### Whisper (Alternative)
 
-- **Provider**: OpenAI Whisper API
-- **Latency**: 1-3 seconds
-- **Accuracy**: Very high (multilingual)
-- **Cost**: ~$0.02 per minute
-- **Local option**: Run Whisper locally (requires compute, slower)
-
-### Vosk (Budget/Offline)
+### Vosk (Fallback)
 
 - **Local inference**: No API calls (privacy)
 - **Latency**: 1-5 seconds (CPU-bound)
