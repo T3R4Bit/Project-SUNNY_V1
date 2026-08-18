@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/architecture/brain.md",
+                "file": "docs/phases.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "brain"
+              "title": "phases"
             }
           }
         ]
@@ -191,14 +191,16 @@
   },
   "active": "1d01bc107c8fadf5",
   "lastOpenFiles": [
+    "docs/README.md",
+    "docs/TASK_SYSTEM.md",
+    "docs/architecture/brain.md",
+    "docs/architecture/clock.md",
+    "docs/architecture/briefing-engine.md",
     "docs/phases.md",
     "docs/phases.md.tmp.31200.535c4048b6ed",
     "docs/architecture/networking.md",
     "docs/architecture/voice-io.md",
     "docs/architecture/Mind-Map.md",
-    "docs/architecture/clock.md",
-    "docs/architecture/briefing-engine.md",
-    "docs/architecture/brain.md",
     "docs/README.md.tmp.31200.958194def4d7",
     "docs/architecture/llm-integration.md.tmp.31200.70e90f73fe81",
     "docs/architecture/networking.md.tmp.31200.1e08e4bba2f1",
@@ -208,8 +210,6 @@
     "docs/architecture/llm-integration.md",
     "docs/architecture/brain.md.tmp.31200.4897189fca7c",
     "docs/architecture/index.md.tmp.31200.db157265df41",
-    "docs/TASK_SYSTEM.md",
-    "docs/README.md",
     "Untitled.md",
     "archive/README.md",
     "docs/architecture/llm-integration.md.tmp.31200.9c3e040b4f78",
