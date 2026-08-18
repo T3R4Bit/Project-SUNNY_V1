@@ -10,6 +10,7 @@ from uvicorn import Server, Config
 from sunny.config import get_settings
 from sunny.logging_config import setup_logging
 from sunny.components.dashboard import create_dashboard_app
+from sunny.components.briefing_api import create_briefing_router
 
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,10 @@ class SunnyCore:
         # Dashboard endpoints
         dashboard_app = create_dashboard_app()
         app.include_router(dashboard_app.router, prefix="/api")
+
+        # Briefing endpoints
+        briefing_router = create_briefing_router()
+        app.include_router(briefing_router, prefix="/api")
 
         return app
 
