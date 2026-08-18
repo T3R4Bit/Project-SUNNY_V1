@@ -2,11 +2,24 @@
 
 import psutil
 import logging
+import subprocess
+import socket
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
+
+
+def get_tailscale_ip():
+    """Get current Tailscale IPv4 address."""
+    try:
+        result = subprocess.run(['tailscale', 'ip', '-4'], capture_output=True, text=True, timeout=2)
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception as e:
+        logger.debug(f"Could not get Tailscale IP: {e}")
+    return None
 
 
 def create_console_router() -> APIRouter:
@@ -16,7 +29,11 @@ def create_console_router() -> APIRouter:
     @router.get("/")
     async def console_ui():
         """Serve console-style dashboard."""
-        html = """
+        tailscale_ip = get_tailscale_ip()
+        tailscale_url = f"http://{tailscale_ip}:5000" if tailscale_ip else "http://127.0.0.1:5000"
+        localhost_url = "http://127.0.0.1:5000"
+
+        html = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -127,9 +144,9 @@ def create_console_router() -> APIRouter:
 <body>
     <div class="console">
         <div class="nav">
-            <a href="/console">STATS</a>
-            <a href="/chatbot">CHAT</a>
-            <a href="/docs">API</a>
+            <a href="{tailscale_url}/console">STATS</a>
+            <a href="{tailscale_url}/chatbot">CHAT</a>
+            <a href="{tailscale_url}/docs">API</a>
         </div>
 
         <div class="header">
@@ -142,8 +159,16 @@ def create_console_router() -> APIRouter:
                 <span class="value" id="hostname">-</span>
             </div>
             <div class="stat-line">
+                <span class="label">TAILSCALE IP:</span>
+                <span class="value" id="tailscale-ip">{tailscale_ip or 'N/A'}</span>
+            </div>
+            <div class="stat-line">
                 <span class="label">STATUS:</span>
                 <span class="value" id="status">ONLINE</span>
+            </div>
+            <div class="stat-line">
+                <span class="label">NETWORK:</span>
+                <span class="value"><a href="{tailscale_url}/console" style="color: #0f0; text-decoration: none;">{tailscale_url}</a></span>
             </div>
         </div>
 
@@ -313,6 +338,7 @@ def create_console_router() -> APIRouter:
 
             return {
                 'hostname': __import__('socket').gethostname(),
+                'tailscale_ip': get_tailscale_ip(),
                 'cpu': cpu,
                 'ram': ram,
                 'disk': disk,
