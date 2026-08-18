@@ -44,19 +44,22 @@ echo ""
 # Route to command
 case "$COMMAND" in
     "server")
-        echo -e "${GREEN}Starting web server on http://127.0.0.1:5000${NC}"
-        echo -e "${GREEN}Chatbot UI: http://127.0.0.1:5000/chatbot${NC}"
-        echo -e "${GREEN}API Docs: http://127.0.0.1:5000/docs${NC}"
+        echo -e "${GREEN}Starting web server on 0.0.0.0:5000${NC}"
+        echo -e "${GREEN}Local: http://127.0.0.1:5000${NC}"
+        echo -e "${GREEN}Network/Tailscale: http://100.117.41.53:5000${NC}"
+        echo -e "${GREEN}Chatbot UI: http://100.117.41.53:5000/chatbot${NC}"
         echo -e "${CYAN}Press Ctrl+C to stop${NC}"
         echo ""
-        python -m uvicorn sunny.main:app --reload --host 127.0.0.1 --port 5000
+        python -m uvicorn sunny.main:app --reload --host 0.0.0.0 --port 5000
         ;;
 
     "chatbot")
-        echo -e "${GREEN}Starting chatbot on http://127.0.0.1:5000/chatbot${NC}"
+        echo -e "${GREEN}Starting chatbot on 0.0.0.0:5000${NC}"
+        echo -e "${GREEN}Local: http://127.0.0.1:5000/chatbot${NC}"
+        echo -e "${GREEN}Network/Tailscale: http://100.117.41.53:5000/chatbot${NC}"
         echo -e "${CYAN}Press Ctrl+C to stop${NC}"
         echo ""
-        python -m uvicorn sunny.main:app --host 127.0.0.1 --port 5000
+        python -m uvicorn sunny.main:app --host 0.0.0.0 --port 5000
         ;;
 
     "cli")
