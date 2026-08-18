@@ -13,6 +13,7 @@ from sunny.components.dashboard import create_dashboard_app
 from sunny.components.briefing_api import create_briefing_router
 from sunny.components.tasks_api import create_tasks_router
 from sunny.components.chatbot_ui import create_chatbot_router
+from sunny.components.console_stats import create_console_router
 
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,10 @@ class SunnyCore:
         # Chatbot UI
         chatbot_router = create_chatbot_router()
         app.include_router(chatbot_router)
+
+        # Console stats dashboard
+        console_router = create_console_router()
+        app.include_router(console_router)
 
         return app
 
