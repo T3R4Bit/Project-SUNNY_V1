@@ -36,24 +36,23 @@ Sunny is an always-on voice assistant that lives on a bedside device and Lenovo 
 
 ## Getting Started
 
-Documentation and build timeline are maintained in Notion:
-- [Project Overview](https://app.notion.com/p/3bfd176c80f28176a2b7cbd5f9ff0a74)
-- [The Plan](https://app.notion.com/p/3bfd176c80f2806fa5a0d727cc6550d3)
-- [Architecture](https://app.notion.com/p/3bfd176c80f280bab9f2fe34f4199a98)
+**Quick Start** (30 seconds):
+```bash
+chmod +x run.sh
+./run.sh
+# Open: http://127.0.0.1:5000/chatbot
+```
+
+See [[./QUICKSTART.md]] for full quick-start guide.
 
 ### Current Status
-Phase 0 (Foundations) in progress — Debian setup, systemd configuration, local dashboard skeleton.
+Phase 0 (Foundations) complete — Briefing system, task management, web chatbot UI all working.
 
-## Development
-
-```bash
-# Set up Python environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Dependencies to be added
-pip install -r requirements.txt
-```
+### Documentation
+- [[./QUICKSTART.md]] — Get started in 30 seconds
+- [[./architecture/index.md]] — System architecture
+- [[./phases.md]] — Build timeline (phases 0-7)
+- [[./TASK_SYSTEM.md]] — Task management system
 
 ## Costs
 
