@@ -128,8 +128,9 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 3: Voice Out / Clock Hardware
 
-**Timeline**: Week 5-6  
+**Timeline**: TBD (deprioritized, will come after Phase 2 proven on Lenovo)  
 **Dependencies**: Phase 0-2 complete (briefing ready to output)  
+**Status**: DEPRIORITIZED — Clock hardware deferred pending core Lenovo functionality  
 **Deliverable**: Working bedside clock with voice output, battery backup, alarm
 
 ### Hardware Assembly Tasks
@@ -180,8 +181,9 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 4: Voice In / Wake Word Detection
 
-**Timeline**: Week 7-8  
+**Timeline**: TBD (depends on Phase 3, deprioritized)  
 **Dependencies**: Phase 3 complete (Clock hardware ready)  
+**Status**: DEPRIORITIZED — Awaiting clock hardware  
 **Deliverable**: Wake word detection, STT, intent routing
 
 ### Wake Word & STT Tasks
@@ -230,9 +232,10 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 5: Telephony / Phone Calls
 
-**Timeline**: Week 8-9  
-**Dependencies**: Phase 4 complete (voice I/O working)  
-**Deliverable**: Callable voice interface, live conversation, remote tasking
+**Timeline**: Week 4-5 (can start after Phase 2 without clock)  
+**Dependencies**: Phase 0-2 complete (briefing engine + LLM routing working)  
+**Status**: Can proceed in parallel with clock hardware  
+**Deliverable**: Callable voice interface, live conversation, remote tasking (text-based for now, voice TTS handled by Lenovo)
 
 ### Twilio Setup Tasks
 
@@ -362,14 +365,14 @@ Work on these in parallel, integrate incrementally:
 
 | Milestone | Target | Status |
 |-----------|--------|--------|
-| Phase 0: Foundations | This week | 🔄 In Progress |
+| Phase 0: Foundations | Week 1 | 🔄 In Progress |
 | Phase 1: Networking | Week 2 | ⏳ Upcoming |
 | Phase 2: Briefing | Week 3-4 | ⏳ Upcoming |
-| Phase 3: Clock Hardware | Week 5-6 | ⏳ Upcoming |
-| Phase 4: Wake Word | Week 7-8 | ⏳ Upcoming |
-| Phase 5: Phone | Week 8-9 | ⏳ Upcoming |
-| **MVP**: All 0-5 complete | End Sept 2026 | 🚀 Target |
-| Phase 6: Power Control | Q4 2026 | ⏳ Optional |
+| **MVP (Lenovo only)**: 0-2 + 5 | End September | 🚀 Target |
+| Phase 3: Clock Hardware | TBD (later) | ⏸️  Deprioritized |
+| Phase 4: Wake Word | TBD (depends on 3) | ⏸️  Deprioritized |
+| Phase 5: Phone | Week 4-5 | ⏳ Upcoming |
+| Phase 6: Power Control | Q4 2026+ | ⏳ Optional |
 | Phase 7: Custom PCB | Q4 2026+ | ⏳ Nice-to-have |
 
 ---

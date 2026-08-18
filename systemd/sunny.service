@@ -1,0 +1,26 @@
+[Unit]
+Description=Project SUNNY — Personal Voice Assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sunny
+WorkingDirectory=/home/sunny/Project-SUNNY
+Environment="PATH=/home/sunny/Project-SUNNY/venv/bin"
+EnvironmentFile=/home/sunny/Project-SUNNY/.env
+ExecStart=/home/sunny/Project-SUNNY/venv/bin/python -m sunny.main
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/home/sunny/Project-SUNNY/logs /home/sunny/Project-SUNNY/sunny.db /home/sunny/Project-SUNNY/sunny-vault
+
+[Install]
+WantedBy=multi-user.target

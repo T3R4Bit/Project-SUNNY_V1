@@ -87,7 +87,9 @@ Sunny plays a distinct short sound whenever it pings the LLM (so it's audibly cl
 
 ---
 
-## The Clock (Custom Hardware Device)
+## The Clock (Custom Hardware Device) — DEPRIORITIZED
+
+**Status**: Clock hardware deferred. Starting with Lenovo-only MVP. Clock will be integrated later once core Lenovo functionality is proven.
 
 ### Concept
 
