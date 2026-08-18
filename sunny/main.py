@@ -1,0 +1,86 @@
+"""Main entry point for Project SUNNY."""
+
+import asyncio
+import logging
+from pathlib import Path
+
+from fastapi import FastAPI
+from uvicorn import Server, Config
+
+from sunny.config import get_settings
+from sunny.logging_config import setup_logging
+from sunny.components.dashboard import create_dashboard_app
+
+
+logger = logging.getLogger(__name__)
+
+
+class SunnyCore:
+    """Main application coordinator."""
+
+    def __init__(self):
+        self.settings = get_settings()
+        self.logger = setup_logging()
+        self.app = self._create_app()
+
+    def _create_app(self) -> FastAPI:
+        """Create FastAPI application with all routes."""
+        app = FastAPI(
+            title=self.settings.app_name,
+            version="0.1.0",
+            debug=self.settings.debug,
+        )
+
+        # Root health check
+        @app.get("/")
+        async def root():
+            return {
+                "name": self.settings.app_name,
+                "status": "running",
+                "environment": self.settings.app_env,
+            }
+
+        @app.get("/health")
+        async def health():
+            return {"status": "healthy"}
+
+        # Dashboard endpoints
+        dashboard_app = create_dashboard_app()
+        app.include_router(dashboard_app.router, prefix="/api")
+
+        return app
+
+    async def start(self):
+        """Start the Sunny core application."""
+        self.logger.info("Starting Project SUNNY...")
+        self.logger.info(
+            f"Environment: {self.settings.app_env}, Debug: {self.settings.debug}"
+        )
+
+        # Run FastAPI server
+        config = Config(
+            app=self.app,
+            host=self.settings.api_host,
+            port=self.settings.api_port,
+            log_level="info" if self.settings.debug else "warning",
+        )
+        server = Server(config)
+        await server.serve()
+
+    def run(self):
+        """Blocking run (for systemd/production)."""
+        asyncio.run(self.start())
+
+
+# Global app instance for uvicorn
+sunny = SunnyCore()
+app = sunny.app
+
+
+def main():
+    """Entry point."""
+    sunny.run()
+
+
+if __name__ == "__main__":
+    main()
