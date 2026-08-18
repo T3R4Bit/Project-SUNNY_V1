@@ -225,9 +225,9 @@ def create_console_router() -> APIRouter:
     <script>
         let lastNetStats = null;
 
-        async function updateStats() {
-            try {
-                const response = await fetch('/api/console/stats');
+        async function updateStats() {{
+            try {{
+                const response = await fetch('/console/api/stats');
                 const data = await response.json();
 
                 // Basic info
@@ -255,45 +255,45 @@ def create_console_router() -> APIRouter:
                 document.getElementById('disk-bar').classList.toggle('warning', diskPercent > 70);
 
                 // Temp
-                if (data.temp) {
+                if (data.temp) {{
                     const tempClass = data.temp > 80 ? 'critical' : data.temp > 60 ? 'warning' : '';
                     document.getElementById('temp').innerHTML =
                         '<span class="' + tempClass + '">' + data.temp.toFixed(1) + '°C</span>';
-                } else {
+                }} else {{
                     document.getElementById('temp').textContent = 'N/A';
-                }
+                }}
 
                 // Network
-                if (lastNetStats) {
+                if (lastNetStats) {{
                     const rxSpeed = ((data.net_rx - lastNetStats.rx) / 1024 / 1024).toFixed(2);
                     const txSpeed = ((data.net_tx - lastNetStats.tx) / 1024 / 1024).toFixed(2);
                     document.getElementById('net-rx').textContent = rxSpeed + ' MB/s';
                     document.getElementById('net-tx').textContent = txSpeed + ' MB/s';
-                } else {
+                }} else {{
                     document.getElementById('net-rx').textContent = 'Measuring...';
                     document.getElementById('net-tx').textContent = 'Measuring...';
-                }
-                lastNetStats = { rx: data.net_rx, tx: data.net_tx };
+                }}
+                lastNetStats = {{ rx: data.net_rx, tx: data.net_tx }};
 
                 // Top processes
                 const procDiv = document.getElementById('processes');
                 procDiv.innerHTML = '<div class="stat-line"><span class="label">TOP PROCESSES:</span></div>';
-                data.processes.slice(0, 5).forEach(p => {
+                data.processes.slice(0, 5).forEach(p => {{
                     const line = document.createElement('div');
                     line.className = 'stat-line';
                     line.textContent = '  ' + p.name.padEnd(30) + p.cpu.toFixed(1).padStart(6) + '% CPU  ' +
                                      p.ram.toFixed(1).padStart(6) + '% RAM';
                     procDiv.appendChild(line);
-                });
+                }});
 
                 // Timestamp
                 document.getElementById('timestamp').textContent =
                     new Date().toLocaleTimeString();
 
-            } catch (error) {
+            }} catch (error) {{
                 console.error('Error fetching stats:', error);
-            }
-        }
+            }}
+        }}
 
         // Update every 2 seconds
         updateStats();
