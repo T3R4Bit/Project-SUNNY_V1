@@ -30,6 +30,8 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "DESIGN.md",
+        "system-state.md",
         "phases.md",
         "README.md",
         "TASK_SYSTEM.md",
@@ -111,13 +113,7 @@
       "isPinned": false,
       "isHidden": false,
       "sortOrder": "custom",
-      "customOrder": [
-        "system-state.md"
-      ]
-    },
-    "state/system-state.md": {
-      "isPinned": false,
-      "isHidden": false
+      "customOrder": []
     },
     "docs/architecture/Mind-Map.md": {
       "isPinned": false,
@@ -128,6 +124,14 @@
       "isHidden": false
     },
     "docs/architecture/dashboard.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/system-state.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/DESIGN.md": {
       "isPinned": false,
       "isHidden": false
     }

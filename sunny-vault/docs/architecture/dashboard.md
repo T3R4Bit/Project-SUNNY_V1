@@ -338,11 +338,13 @@ def get_activity(limit: int = 50) -> list:
 
 ## Access from Phone
 
-1. Phone must be joined to Tailscale mesh
-2. Navigate to: `http://brain:5000/` or `http://100.1.1.2:5000/`
+1. Phone must be joined to Tailscale mesh (✅ done: iphone181 at 100.73.98.114)
+2. Navigate to: `http://sunshine-m700:5000/` or `http://100.117.41.53:5000/`
 3. See real-time metrics from anywhere (home or away)
 
 **Example**: Check spending while out of house via Tailscale DERP relay
+
+**Phase 1 Status**: Brain (Lenovo sunshine-m700) at 100.117.41.53, verified reachable via Tailscale (5ms latency)
 
 ---
 

@@ -1,54 +1,35 @@
 # 🌞 Project SUNNY — Quick Start Guide
 
-No need to manually activate venv anymore! Use these commands to get started.
+No need to manually activate venv anymore! Use the bash launcher.
 
-## Windows PowerShell
+## Linux / macOS / WSL
 
-```powershell
+```bash
+# Make executable (first time only)
+chmod +x run.sh
+
 # Start web server + chatbot UI (default)
-.\run.ps1
+./run.sh
 
 # Start chatbot web UI only
-.\run.ps1 chatbot
+./run.sh chatbot
 
 # Test systems
-.\run.ps1 test all
-.\run.ps1 test briefing
-.\run.ps1 test tasks
+./run.sh test all
+./run.sh test briefing
+./run.sh test tasks
 
 # Interactive CLIs
-.\run.ps1 cli briefing
-.\run.ps1 cli tasks
+./run.sh cli briefing
+./run.sh cli tasks
 
 # Dev shell (venv pre-activated)
-.\run.ps1 dev
-```
-
-## Windows Command Prompt (cmd.exe)
-
-```cmd
-REM Start web server
-run.bat
-
-REM Start chatbot
-run.bat chatbot
-
-REM Run tests
-run.bat test-briefing
-run.bat test-tasks
-run.bat test-all
-
-REM Interactive CLIs
-run.bat cli-briefing
-run.bat cli-tasks
-
-REM Dev mode
-run.bat dev
+./run.sh dev
 ```
 
 ## What Each Command Does
 
-### `.\run.ps1` or `run.bat`
+### `./run.sh`
 Starts FastAPI server with all endpoints:
 - Web server: `http://127.0.0.1:5000`
 - **Chatbot UI**: `http://127.0.0.1:5000/chatbot` ← Try this! 🤖
@@ -56,7 +37,7 @@ Starts FastAPI server with all endpoints:
 - Briefing API: `/api/briefing/morning`, `/api/briefing/evening`
 - Tasks API: `/api/tasks/list`, `/api/tasks/command`
 
-### `.\run.ps1 chatbot`
+### `./run.sh chatbot`
 Starts just the web server. Open browser to `http://127.0.0.1:5000/chatbot`
 
 **Try asking in the chatbot:**
@@ -66,7 +47,7 @@ Starts just the web server. Open browser to `http://127.0.0.1:5000/chatbot`
 - "What's the weather?" → Weather info
 - "Tell me about my day" → Briefing summary
 
-### `.\run.ps1 cli briefing`
+### `./run.sh cli briefing`
 Interactive CLI for testing briefing engine:
 ```
 You: morning
@@ -75,7 +56,7 @@ You: Tell me about my tasks
 You: exit
 ```
 
-### `.\run.ps1 cli tasks`
+### `./run.sh cli tasks`
 Interactive CLI for testing task system:
 ```
 You: !task add "Study physics" --tag School --priority 5 --due 2026-08-20
@@ -84,7 +65,7 @@ You: !task abc123 status done
 You: exit
 ```
 
-### `.\run.ps1 test all`
+### `./run.sh test all`
 Runs complete test suite for briefing and tasks systems:
 - Database operations (CRUD)
 - Command parsing
@@ -94,8 +75,8 @@ Runs complete test suite for briefing and tasks systems:
 ## After Git Pull
 
 No need for manual setup! Just run:
-```powershell
-.\run.ps1
+```bash
+./run.sh
 ```
 
 The launcher automatically:
@@ -142,18 +123,18 @@ Once the server is running, access from your phone:
 ## Troubleshooting
 
 **Port 5000 already in use?**
-- Edit `run.ps1` line: `--port 5001` (or any free port)
+- Edit `run.sh` line: `--port 5001` (or any free port)
 - Then access at `http://127.0.0.1:5001/chatbot`
 
 **venv issues?**
-```powershell
-Remove-Item venv -Recurse
-.\run.ps1
+```bash
+rm -rf venv
+./run.sh
 ```
 
 **Need to update Python packages?**
-```powershell
-.\run.ps1 dev
+```bash
+./run.sh dev
 pip install --upgrade -r requirements.txt
 exit
 ```
@@ -161,9 +142,8 @@ exit
 ## File Organization
 
 ```
-D:\Project-SUNNY\
-├── run.ps1              ← Use this (PowerShell)
-├── run.bat              ← Or this (Command Prompt)
+/path/to/Project-SUNNY/
+├── run.sh               ← Main launcher (bash)
 ├── sunny/               ← Main Python package
 ├── test_*.py            ← Test files
 └── requirements.txt     ← Python dependencies
@@ -171,10 +151,11 @@ D:\Project-SUNNY\
 
 ## Next Steps
 
-1. Try the chatbot: `.\run.ps1 chatbot`
-2. Open: `http://127.0.0.1:5000/chatbot`
-3. Type: `morning` and see morning briefing
-4. Type: `!tasks` and see your tasks
-5. Access from phone over Tailscale: `http://100.117.41.53:5000/chatbot`
+1. Make executable: `chmod +x run.sh`
+2. Try the chatbot: `./run.sh chatbot`
+3. Open: `http://127.0.0.1:5000/chatbot`
+4. Type: `morning` and see morning briefing
+5. Type: `!tasks` and see your tasks
+6. Access from phone over Tailscale: `http://100.117.41.53:5000/chatbot`
 
 Enjoy! 🌞

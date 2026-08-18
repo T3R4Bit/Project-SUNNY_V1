@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/phases.md",
+                "file": "docs/architecture/dashboard.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "phases"
+              "title": "dashboard"
             }
           }
         ]
@@ -191,13 +191,16 @@
   },
   "active": "1d01bc107c8fadf5",
   "lastOpenFiles": [
-    "docs/architecture/dashboard.md",
-    "docs/README.md",
     "docs/TASK_SYSTEM.md",
+    "docs/README.md",
+    "docs/phases.md",
+    "docs/system-state.md",
+    "docs/OBSIDIAN_SYNC_SETUP.md",
+    "docs/DESIGN.md",
     "docs/architecture/brain.md",
+    "docs/architecture/dashboard.md",
     "docs/architecture/clock.md",
     "docs/architecture/briefing-engine.md",
-    "docs/phases.md",
     "docs/phases.md.tmp.31200.535c4048b6ed",
     "docs/architecture/networking.md",
     "docs/architecture/voice-io.md",
@@ -215,7 +218,6 @@
     "archive/README.md",
     "docs/architecture/llm-integration.md.tmp.31200.9c3e040b4f78",
     "log/README.md",
-    "state/system-state.md",
     "reference/hardware-specs.md",
     "reference/design-principles.md",
     "reference/task-system.md",

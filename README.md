@@ -110,12 +110,23 @@ Hard spending caps enforced at provider accounts.
 
 ## Getting Started
 
-1. Install Ubuntu Server 26.04 LTS on Lenovo mini PC (skip Featured Server Snaps)
-2. Configure BIOS (restore power on AC loss, disable PXE)
-3. Set up Python venv and systemd unit with Restart=always
-4. Disable unattended-upgrades auto-reboot or pin to a window
-5. Join Tailscale mesh
-6. See `sunny-vault/docs/phases.md` for detailed build phases
+### Linux/macOS Quick Start
+```bash
+chmod +x run.sh
+./run.sh                    # Starts chatbot at http://127.0.0.1:5000/chatbot
+```
+
+### Full Setup
+See [SETUP_LINUX.md](SETUP_LINUX.md) for complete installation guide.
+
+### Lenovo Brain Deployment
+1. Install Ubuntu Server 20.04+ on Lenovo mini PC
+2. Clone this repo
+3. `chmod +x run.sh && ./run.sh` to start
+4. Create systemd service for auto-start (see SETUP_LINUX.md)
+5. Access via Tailscale from anywhere
+
+See `sunny-vault/docs/phases.md` for full build timeline.
 
 ---
 
