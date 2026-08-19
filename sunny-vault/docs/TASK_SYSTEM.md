@@ -42,7 +42,7 @@ Task {
 
 ## How It Works Today (Web Chatbot)
 
-Open `/chatbot` (or `/`, which redirects there) and just talk to it naturally — "add buy milk to my tasks", "show my tasks", "mark a1b2c3d4 as done". No command prefix required. The chatbot sends every message to one endpoint, which tries to parse it as a task command first and falls back to the briefing Q&A engine if it isn't one:
+Open `/chatbot` (or `/`, which redirects there) and just talk to it naturally — "add buy milk to my tasks", "show my tasks", "mark a1b2c3d4 as done". No command prefix required. Type **"help"** (or "commands"/"info", or just hit enter with nothing typed) any time for a capability summary. The chatbot sends every message to one endpoint, which checks for "help" first, then tries to parse it as a task command, then falls back to the briefing Q&A engine if it isn't either:
 
 ```
 POST /api/assistant/message?text=<message>
@@ -84,6 +84,7 @@ add <title> to my tasks
 add task <title>
 create task <title>
 new task <title>
+make a task <title>
 remind me to <title>
 
 Trailing flags still work if you want precision:
@@ -135,10 +136,11 @@ delete make pizza
 
 ### Referencing a Task by Title
 
-`mark`/`complete`/`finish`/`delete`/`remove` all accept a title instead of the ID shown at creation. Resolution order in `TaskEngine._resolve_task_id()`:
+`mark`/`complete`/`finish`/`delete`/`remove` all accept a title instead of the ID shown at creation — including filler phrasing like "finish task make pizza" (the leading "task"/"the task" gets stripped before lookup). Resolution order in `TaskEngine._resolve_task_id()`:
 1. Exact ID match (what legacy `!task` commands and the ID shown at creation always are)
 2. Exact title match (case-insensitive)
 3. Substring title match, only if exactly one task matches
+4. If nothing matched and the identifier starts with "task"/"the task"/"my task", strip that prefix and retry steps 2-3 once
 
 If a title matches more than one task at the same step, it returns an error listing the matching IDs instead of guessing:
 ```
@@ -217,11 +219,16 @@ NATURAL_ADD_TRIGGERS = [
     r'^add\s+(.+?)\s+to\s+(?:my\s+)?tasks?$',   # "add X to my tasks"
     r'^add\s+task[:\s]+(.+)$',                  # "add task X"
     r'^(?:create|new)\s+task[:\s]+(.+)$',       # "create task X" / "new task X"
+    r'^make\s+(?:a\s+|me\s+a\s+)?task[:\s]*(.*)$',  # "make a task X" (empty title → helpful error)
     r'^remind\s+me\s+to\s+(.+)$',               # "remind me to X"
+    r'^add\s+(.+)$',                            # bare "add X" catch-all, tried last
 ]
 NATURAL_LIST_PATTERN   # "show/list/see/view (my) tasks", "my tasks", "tasks", "what are my tasks"
-NATURAL_DONE_PATTERN   # "mark <id> as done", "complete <id>", "finish <id>"
-NATURAL_DELETE_PATTERN # "delete <id>", "remove <id> (from my tasks)"
+NATURAL_DONE_PATTERN   # "mark <id-or-title> as done", "complete <id-or-title>", "finish <id-or-title>"
+NATURAL_DELETE_PATTERN # "delete <id-or-title>", "remove <id-or-title> (from my tasks)"
+# TaskEngine._resolve_task_id() then strips a leading "task"/"the task" filler and
+# tries title matching if the raw identifier isn't a real ID — see "Referencing a
+# Task by Title" above.
 
 # Legacy !task syntax (still works, no longer required)
 TASK_ADD_PATTERN = r'!task\s+add\s+"([^"]+)"(.*)'       # title in quotes, flags follow
@@ -283,6 +290,8 @@ Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging c
 - [x] Task CRUD operations
 - [x] Dashboard formatter (`format_dashboard()`)
 - [x] REST API + web chatbot interface
+- [x] Title-based resolution for mark/complete/finish/delete (with filler-word handling)
+- [x] `help`/`commands`/`info` response in the chatbot
 - [ ] Discord bot setup + token env var
 - [ ] Discord embed dashboard builder
 - [ ] 5-minute refresh loop

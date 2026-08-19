@@ -30,9 +30,11 @@ No manual Python setup needed — `run.sh` creates and manages its own virtual e
 ## Try in Chatbot
 
 ```
+help                       → What Sunny can do
 morning                    → Morning briefing
 show my tasks              → List tasks
 add Title to my tasks      → Create task
+mark Title as done         → Complete a task
 What's the weather?        → Weather info
 ```
 

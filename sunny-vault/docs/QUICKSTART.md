@@ -56,9 +56,11 @@ No manual Python environment setup required — `run.sh` creates and manages its
 In the chatbot, type:
 
 ```
+help                             → What Sunny can do
 morning                          → Morning briefing
 show my tasks                    → List tasks
 add Title to my tasks            → Create task (append --priority 5 etc. if you want)
+mark Title as done               → Complete a task (by ID or title)
 What's the weather?              → Ask a question
 Tell me about tomorrow           → Tomorrow preview
 ```
