@@ -263,11 +263,11 @@ def create_chatbot_router() -> APIRouter:
         const messagesDiv = document.getElementById('messages');
         const input = document.getElementById('input');
 
-        input.addEventListener('keypress', (e) => {{
+        input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendMessage();
-        }});
+        });
 
-        async function sendMessage() {{
+        async function sendMessage() {
             const text = input.value.trim();
             if (!text) return;
 
@@ -280,22 +280,22 @@ def create_chatbot_router() -> APIRouter:
             messagesDiv.appendChild(typingMsg);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
-            try {{
+            try {
                 let endpoint, params;
 
-                if (text.startsWith('!')) {{
+                if (text.startsWith('!')) {
                     endpoint = '/api/tasks/command';
-                    params = {{ cmd: text }};
-                }} else if (text.toLowerCase() === 'morning' || text.toLowerCase() === 'morning briefing') {{
+                    params = { cmd: text };
+                } else if (text.toLowerCase() === 'morning' || text.toLowerCase() === 'morning briefing') {
                     endpoint = '/api/briefing/morning';
-                    params = {{}};
-                }} else if (text.toLowerCase() === 'evening' || text.toLowerCase() === 'evening briefing') {{
+                    params = {};
+                } else if (text.toLowerCase() === 'evening' || text.toLowerCase() === 'evening briefing') {
                     endpoint = '/api/briefing/evening';
-                    params = {{}};
-                }} else {{
+                    params = {};
+                } else {
                     endpoint = '/api/briefing/ask';
-                    params = {{ q: text }};
-                }}
+                    params = { q: text };
+                }
 
                 const url = new URL(endpoint, window.location.origin);
                 Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
@@ -306,43 +306,43 @@ def create_chatbot_router() -> APIRouter:
                 messagesDiv.removeChild(typingMsg);
 
                 let botText = '';
-                if (data.message) {{
+                if (data.message) {
                     botText = data.message;
-                }} else if (data.response) {{
+                } else if (data.response) {
                     botText = data.response;
-                }} else if (data.content) {{
+                } else if (data.content) {
                     botText = data.content;
-                }} else if (data.dashboard) {{
+                } else if (data.dashboard) {
                     botText = data.dashboard;
-                }} else {{
+                } else {
                     botText = JSON.stringify(data, null, 2);
-                }}
+                }
 
                 addMessage(botText, 'bot');
-            }} catch (error) {{
+            } catch (error) {
                 messagesDiv.removeChild(typingMsg);
                 addMessage('ERROR: ' + error.message, 'bot');
-            }}
-        }}
+            }
+        }
 
-        function addMessage(text, sender) {{
+        function addMessage(text, sender) {
             const msg = document.createElement('div');
             msg.className = 'message ' + sender;
             msg.innerHTML = '<div class="bubble">' + escapeHtml(text) + '</div>';
             messagesDiv.appendChild(msg);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }}
+        }
 
-        function escapeHtml(text) {{
+        function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
-        }}
+        }
 
-        window.addEventListener('load', () => {{
+        window.addEventListener('load', () => {
             addMessage('Welcome to Project SUNNY', 'bot');
             addMessage('Try: "morning" for briefing, "!tasks" for your tasks, or ask a question', 'bot');
-        }});
+        });
     </script>
 </body>
 </html>
