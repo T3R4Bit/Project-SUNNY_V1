@@ -141,11 +141,12 @@ exit  # Exit dev mode
 - Mock data built-in (no API keys needed for testing)
 
 ### ✅ Task Management
-- Create: `!task add "Title" --tag School --priority 5`
-- Update: `!task abc123 status done`
-- Delete: `!task abc123 delete`
+- Create: `add Title to my tasks` (append `--tag School --priority 5` etc. for precision)
+- Update: `mark abc123 as done`
+- Delete: `delete abc123`
 - Filter: By tag, status, priority, due date
 - Dashboard: View all tasks organized by category
+- No command prefix required — plain natural phrasing, deterministic regex parsing, no LLM
 
 ### 📊 API Endpoints
 - `/api/briefing/morning` — Get morning briefing
@@ -299,7 +300,7 @@ Project-SUNNY/
 1. ✓ Run `./run.sh` to start
 2. ✓ Open `http://127.0.0.1:5000` in browser
 3. ✓ Type "morning" to see briefing
-4. ✓ Type "!tasks" to see task list
+4. ✓ Type "show my tasks" to see task list
 5. ✓ Check `/console` for live system stats
 6. ✓ Deploy to Lenovo brain for 24/7 access
 7. ✓ Access from phone over Tailscale

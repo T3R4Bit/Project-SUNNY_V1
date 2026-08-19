@@ -21,7 +21,7 @@ def create_tasks_router() -> APIRouter:
     engine = TaskEngine(db)
 
     @router.post("/command")
-    async def execute_command(cmd: str = Query(..., description="Task command (!task add, etc.)")):
+    async def execute_command(cmd: str = Query(..., description='Task command, e.g. "add buy milk to my tasks" or "show my tasks"')):
         """Execute a task command."""
         success, message = await engine.execute_command(cmd)
         return {

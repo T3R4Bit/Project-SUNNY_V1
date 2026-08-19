@@ -1,26 +1,36 @@
-"""Briefing engine with comprehensive hardcoded templates and Q&A support."""
+"""Briefing engine with hardcoded templates, real task data, and honest Q&A support.
+
+Tasks are real (queried straight from tasks.db). Weather, calendar, email, commute,
+health, news, and motorsports have no live API wired up yet, so sections/questions
+about them say so explicitly instead of pretending mock data is real — and every
+time that happens, it gets logged to sunny-vault/log/requests.md.
+"""
 
 import logging
-import re
 from datetime import datetime
 from typing import Dict, List, Optional
-from sunny.components.briefing_data import (
-    MockWeatherData,
-    MockCalendarData,
-    MockEmailData,
-    MockTaskData,
-    MockTrafficData,
-    MockHealthData,
-    MockNewsData,
-    MockMotorsportsData,
-)
+
+from sunny.config import get_settings
+from sunny.components.tasks_db import TaskDB
+from sunny.components.data_sources import is_configured, missing_requirement
+from sunny.components.request_log import log_unfulfilled
 
 
 logger = logging.getLogger(__name__)
 
+_TOPIC_LABELS = {
+    "weather": "🌤️  WEATHER FORECAST",
+    "calendar": "📅 YOUR SCHEDULE",
+    "email": "📧 EMAIL SUMMARY",
+    "commute": "🚗 COMMUTE INFORMATION",
+    "health": "❤️  WELLNESS STATUS",
+    "motorsports": "🏁 MOTORSPORTS UPDATE",
+    "news": "📰 TODAY'S HEADLINES",
+}
+
 
 class BriefingTemplates:
-    """Comprehensive hardcoded briefing templates."""
+    """Hardcoded briefing templates. Real data where it exists, honest gaps where it doesn't."""
 
     @staticmethod
     def format_time_list(events: List[Dict], key: str = "time") -> str:
@@ -46,34 +56,40 @@ class BriefingTemplates:
         return "\n".join(lines)
 
     @staticmethod
-    def morning_briefing() -> str:
-        """Comprehensive morning briefing."""
+    def _note(source: str) -> Optional[str]:
+        """'Not connected' note for a source, or None if it's real."""
+        if is_configured(source):
+            return None
+        return f"⚠️  Not connected — {missing_requirement(source)}"
+
+    @staticmethod
+    def morning_briefing(tasks_db: TaskDB) -> str:
+        """Morning briefing: real tasks, honest gaps everywhere else."""
         now = datetime.now()
         date_str = now.strftime("%A, %B %d, %Y")
-        day_of_week = now.strftime("%A")
 
-        weather = MockWeatherData.get_forecast()
-        events = MockCalendarData.get_today_events()
-        emails = MockEmailData.get_summary()
-        tasks = MockTaskData.get_today()
-        commute = MockTrafficData.get_commute()
-        health = MockHealthData.get_stats()
-        news = MockNewsData.get_headlines()
+        unconfigured = []
 
-        # Format email summary
-        email_str = f"{emails['urgent']} urgent, {emails['action_items']} action items, {emails['fyi']} for your information"
+        def note(source: str) -> str:
+            n = BriefingTemplates._note(source)
+            if n:
+                unconfigured.append(source)
+                return n
+            return ""
 
-        # Format tasks
-        pending = [t for t in tasks if t["status"] == "pending"]
-        in_progress = [t for t in tasks if t["status"] == "in_progress"]
-        task_count = len(pending) + len(in_progress)
-        task_str = f"{len(in_progress)} in progress, {len(pending)} pending — {task_count} total today"
+        weather_note = note("weather")
+        calendar_note = note("calendar")
+        email_note = note("email")
+        commute_note = note("commute")
+        health_note = note("health")
+        news_note = note("news")
+        motorsports_note = note("motorsports")
 
-        # Format commute
-        commute_str = (
-            f"{commute['route']}: normally {commute['normal']}, "
-            f"currently {commute['current']} ({commute['status']})"
-        )
+        open_tasks = tasks_db.get_open_tasks()
+        in_progress = tasks_db.get_in_progress_tasks()
+        task_count = len(open_tasks) + len(in_progress)
+        top = (in_progress + open_tasks)[0] if (in_progress or open_tasks) else None
+        task_str = f"{len(in_progress)} in progress, {len(open_tasks)} open — {task_count} total"
 
         briefing = f"""
 === PROJECT SUNNY — MORNING BRIEFING ===
@@ -83,61 +99,69 @@ Good morning, Keaton! Here's your day at a glance.
 📅 TODAY: {date_str}
 
 🌤️  WEATHER
-   Current: {weather['temp']}°F, {weather['condition']}
-   High: {weather['high']}°F | Low: {weather['low']}°F
-   Humidity: {weather['humidity']}% | Wind: {weather['wind_speed']} mph
-   UV Index: {weather['uv_index']} | Sunrise: {weather['sunrise']} | Sunset: {weather['sunset']}
+   {weather_note}
 
 📍 COMMUTE
-   {commute_str}
+   {commute_note}
 
-📅 TODAY'S SCHEDULE ({len(events)} events)
-{BriefingTemplates.format_time_list(events)}
+📅 TODAY'S SCHEDULE
+   {calendar_note}
 
-📧 EMAIL ({emails['total']} new)
-   {email_str}
+📧 EMAIL
+   {email_note}
 
 ✅ TASKS ({task_count} total)
    {task_str}
-   Top priority: {in_progress[0]['title'] if in_progress else pending[0]['title'] if pending else 'None'}
+   Top priority: {top['title'] if top else 'None'}
 
 ❤️  WELLNESS
-   Sleep last night: {health['sleep_last_night']} ({health['sleep_quality']})
-   Steps: {health['steps_today']} of {health['steps_goal']}
-   Water: {health['water_intake']}
-   Mood: {health['mood']}
+   {health_note}
 
-📰 HEADLINES (selected for you)
-{chr(10).join(f"   • {h}" for h in news[:3])}
+📰 HEADLINES
+   {news_note}
 
 🏁 MOTORSPORTS
-{chr(10).join(f"   • {u.get('headline', u.get('event'))}" for u in MockMotorsportsData.get_updates()[:2])}
+   {motorsports_note}
 
 🎯 YOUR DAY AHEAD
-   1. Focus on {in_progress[0]['title'] if in_progress else pending[0]['title'] if pending else 'your tasks'}
-   2. Attend {events[0]['title'] if events else 'your first meeting'} at {events[0]['time'] if events else '9 AM'}
-   3. Keep an eye on email ({emails['urgent']} urgent items need response)
-   4. Hydration reminder: {health['water_intake']}
-   5. Exercise planned: {health['exercise']}
+   1. Focus on: {top['title'] if top else 'nothing on your task list right now'}
+   2. {len(unconfigured)} section(s) above need a real data source connected — logged to sunny-vault/log/requests.md
 
 Have a productive day! ☀️
 """
+        if unconfigured:
+            log_unfulfilled(
+                "morning_briefing",
+                f"sections without a real data source: {', '.join(unconfigured)}",
+            )
+
         return briefing
 
     @staticmethod
-    def evening_briefing() -> str:
-        """Comprehensive evening briefing."""
+    def evening_briefing(tasks_db: TaskDB) -> str:
+        """Evening briefing: real tasks, honest gaps everywhere else."""
         now = datetime.now()
         date_str = now.strftime("%A, %B %d, %Y")
+        today_prefix = now.strftime("%Y-%m-%d")
 
-        completed = MockTaskData.get_completed()
-        tasks = MockTaskData.get_today()
-        tomorrow_events = MockCalendarData.get_tomorrow_events()
-        weather = MockWeatherData.get_forecast()
-        health = MockHealthData.get_stats()
+        unconfigured = []
 
-        pending = [t for t in tasks if t["status"] == "pending"]
-        completed_count = len(completed)
+        def note(source: str) -> str:
+            n = BriefingTemplates._note(source)
+            if n:
+                unconfigured.append(source)
+                return n
+            return ""
+
+        calendar_note = note("calendar")
+        weather_note = note("weather")
+        health_note = note("health")
+
+        open_tasks = tasks_db.get_open_tasks()
+        done_today = [
+            t for t in tasks_db.get_done_tasks()
+            if (t.get("updated_at") or "").startswith(today_prefix)
+        ]
 
         briefing = f"""
 === PROJECT SUNNY — EVENING BRIEFING ===
@@ -147,194 +171,105 @@ Good evening, Keaton. Here's your day recap.
 📅 TODAY: {date_str}
 
 🎉 WHAT YOU ACCOMPLISHED
-   • {completed_count} tasks completed today
-{chr(10).join(f"   ✓ {c}" for c in completed[:5])}
+   • {len(done_today)} tasks completed today
+{chr(10).join(f"   ✓ {t['title']}" for t in done_today[:5])}
 
-📋 WHAT'S STILL PENDING ({len(pending)} items)
-{chr(10).join(f"   ◯ {t['title']}" for t in pending[:5])}
+📋 WHAT'S STILL PENDING ({len(open_tasks)} items)
+{chr(10).join(f"   ◯ {t['title']}" for t in open_tasks[:5]) if open_tasks else "   (none)"}
 
-⏰ TOMORROW AT A GLANCE ({len(tomorrow_events)} events)
-{BriefingTemplates.format_time_list(tomorrow_events) if tomorrow_events else "   Rest day scheduled"}
+⏰ TOMORROW AT A GLANCE
+   {calendar_note}
 
 🌤️  TOMORROW'S WEATHER
-   Current forecast: {weather['temp']}°F, {weather['condition']}
-   High: {weather['high']}°F | Low: {weather['low']}°F
-   Plan accordingly!
+   {weather_note}
 
 ❤️  TODAY'S WELLNESS
-   Sleep quality last night: {health['sleep_quality']}
-   Steps taken: {health['steps_today']} of {health['steps_goal']}
-   Water intake: {health['water_intake']}
-   Overall mood: {health['mood']}
-
-🎯 EVENING GOALS
-   1. ✅ Review {completed_count} tasks completed
-   2. 📝 Plan tomorrow: {len(tomorrow_events)} events confirmed
-   3. 🌙 Wind down routine at 10:30 PM
-   4. 💤 Aim for 8 hours of sleep
-   5. 📱 Device off 30 min before bed
-
-✨ REFLECTION
-   You had a solid day with {completed_count} tasks completed.
-   {len(pending)} items remain—prioritize these for tomorrow.
-   Great work on staying active with {health['steps_today']} steps!
+   {health_note}
 
 Sleep well and rest up for tomorrow! 🌙
 """
+        if unconfigured:
+            log_unfulfilled(
+                "evening_briefing",
+                f"sections without a real data source: {', '.join(unconfigured)}",
+            )
+
         return briefing
 
     @staticmethod
-    def custom_briefing(question: str) -> str:
-        """Generate response to a custom question."""
+    def custom_briefing(question: str, tasks_db: TaskDB) -> str:
+        """Answer a question with real data if we have it, an honest gap if we don't."""
         question_lower = question.lower().strip()
+
+        def unconfigured_reply(source: str, label: Optional[str] = None) -> str:
+            log_unfulfilled("qa_question", f'"{question}" — {missing_requirement(source)}')
+            return f"""
+{label or _TOPIC_LABELS[source]}
+
+{BriefingTemplates._note(source)}
+"""
 
         # Weather questions
         if any(w in question_lower for w in ["weather", "forecast", "temperature", "rain", "sunny"]):
-            weather = MockWeatherData.get_forecast()
-            return f"""
-🌤️  WEATHER FORECAST
-
-Current conditions:
-• Temperature: {weather['temp']}°F ({weather['condition']})
-• High/Low: {weather['high']}°F / {weather['low']}°F
-• Humidity: {weather['humidity']}%
-• Wind: {weather['wind_speed']} mph
-• UV Index: {weather['uv_index']}
-• Sunrise: {weather['sunrise']} | Sunset: {weather['sunset']}
-
-Recommendation: {"Bring an umbrella" if "rain" in weather['condition'].lower() else "No rain expected today"}
-"""
+            return unconfigured_reply("weather")
 
         # Calendar/Schedule questions
         elif any(s in question_lower for s in ["calendar", "schedule", "event", "meeting", "appointment", "when"]):
-            events = MockCalendarData.get_today_events()
-            return f"""
-📅 YOUR SCHEDULE
-
-Today's events ({len(events)} total):
-{BriefingTemplates.format_time_list(events)}
-
-Next event: {events[0]['title'] if events else 'No events scheduled'} at {events[0]['time'] if events else 'N/A'}
-"""
+            return unconfigured_reply("calendar")
 
         # Email questions
         elif any(e in question_lower for e in ["email", "mail", "inbox", "message"]):
-            emails = MockEmailData.get_summary()
-            details = MockEmailData.get_details()
-            return f"""
-📧 EMAIL SUMMARY
+            return unconfigured_reply("email")
 
-New emails: {emails['total']}
-• Urgent: {emails['urgent']} messages
-• Action items: {emails['action_items']} messages
-• For your information: {emails['fyi']} messages
-
-Urgent emails from:
-{chr(10).join(f"  • {e['sender']}: {e['subject']}" for e in details['urgent'][:2])}
-
-Action items:
-{chr(10).join(f"  • {e['sender']}: {e['subject']}" for e in details['action_items'][:2])}
-"""
-
-        # Task questions
+        # Task questions — real data
         elif any(t in question_lower for t in ["task", "todo", "checklist", "assignment"]):
-            tasks = MockTaskData.get_today()
-            pending = [t for t in tasks if t["status"] == "pending"]
-            in_progress = [t for t in tasks if t["status"] == "in_progress"]
+            open_tasks = tasks_db.get_open_tasks()
+            in_progress = tasks_db.get_in_progress_tasks()
             return f"""
 ✅ YOUR TASKS
 
 In progress ({len(in_progress)}):
-{chr(10).join(f"  → {t['title']}" for t in in_progress)}
+{chr(10).join(f"  → {t['title']}" for t in in_progress) if in_progress else "  (none)"}
 
-Pending ({len(pending)}):
-{chr(10).join(f"  ◯ {t['title']} (due {t['due']})" for t in pending[:5])}
+Open ({len(open_tasks)}):
+{chr(10).join(f"  ◯ {t['title']}" + (f" (due {t['due_date']})" if t['due_date'] else "") for t in open_tasks[:5]) if open_tasks else "  (none)"}
 
-Total: {len(tasks)} tasks today
+Total: {len(open_tasks) + len(in_progress)} tasks
 """
 
         # Commute/Traffic questions
         elif any(c in question_lower for c in ["traffic", "commute", "drive", "route", "travel"]):
-            commute = MockTrafficData.get_commute()
-            return f"""
-🚗 COMMUTE INFORMATION
-
-Route: {commute['route']}
-Normal travel time: {commute['normal']}
-Current travel time: {commute['current']}
-Status: {commute['status']}
-
-Recommendation: {"Leave now if you haven't started" if "Heavy" in commute['status'] else "You have time to go"}
-"""
+            return unconfigured_reply("commute")
 
         # Health/Wellness questions
         elif any(h in question_lower for h in ["health", "wellness", "sleep", "exercise", "step", "mood"]):
-            health = MockHealthData.get_stats()
-            return f"""
-❤️  WELLNESS STATUS
-
-Sleep: {health['sleep_last_night']} ({health['sleep_quality']})
-Activity: {health['steps_today']} steps (goal: {health['steps_goal']})
-Hydration: {health['water_intake']}
-Exercise: {health['exercise']}
-Mood: {health['mood']}
-
-Wellness tip: Keep up the hydration and you're on pace for your daily steps!
-"""
+            return unconfigured_reply("health")
 
         # Motorsports questions
         elif any(m in question_lower for m in ["motorsport", "racing", "formula", "motogp", "f1", "nascar"]):
-            updates = MockMotorsportsData.get_updates()
-            return f"""
-🏁 MOTORSPORTS UPDATE
-
-{chr(10).join(f"  • {u.get('headline', u.get('event', 'Racing update'))}" for u in updates)}
-
-Stay tuned for the next race weekend!
-"""
+            return unconfigured_reply("motorsports")
 
         # News questions
         elif any(n in question_lower for n in ["news", "headline", "update"]):
-            news = MockNewsData.get_headlines()
-            return f"""
-📰 TODAY'S HEADLINES
-
-{chr(10).join(f"  • {h}" for h in news)}
-
-Curated for your interests.
-"""
+            return unconfigured_reply("news")
 
         # Tomorrow questions
         elif "tomorrow" in question_lower:
-            tomorrow_events = MockCalendarData.get_tomorrow_events()
-            return f"""
-📅 TOMORROW'S PREVIEW
+            return unconfigured_reply("calendar", label="📅 TOMORROW'S PREVIEW")
 
-Tomorrow's schedule ({len(tomorrow_events)} events):
-{BriefingTemplates.format_time_list(tomorrow_events)}
-
-Weather: {MockWeatherData.get_forecast()['temp']}°F and {MockWeatherData.get_forecast()['condition'].lower()}
-
-Prepare: Get good sleep tonight!
-"""
-
-        # Default response
+        # Default response — genuinely don't understand the question
         else:
+            log_unfulfilled("qa_question", f'"{question}" — not understood, no matching topic')
             return f"""
-I understood your question: "{question}"
+I don't have a real answer for: "{question}"
 
-Available topics I can brief you on:
-• Weather & forecast
-• Your calendar & schedule
-• Email & messages
-• Tasks & to-do list
-• Commute & traffic
-• Health & wellness
-• Motorsports news
-• General headlines
-• Tomorrow's preview
+I can give you real data on:
+• Tasks (open, in progress, due soon)
 
-Try asking: "What's the weather?" or "Tell me about my schedule"
+These need a data source connected before I can answer for real:
+• Weather, calendar, email, commute, health, motorsports, news
+
+Try asking about tasks — or check sunny-vault/log/requests.md, every question I can't answer for real gets logged there.
 """
 
 
@@ -343,18 +278,20 @@ class BriefingEngine:
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        settings = get_settings()
+        self.tasks_db = TaskDB(settings.project_root / "tasks.db")
 
     async def generate_morning_briefing(self) -> str:
-        """Generate comprehensive morning briefing."""
+        """Generate morning briefing."""
         self.logger.info("Generating morning briefing...")
-        return BriefingTemplates.morning_briefing()
+        return BriefingTemplates.morning_briefing(self.tasks_db)
 
     async def generate_evening_briefing(self) -> str:
-        """Generate comprehensive evening briefing."""
+        """Generate evening briefing."""
         self.logger.info("Generating evening briefing...")
-        return BriefingTemplates.evening_briefing()
+        return BriefingTemplates.evening_briefing(self.tasks_db)
 
     async def answer_question(self, question: str) -> str:
         """Answer a natural language question about today's data."""
         self.logger.info(f"Processing question: {question}")
-        return BriefingTemplates.custom_briefing(question)
+        return BriefingTemplates.custom_briefing(question, self.tasks_db)

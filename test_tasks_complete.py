@@ -121,8 +121,8 @@ async def test_command_parser():
 
     parser = TaskCommandParser()
 
-    # Test add command
-    print("\n1️⃣  Testing PARSE ADD...")
+    # Test add command (legacy !task syntax)
+    print("\n1️⃣  Testing PARSE ADD (legacy !task syntax)...")
     success, data = parser.parse_add_command(
         '!task add "Finish homework" --tag School --priority 5 --due 2026-08-20'
     )
@@ -130,6 +130,31 @@ async def test_command_parser():
     assert data["title"] == "Finish homework"
     assert data["tag"] == "School"
     assert data["priority"] == 5
+    print(f"   ✓ Parsed: {data}")
+
+    # Test add command (natural phrasing — primary UX today)
+    print("\n1️⃣b Testing PARSE ADD (natural phrasing)...")
+    cmd_type, success, data = parser.parse_command(
+        "add finish homework to my tasks --tag School --priority 5 --due 2026-08-20"
+    )
+    assert cmd_type == "add" and success
+    assert data["title"] == "finish homework"
+    assert data["tag"] == "School"
+    assert data["priority"] == 5
+    print(f"   ✓ Parsed: {data}")
+
+    cmd_type, success, data = parser.parse_command("show my tasks")
+    assert cmd_type == "list" and success
+    print(f"   ✓ Parsed natural list command")
+
+    cmd_type, success, data = parser.parse_command("mark abc123 as done")
+    assert cmd_type == "update" and success
+    assert data == {"task_id": "abc123", "field": "status", "value": "done"}
+    print(f"   ✓ Parsed: {data}")
+
+    cmd_type, success, data = parser.parse_command("delete abc123")
+    assert cmd_type == "delete" and success
+    assert data["task_id"] == "abc123"
     print(f"   ✓ Parsed: {data}")
 
     # Test update command
@@ -231,11 +256,22 @@ async def test_http_api():
     time.sleep(2)
 
     try:
-        # Test command endpoint
-        print("\n2️⃣  Testing POST /api/tasks/command...")
+        # Test command endpoint (legacy !task syntax)
+        print("\n2️⃣  Testing POST /api/tasks/command (legacy !task syntax)...")
         response = requests.post(
             "http://127.0.0.1:5002/api/tasks/command",
             params={"cmd": '!task add "Test task" --tag General --priority 3'},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"]
+        print(f"   ✓ Command executed: {data['message'].split(chr(10))[0]}")
+
+        # Test command endpoint (natural phrasing)
+        print("\n2️⃣b Testing POST /api/tasks/command (natural phrasing)...")
+        response = requests.post(
+            "http://127.0.0.1:5002/api/tasks/command",
+            params={"cmd": "add another test task to my tasks --tag General --priority 3"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -305,19 +341,20 @@ Try the interactive CLI:
 Features implemented:
   ✓ SQLite task database (CRUD operations)
   ✓ Hardcoded command parser (no LLM needed)
-  ✓ Discord-style commands (!task add, !task update, etc.)
+  ✓ Natural language commands (add X to my tasks, show my tasks, mark X as done)
+  ✓ Legacy !task/!tasks syntax still supported underneath
   ✓ Filtering by tag, status, priority, due date
   ✓ Task statistics and dashboard
   ✓ HTTP API endpoints
   ✓ Task validation and error handling
 
 Try these commands:
-  !task add "Finish homework" --tag School --priority 5 --due 2026-08-20
-  !task add "Engine rebuild" --tag Motorsports --priority 4
-  !tasks
-  !tasks --tag School
-  !tasks --priority 4
-  !tasks --due-soon
+  add finish homework to my tasks --tag School --priority 5 --due 2026-08-20
+  add engine rebuild to my tasks --tag Motorsports --priority 4
+  show my tasks
+  list tasks --tag School
+  list tasks --priority 4
+  list tasks --due-soon
 
 Next steps:
   1. Integrate with Discord bot (Discord.py)

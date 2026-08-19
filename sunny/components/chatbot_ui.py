@@ -1,12 +1,14 @@
 """Web-based chatbot UI served over Tailscale."""
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, RedirectResponse
 import logging
 import asyncio
 
+from sunny.components.briefing import BriefingEngine
 from sunny.components.tasks_engine import TaskEngine
 from sunny.components.tasks_db import TaskDB
+from sunny.components.tasks_parser import TaskCommandParser
 from sunny.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -20,11 +22,36 @@ def create_chatbot_router() -> APIRouter:
     settings = get_settings()
     tasks_db = TaskDB(settings.project_root / "tasks.db")
     tasks_engine = TaskEngine(tasks_db)
+    briefing_engine = BriefingEngine()
 
     @router.get("/")
     async def root():
         """Redirect root to the chatbot UI."""
         return RedirectResponse(url="/chatbot")
+
+    @router.post("/api/assistant/message")
+    async def assistant_message(text: str = Query(..., description="Free-text message from the chatbot")):
+        """Single entry point for the chatbot: task commands (natural or legacy !task) go
+        to the task engine, morning/evening keywords trigger a briefing, everything else
+        goes to the briefing Q&A engine."""
+        stripped = text.strip()
+        lowered = stripped.lower()
+
+        cmd_type, _, _ = TaskCommandParser.parse_command(stripped)
+        if cmd_type != "unknown":
+            success, message = await tasks_engine.execute_command(stripped)
+            return {"response": message}
+
+        if lowered in ("morning", "morning briefing"):
+            content = await briefing_engine.generate_morning_briefing()
+            return {"response": content}
+
+        if lowered in ("evening", "evening briefing"):
+            content = await briefing_engine.generate_evening_briefing()
+            return {"response": content}
+
+        response = await briefing_engine.answer_question(stripped)
+        return {"response": response}
 
     @router.get("/chatbot")
     async def chatbot_ui():
@@ -399,8 +426,8 @@ def create_chatbot_router() -> APIRouter:
         <div class="chips" id="chips">
             <button class="chip" data-cmd="morning" data-send="1">&#9728;&#65039; Morning</button>
             <button class="chip" data-cmd="evening" data-send="1">&#127769; Evening</button>
-            <button class="chip" data-cmd="!tasks" data-send="1">&#10003; Tasks</button>
-            <button class="chip" data-cmd='!task add &quot;' data-send="0">&#65291; Add task</button>
+            <button class="chip" data-cmd="show my tasks" data-send="1">&#10003; Tasks</button>
+            <button class="chip" data-cmd="add " data-send="0">&#65291; Add task</button>
         </div>
 
         <div class="messages" id="messages"></div>
@@ -475,44 +502,15 @@ def create_chatbot_router() -> APIRouter:
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
             try {
-                let endpoint, params, method = 'GET';
+                const url = new URL('/api/assistant/message', window.location.origin);
+                url.searchParams.append('text', text);
 
-                if (text.startsWith('!')) {
-                    endpoint = '/api/tasks/command';
-                    params = { cmd: text };
-                    method = 'POST';
-                } else if (text.toLowerCase() === 'morning' || text.toLowerCase() === 'morning briefing') {
-                    endpoint = '/api/briefing/morning';
-                    params = {};
-                } else if (text.toLowerCase() === 'evening' || text.toLowerCase() === 'evening briefing') {
-                    endpoint = '/api/briefing/evening';
-                    params = {};
-                } else {
-                    endpoint = '/api/briefing/ask';
-                    params = { q: text };
-                }
-
-                const url = new URL(endpoint, window.location.origin);
-                Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
-
-                const response = await fetch(url, { method });
+                const response = await fetch(url, { method: 'POST' });
                 const data = await response.json();
 
                 messagesDiv.removeChild(typingMsg);
 
-                let botText = '';
-                if (data.message) {
-                    botText = data.message;
-                } else if (data.response) {
-                    botText = data.response;
-                } else if (data.content) {
-                    botText = data.content;
-                } else if (data.dashboard) {
-                    botText = data.dashboard;
-                } else {
-                    botText = JSON.stringify(data, null, 2);
-                }
-
+                const botText = data.response || JSON.stringify(data, null, 2);
                 addMessage(botText, 'bot');
             } catch (error) {
                 messagesDiv.removeChild(typingMsg);

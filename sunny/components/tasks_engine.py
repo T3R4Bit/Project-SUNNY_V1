@@ -6,6 +6,7 @@ from datetime import datetime
 
 from sunny.components.tasks_db import TaskDB
 from sunny.components.tasks_parser import TaskCommandParser
+from sunny.components.request_log import log_unfulfilled
 
 logger = logging.getLogger(__name__)
 
@@ -23,21 +24,29 @@ class TaskEngine:
             cmd_type, success, data = self.parser.parse_command(command)
 
             if not success:
-                return False, f"❌ {data.get('error', 'Invalid command')}"
+                error = data.get("error", "Invalid command")
+                log_unfulfilled("task_command", f'"{command}" — {error}')
+                return False, f"❌ {error}"
 
             if cmd_type == "add":
-                return await self._execute_add(data)
+                result = await self._execute_add(data)
             elif cmd_type == "update":
-                return await self._execute_update(data)
+                result = await self._execute_update(data)
             elif cmd_type == "delete":
-                return await self._execute_delete(data)
+                result = await self._execute_delete(data)
             elif cmd_type == "list":
-                return await self._execute_list(data)
+                result = await self._execute_list(data)
             else:
-                return False, "❌ Unknown command type"
+                result = (False, "❌ Unknown command type")
+
+            success, message = result
+            if not success:
+                log_unfulfilled("task_command", f'"{command}" — {message}')
+            return result
 
         except Exception as e:
             logger.error(f"Command execution error: {e}")
+            log_unfulfilled("task_command", f'"{command}" — {e}')
             return False, f"❌ Error: {str(e)}"
 
     async def _execute_add(self, data: Dict) -> Tuple[bool, str]:

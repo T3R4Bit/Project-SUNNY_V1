@@ -7,7 +7,7 @@ Task management with hardcoded logic (no LLM required). **Discord is the intende
 | Piece | Status |
 |-------|--------|
 | SQLite storage + CRUD | ✅ Built (`sunny/components/tasks_db.py`) |
-| Command parser (`!task`/`!tasks` syntax) | ✅ Built (`sunny/components/tasks_parser.py`) |
+| Command parser (natural phrasing, no LLM) | ✅ Built (`sunny/components/tasks_parser.py`) |
 | Task engine (command execution, dashboard formatting) | ✅ Built (`sunny/components/tasks_engine.py`) |
 | REST API | ✅ Built (`sunny/components/tasks_api.py`) |
 | Web chatbot interface (`/chatbot`) | ✅ Built — current primary way to use the task system |
@@ -42,15 +42,16 @@ Task {
 
 ## How It Works Today (Web Chatbot)
 
-Open `/chatbot` (or `/`, which redirects there) and type the same `!task`/`!tasks` commands described below. The chatbot's JS sends them to the REST API under the hood:
+Open `/chatbot` (or `/`, which redirects there) and just talk to it naturally — "add buy milk to my tasks", "show my tasks", "mark a1b2c3d4 as done". No command prefix required. The chatbot sends every message to one endpoint, which tries to parse it as a task command first and falls back to the briefing Q&A engine if it isn't one:
 
-- Plain commands (`!tasks`, `!task <id> ...`) → `POST /api/tasks/command?cmd=<command>`
-- Everything else not starting with `!` is treated as a briefing question, not a task command
+```
+POST /api/assistant/message?text=<message>
+```
 
 ## REST API
 
 ```
-POST /api/tasks/command?cmd=...   Execute any !task/!tasks command
+POST /api/tasks/command?cmd=...   Execute a task command directly (natural phrasing or legacy !task syntax)
 GET  /api/tasks/list              List tasks (filter by status/tag/priority query params)
 GET  /api/tasks/open              All open tasks
 GET  /api/tasks/done              All completed tasks
@@ -64,34 +65,43 @@ GET  /api/tasks/{task_id}         Single task by ID
 
 ## Command Syntax
 
-Same syntax whether it's typed into the web chatbot today or the Discord bot once that exists.
+Natural phrasing is the primary, documented way to talk to the task system — no `!` prefix needed. Same phrasing works whether it's typed into the web chatbot today or the Discord bot once that exists.
 
 ### View Tasks
 ```
-!tasks                      # Show all open tasks, grouped by tag
-!tasks --tag <tag>          # Show tasks for specific tag
-!tasks --all                # Show all tasks including completed
-!tasks --done               # Show only completed tasks
-!tasks --open               # Show only open tasks
-!tasks --in-progress        # Show only in-progress tasks
-!tasks --priority 4         # Show priority 4+ tasks
-!tasks --due-soon           # Show tasks due within 7 days
+show my tasks               # Show all open tasks, grouped by tag
+my tasks
+tasks
+what are my tasks
+list tasks --tag School     # Trailing filters still work: --tag, --status, --priority,
+                             # --due-soon, --all, --done, --open, --in-progress
 ```
 
 ### Create Task
 ```
-!task add "<title>" --tag <tag> --priority <1-5> --due <date> --describe "<text>"
+add <title> to my tasks
+add task <title>
+create task <title>
+new task <title>
+remind me to <title>
+
+Trailing flags still work if you want precision:
+add <title> to my tasks --tag <tag> --priority <1-5> --due <date> --describe "<text>"
 
 Examples:
-!task add "Finish physics homework" --tag School --priority 4 --due 2026-08-20
-!task add "Engine rebuild plan" --tag Motorsports --priority 3
-!task add "Learn Rust" --tag General
+add finish physics homework to my tasks --tag School --priority 4 --due 2026-08-20
+add engine rebuild plan to my tasks --tag Motorsports --priority 3
+remind me to learn Rust
 ```
 Tag defaults to `General` and priority defaults to `3` if omitted.
 
 ### Update Task
+Field updates (status, priority, tag, title, description, due date) still use the terser `!task <id> <field> <value>` form under the hood — there's no more-natural phrasing for these yet since it needs an exact task ID (get one from `show my tasks` first). "Done" has a natural shortcut:
 ```
-!task <id> status <open|in_progress|done>
+mark <id> as done
+complete <id>
+finish <id>
+
 !task <id> priority <1-5>
 !task <id> tag <tag>
 !task <id> title <new title>
@@ -99,15 +109,20 @@ Tag defaults to `General` and priority defaults to `3` if omitted.
 !task <id> due <date>
 
 Examples:
-!task a1b2c3d4 status done
+mark a1b2c3d4 as done
 !task a1b2c3d4 priority 5
 !task a1b2c3d4 tag "Project Ideas"
 ```
 
 ### Delete Task
 ```
-!task <id> delete
+delete <id>
+remove <id>
+remove <id> from my tasks
 ```
+
+### Legacy `!task` / `!tasks` Syntax
+The old Discord-style syntax (`!task add "Title" --tag School`, `!tasks --tag School`, `!task <id> delete`) still works — the parser tries it first — but it's no longer required or shown in the UI. Existing scripts/tests that use it keep working unchanged.
 
 ## Planned: Discord Dashboard (Not Yet Built)
 
@@ -169,13 +184,27 @@ This is the actual schema created by `TaskDB._init_db()`.
 
 ## Command Parsing (No LLM)
 
-All command parsing is hardcoded regex/string matching, in `tasks_parser.py`:
+All command parsing is hardcoded regex/string matching, in `tasks_parser.py` — natural phrasing is tried first, then the legacy `!task` syntax as a fallback:
 
 ```python
+# Natural phrasing (primary)
+NATURAL_ADD_TRIGGERS = [
+    r'^add\s+(.+?)\s+to\s+(?:my\s+)?tasks?$',   # "add X to my tasks"
+    r'^add\s+task[:\s]+(.+)$',                  # "add task X"
+    r'^(?:create|new)\s+task[:\s]+(.+)$',       # "create task X" / "new task X"
+    r'^remind\s+me\s+to\s+(.+)$',               # "remind me to X"
+]
+NATURAL_LIST_PATTERN   # "show/list/see/view (my) tasks", "my tasks", "tasks", "what are my tasks"
+NATURAL_DONE_PATTERN   # "mark <id> as done", "complete <id>", "finish <id>"
+NATURAL_DELETE_PATTERN # "delete <id>", "remove <id> (from my tasks)"
+
+# Legacy !task syntax (still works, no longer required)
 TASK_ADD_PATTERN = r'!task\s+add\s+"([^"]+)"(.*)'       # title in quotes, flags follow
 TASK_UPDATE_PATTERN = r'!task\s+(\w+)\s+(\w+)\s+(.*)'    # id, field, value
 TASK_DELETE_PATTERN = r'!task\s+(\w+)\s+delete'
 TASK_LIST_PATTERN = r'!tasks?(?:\s+(.*))?'
+
+# Shared flag patterns (either syntax can carry --tag/--priority/--due/--describe)
 TAG_PATTERN = r'--tag\s+(["\']?)([^"\'\s]+)\1'
 PRIORITY_PATTERN = r'--priority\s+([1-5])'
 DUE_PATTERN = r'--due\s+([\d\-]+)'                       # YYYY-MM-DD
@@ -207,7 +236,7 @@ Due: 2026-08-20
 The briefing engine already queries the task DB for its "Tasks" section (see [[briefing-engine]]) — this part is built and working, just running against whatever's actually in `tasks.db` rather than mock task data.
 
 ### With Obsidian Staging (Not Yet Built)
-Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging convention (see [[../../sunny-vault/staging]]). Nothing writes there yet — today, tasks only exist in `tasks.db`.
+Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging convention (see [[../staging]]). Nothing writes there yet — today, tasks only exist in `tasks.db`.
 
 ### Cost Impact
 - **Zero LLM tokens** — all hardcoded, confirmed in code (no `anthropic` calls anywhere in the task system)

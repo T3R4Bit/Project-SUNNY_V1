@@ -86,27 +86,27 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ---
 
-## Phase 2: Briefing Engine (TEMPLATES DONE, REAL DATA PENDING)
+## Phase 2: Briefing Engine (TASKS LIVE, OTHER DATA PENDING)
 
 **Timeline**: Week 3-4  
 **Dependencies**: Phase 0-1 complete  
 **Deliverable**: Working morning and evening briefings
 
-**Current status**: The engine itself is built and working — hardcoded morning (9-section) and evening (7-section) templates, slot-filling text generation, and a Q&A system answering questions about weather, calendar, email, tasks, commute, health, motorsports, news, and tomorrow. All of it currently runs on mock data (`briefing_data.py`), so the text is realistic but not live. What's left is swapping each mock data source for a real API.
+**Current status**: The engine itself is built and working — hardcoded morning and evening templates, slot-filling text generation, and a Q&A system covering weather, calendar, email, tasks, commute, health, motorsports, news, and tomorrow. Tasks are real, queried live from `tasks.db`. Every other section has no real API behind it yet, so instead of showing mock data as if it were live, it says so explicitly (e.g. "Not connected — needs OPENWEATHERMAP_API_KEY") — see [[architecture/briefing-engine.md]]. Every time that happens (or a task command fails), it's logged to [[../log/requests.md|sunny-vault/log/requests.md]], so real usage tells us which integration to build next.
 
 ### Briefing Integration Tasks
 
 - [x] Hardcoded briefing template (morning + evening)
 - [x] Text generation engine (slot-filling, no LLM)
 - [x] Q&A engine for freeform questions (weather, calendar, tasks, commute, etc.)
-- [x] Mock data layer for all sections (weather, calendar, email, tasks, traffic, health, news, motorsports)
-- [x] Task summary queries (from SQLite via [[../TASK_SYSTEM.md|task system]])
-- [ ] Calendar API integration (Google Calendar or Notion) — replace mock data
-- [ ] Weather API integration (OpenWeatherMap or similar) — replace mock data
-- [ ] Traffic API integration (Google Maps) — replace mock data
-- [ ] Email header parsing + urgency detection — replace mock data
+- [x] Task summary queries — live against SQLite via [[../TASK_SYSTEM.md|task system]] (no longer mock)
+- [x] Honest "not connected" messaging for every section without a real source + request logging to `sunny-vault/log/requests.md`
+- [ ] Calendar API integration (Google Calendar or Notion)
+- [ ] Weather API integration (OpenWeatherMap or similar)
+- [ ] Traffic API integration (Google Maps)
+- [ ] Email header parsing + urgency detection
 - [ ] Scheduling (7am morning, 9pm evening) — currently manual trigger only
-- [ ] Error handling per live API (fail gracefully) — not needed yet since data is mocked
+- [ ] Error handling per live API (fail gracefully) — applies once each API actually exists
 - [ ] Optional: Email triage via LLM (simple classification)
 - [ ] Obsidian staging integration (log briefings)
 - [ ] Dashboard: Show last briefing time, next scheduled, status
@@ -114,8 +114,9 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ### Test Deliverables
 
 - [x] Manually trigger morning briefing → see formatted text
+- [x] Verify unconnected sections say so instead of faking data, and get logged to requests.md
 - [ ] Verify all live API calls work (blocked on API integration above)
-- [ ] Test fallback behavior (API fails → briefing continues)
+- [ ] Test fallback behavior (API fails after being connected → briefing continues)
 - [ ] Check Obsidian logging
 
 ### Deliverables When Complete
@@ -123,10 +124,10 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ```
 ⏳ 7am: Briefing generated automatically (manual trigger works today)
 ⏳ 9pm: Evening briefing generated automatically (manual trigger works today)
-⏳ All data from live APIs (mock data today, no LLM calls except optional email triage)
+⏳ All data from live APIs (only tasks are live today; rest say "not connected")
 ⏳ Failures logged to Discord #warnings
 ⏳ Obsidian staging has briefing record
-✅ Briefing templates + Q&A engine fully working end-to-end on mock data
+✅ Briefing templates + Q&A engine fully working end-to-end, tasks real, honest gaps elsewhere
 ```
 
 **Next Step**: Phase 3 (Voice Hardware & TTS)

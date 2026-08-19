@@ -57,8 +57,8 @@ In the chatbot, type:
 
 ```
 morning                          → Morning briefing
-!tasks                           → List tasks
-!task add "Title" --priority 5  → Create task
+show my tasks                    → List tasks
+add Title to my tasks            → Create task (append --priority 5 etc. if you want)
 What's the weather?              → Ask a question
 Tell me about tomorrow           → Tomorrow preview
 ```
@@ -118,7 +118,7 @@ exit
 1. ✓ Run `./run.sh`
 2. ✓ Open `http://127.0.0.1:5000` in browser (redirects to `/chatbot`)
 3. ✓ Type "morning" to see morning briefing
-4. ✓ Type "!tasks" to see task list
+4. ✓ Type "show my tasks" to see task list
 5. ✓ Check `/console` for live system stats
 6. ✓ Access from phone over Tailscale
 

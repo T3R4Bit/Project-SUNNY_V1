@@ -10,6 +10,17 @@ tags: [feature, briefing, morning, scheduler]
 
 Daily morning and evening briefings delivered via voice. A fixed-format script with slots filled from APIs — no LLM calls, deterministic output, fast and cheap.
 
+## Status
+
+| Section | Status |
+|---------|--------|
+| Tasks | ✅ Real — queried live from `tasks.db` |
+| Weather | ⚠️ Not connected — needs `OPENWEATHERMAP_API_KEY` |
+| Calendar | ⚠️ Not connected — needs `GOOGLE_CALENDAR_API_KEY` |
+| Email, Commute, Health, News, Motorsports | ⚠️ Not connected — no integration built yet |
+
+**The engine never fakes an answer for an unconnected source.** Instead of showing mock data as if it were real, each section/question says explicitly what's missing (e.g. "Not connected — needs OPENWEATHERMAP_API_KEY in .env"), and every time that happens it's logged to [[../../log/requests.md|sunny-vault/log/requests.md]] — see "Data Source Honesty & Request Logging" below.
+
 ## Concept
 
 Like a news anchor reading a teleprompter with live data inserted. Structure is fixed, content comes from direct API calls. Keeps token spend near zero while delivering personalized information.
@@ -23,6 +34,8 @@ Like a news anchor reading a teleprompter with live data inserted. Structure is 
 - LLM only if interpretation is needed (e.g., "should I worry about this email?")
 
 ## Briefing Structure
+
+The examples below show the **target format** once every source is connected. Today, only the tasks section shows real data — every other section renders a "Not connected" line instead of these example values (see Status above).
 
 ### Morning Briefing (7:00 AM)
 
@@ -80,15 +93,36 @@ Sleep well!
 
 ## Data Sources (No LLM Required)
 
-| Data | Source | Fallback |
-|------|--------|----------|
-| Calendar events | Notion/Google Calendar API | Hardcoded example |
-| Weather | Weather API (OpenWeatherMap, etc.) | Last known forecast |
-| Tasks (open/due) | Notion or SQLite | Empty list |
-| Email (urgent/action) | Email API (header parsing) | Skip section |
-| Commute/traffic | Google Maps/traffic API | Hardcoded average time |
-| Location | Tailscale or location API | Home (default) |
-| Yesterday's incomplete | Obsidian vault or database | Query yesterday's log |
+| Data | Source | Status |
+|------|--------|--------|
+| Tasks (open/due) | SQLite (`tasks.db`) | ✅ Live today |
+| Calendar events | Notion/Google Calendar API | ⚠️ Not connected |
+| Weather | Weather API (OpenWeatherMap, etc.) | ⚠️ Not connected |
+| Email (urgent/action) | Email API (header parsing) | ⚠️ Not connected |
+| Commute/traffic | Google Maps/traffic API | ⚠️ Not connected |
+| Location | Tailscale or location API | ⚠️ Not connected |
+| Yesterday's incomplete | Obsidian vault or database | ⚠️ Not connected |
+
+## Data Source Honesty & Request Logging
+
+The engine checks whether each source is actually wired up (`sunny/components/data_sources.py`) before answering with it:
+
+```python
+if is_configured("weather"):
+    ...  # would call the real API (not built yet)
+else:
+    return "⚠️  Not connected — needs OPENWEATHERMAP_API_KEY in .env"
+```
+
+Every time a briefing section or a Q&A question hits an unconnected source — or a task command fails to parse or validate — it's appended to `sunny-vault/log/requests.md` (`sunny/components/request_log.py`):
+
+```
+**2026-08-19T07:00:00Z** [MORNING_BRIEFING] sections without a real data source: weather, calendar, email, commute, health, news, motorsports
+**2026-08-19T09:14:02Z** [QA_QUESTION] "What's the weather?" — needs OPENWEATHERMAP_API_KEY in .env
+**2026-08-19T09:15:40Z** [TASK_COMMAND] "mark xyz as done" — Invalid update command format
+```
+
+**Why this matters**: instead of a vague TODO list, `requests.md` becomes a real usage log of exactly which integrations are actually being asked for — a natural way to prioritize which mock data source (weather, calendar, etc.) to wire up to a real API next.
 
 ## Text Generation (Hardcoded Templates)
 
@@ -230,15 +264,16 @@ The [[dashboard]] shows:
 
 ## Implementation Checklist (Phase 2)
 
+- [x] Template structure (hardcoded text)
+- [x] Task summary query — live against `tasks.db`
+- [x] Honest "not connected" messaging for unconfigured sources + logging to `sunny-vault/log/requests.md`
 - [ ] Calendar API integration
 - [ ] Weather API integration
 - [ ] Traffic API integration
-- [ ] Task summary query
 - [ ] Email header parsing
-- [ ] Template structure (hardcoded text)
 - [ ] Text-to-speech integration
 - [ ] Scheduler (7am, 9pm jobs)
-- [ ] Error handling for each API
+- [ ] Error handling for each API (once APIs exist — today's "not connected" state isn't a failure case, it's the default)
 - [ ] Dashboard integration
 - [ ] Test with [[clock]] speaker
 - [ ] Tune TTS speed/pauses

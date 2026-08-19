@@ -21,24 +21,26 @@ async def main():
 ║        📋 PROJECT SUNNY — TASK MANAGEMENT CLI 📋               ║
 ╚════════════════════════════════════════════════════════════════╝
 
-Test the task system by typing Discord-style commands.
+Test the task system by typing natural commands — no prefix needed.
 
 Commands:
-  !task add "Title" --tag School --priority 4 --due 2026-08-20
-  !task abc123 status done
-  !task abc123 priority 5
-  !task abc123 delete
-  !tasks
-  !tasks --tag School
-  !tasks --status done
-  !tasks --due-soon
+  add Title to my tasks --tag School --priority 4 --due 2026-08-20
+  mark abc123 as done
+  !task abc123 priority 5      (field edits still use this terser form)
+  delete abc123
+  show my tasks
+  list tasks --tag School
+  list tasks --status done
+  list tasks --due-soon
 
 Examples:
-  !task add "Finish physics homework" --tag School --priority 5 --due 2026-08-20
-  !task add "Engine rebuild" --tag Motorsports --priority 4
-  !task add "Learn Rust" --tag General --priority 3
-  !tasks --open
-  !tasks --tag School
+  add finish physics homework to my tasks --tag School --priority 5 --due 2026-08-20
+  add engine rebuild to my tasks --tag Motorsports --priority 4
+  remind me to learn Rust
+  list tasks --open
+  list tasks --tag School
+
+The legacy !task/!tasks syntax still works too, if you prefer it.
 
 Type 'help' for all commands, 'exit' to quit.
 
@@ -61,35 +63,38 @@ Type 'help' for all commands, 'exit' to quit.
 TASK COMMANDS:
 
 Create:
-  !task add "Title" --tag TAG --priority PRIORITY --due DATE
+  add Title to my tasks --tag TAG --priority PRIORITY --due DATE
+  add task Title / create task Title / new task Title / remind me to Title
 
   Tags: School, Motorsports, General, Project Ideas
   Priority: 1-5 (1=low, 5=critical)
   Date: YYYY-MM-DD
 
 Update:
-  !task ID status open|in_progress|done
-  !task ID priority 1-5
+  mark ID as done / complete ID / finish ID
+  !task ID priority 1-5        (field edits still use this terser form — need the ID)
   !task ID tag TAG
   !task ID title "New title"
   !task ID describe "Description"
   !task ID due YYYY-MM-DD
 
 Delete:
-  !task ID delete
+  delete ID / remove ID
 
 List:
-  !tasks                      (show open)
-  !tasks --status open|done|in_progress
-  !tasks --tag TAG
-  !tasks --priority 4         (priority 4+)
-  !tasks --due-soon           (due within 7 days)
-  !tasks --all                (show all)
+  show my tasks / my tasks / tasks     (show open)
+  list tasks --status open|done|in_progress
+  list tasks --tag TAG
+  list tasks --priority 4         (priority 4+)
+  list tasks --due-soon           (due within 7 days)
+  list tasks --all                (show all)
 
 Examples:
-  !task add "Exam prep" --tag School --priority 5 --due 2026-08-25
+  add exam prep to my tasks --tag School --priority 5 --due 2026-08-25
   !task 3a2b1c status in_progress
   !task 3a2b1c priority 5
+
+The legacy !task/!tasks syntax (shown above for field edits) still works everywhere too.
                 """)
                 continue
 

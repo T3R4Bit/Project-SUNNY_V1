@@ -31,8 +31,8 @@ No manual Python setup needed — `run.sh` creates and manages its own virtual e
 
 ```
 morning                    → Morning briefing
-!tasks                     → List tasks
-!task add "Title"          → Create task
+show my tasks              → List tasks
+add Title to my tasks      → Create task
 What's the weather?        → Weather info
 ```
 
