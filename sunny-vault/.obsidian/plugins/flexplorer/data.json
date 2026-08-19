@@ -30,6 +30,9 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "BACKLOG.md",
+        "ABOUT.md",
+        "QUICKSTART.md",
         "DESIGN.md",
         "system-state.md",
         "phases.md",
@@ -132,6 +135,18 @@
       "isHidden": false
     },
     "docs/DESIGN.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/QUICKSTART.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/ABOUT.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/BACKLOG.md": {
       "isPinned": false,
       "isHidden": false
     }
