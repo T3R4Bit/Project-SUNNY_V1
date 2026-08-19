@@ -35,15 +35,6 @@ class SunnyCore:
             debug=self.settings.debug,
         )
 
-        # Root health check
-        @app.get("/")
-        async def root():
-            return {
-                "name": self.settings.app_name,
-                "status": "running",
-                "environment": self.settings.app_env,
-            }
-
         @app.get("/health")
         async def health():
             return {"status": "healthy"}

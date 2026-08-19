@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 def create_chatbot_router() -> APIRouter:
     """Create chatbot UI routes."""
-    router = APIRouter(prefix="/chatbot")
+    router = APIRouter(prefix="")
 
     # Initialize engines
     settings = get_settings()
@@ -25,202 +25,177 @@ def create_chatbot_router() -> APIRouter:
 
     @router.get("/")
     async def chatbot_ui():
-        """Serve the chatbot web interface (console-style)."""
+        """Serve the chatbot web interface with modern theme."""
         html = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PROJECT SUNNY</title>
+    <title>SUNNY Chat</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'Courier New', monospace;
-            background: #000;
-            color: #0f0;
-            padding: 0;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1a3e 100%);
+            color: #00d4ff;
             min-height: 100vh;
             display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
         }
 
-        .sidebar {
-            width: 280px;
-            background: #000;
-            border-right: 2px solid #0f0;
-            padding: 15px;
-            font-size: 12px;
-            line-height: 1.6;
-            overflow-y: auto;
-            border-bottom: 1px solid #0f0;
+        .container {
+            width: 100%;
+            max-width: 700px;
+            height: 80vh;
+            background: #0a0e27;
+            border: 2px solid #00d4ff;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.2);
         }
 
-        .stat-group {
-            margin-bottom: 20px;
-            border-bottom: 1px solid #0f0;
-            padding-bottom: 15px;
+        .header {
+            background: linear-gradient(90deg, #00d4ff 0%, #00ff88 100%);
+            color: #0a0e27;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid #00d4ff;
         }
 
-        .stat-group:last-child {
-            border-bottom: none;
-        }
-
-        .stat-label {
-            color: #0f0;
+        .header h1 {
+            font-size: 24px;
             font-weight: bold;
             margin-bottom: 5px;
         }
 
-        .stat-value {
-            color: #0f0;
-            margin-left: 10px;
-            font-size: 11px;
-        }
-
-        .bar {
-            display: inline-block;
-            width: 80px;
-            height: 8px;
-            background: #111;
-            border: 1px solid #0f0;
-            margin-left: 5px;
-            vertical-align: middle;
-        }
-
-        .bar-fill {
-            height: 100%;
-            background: #0f0;
-        }
-
-        .bar-fill.warning { background: #ff0; }
-        .bar-fill.critical { background: #f00; }
-
-        .nav {
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #0f0;
-        }
-
-        .nav a {
-            display: block;
-            color: #0f0;
-            text-decoration: none;
-            margin: 5px 0;
-            font-size: 11px;
-        }
-
-        .nav a:hover {
-            text-decoration: underline;
-        }
-
-        .main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background: #000;
-            border-left: 2px solid #0f0;
-        }
-
-        .header {
-            background: #000;
-            border-bottom: 2px solid #0f0;
-            padding: 15px;
-            text-align: left;
-        }
-
-        .header h1 {
-            color: #0f0;
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 3px;
-        }
-
-        .header .status {
-            font-size: 11px;
-            color: #0f0;
+        .header p {
+            font-size: 12px;
+            opacity: 0.8;
         }
 
         .messages {
             flex: 1;
             overflow-y: auto;
-            padding: 15px;
-            background: #000;
+            padding: 20px;
+            background: #0a0e27;
         }
 
         .message {
-            margin-bottom: 10px;
-            font-size: 12px;
-            line-height: 1.4;
+            margin-bottom: 15px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .message.user {
-            color: #0f0;
+            text-align: right;
         }
 
-        .message.user::before {
-            content: '> ';
-            font-weight: bold;
+        .message.user .bubble {
+            background: linear-gradient(90deg, #ff006e 0%, #ff4757 100%);
+            color: white;
+            border-radius: 12px 12px 0 12px;
         }
 
-        .message.bot {
-            color: #0f0;
+        .message.bot .bubble {
+            background: #1a2540;
+            color: #00ff88;
+            border-radius: 12px 12px 12px 0;
+            border-left: 3px solid #00d4ff;
             white-space: pre-wrap;
             word-break: break-word;
         }
 
-        .message.bot::before {
-            content: '[ ] ';
-            color: #0f0;
+        .bubble {
+            display: inline-block;
+            max-width: 80%;
+            padding: 12px 16px;
+            font-size: 14px;
+            line-height: 1.4;
         }
 
         .input-area {
             padding: 15px;
-            background: #000;
-            border-top: 2px solid #0f0;
+            background: #0a0e27;
+            border-top: 2px solid #00d4ff;
             display: flex;
-            gap: 5px;
+            gap: 10px;
         }
 
         input {
             flex: 1;
-            background: #000;
-            color: #0f0;
-            border: 1px solid #0f0;
-            padding: 8px 10px;
+            padding: 12px 15px;
+            background: #1a2540;
+            border: 1px solid #00d4ff;
+            color: #00d4ff;
             font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-size: 14px;
             outline: none;
+            transition: all 0.3s;
         }
 
         input:focus {
-            outline: 1px solid #0f0;
+            border-color: #00ff88;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
         }
 
         input::placeholder {
-            color: #0a0;
+            color: #00d4ff;
             opacity: 0.5;
         }
 
         button {
-            padding: 8px 15px;
-            background: #000;
-            color: #0f0;
-            border: 1px solid #0f0;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
+            padding: 12px 20px;
+            background: linear-gradient(90deg, #00d4ff 0%, #00ff88 100%);
+            color: #0a0e27;
+            border: none;
             cursor: pointer;
-            transition: all 0.1s;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
         }
 
         button:hover {
-            background: #0f0;
-            color: #000;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+            transform: translateY(-2px);
         }
 
         button:active {
-            background: #000;
-            color: #0f0;
+            transform: translateY(0);
+        }
+
+        .typing {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #00ff88;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+            margin: 0 2px;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% {
+                transform: translateY(0);
+            }
+            30% {
+                transform: translateY(-10px);
+            }
         }
 
         ::-webkit-scrollbar {
@@ -228,67 +203,24 @@ def create_chatbot_router() -> APIRouter:
         }
 
         ::-webkit-scrollbar-track {
-            background: #000;
+            background: #0a0e27;
         }
 
         ::-webkit-scrollbar-thumb {
-            background: #0f0;
-            border: 1px solid #0f0;
+            background: #00d4ff;
+            border-radius: 4px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-            background: #0a0;
+            background: #00ff88;
         }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="nav">
-            <a href="/console">STATS</a>
-            <a href="/chatbot">CHAT</a>
-            <a href="/">HOME</a>
-        </div>
-
-        <div class="stat-group">
-            <div class="stat-label">SYSTEM</div>
-            <div class="stat-value">Hostname: <span id="hostname">-</span></div>
-            <div class="stat-value">Tailscale IP: <span id="tailscale-ip">-</span></div>
-            <div class="stat-value">Status: <span id="status">ONLINE</span></div>
-        </div>
-
-        <div class="stat-group">
-            <div class="stat-label">CPU</div>
-            <div class="stat-value"><span id="cpu">-</span>%
-                <span class="bar"><span class="bar-fill" id="cpu-bar" style="width: 0%"></span></span>
-            </div>
-        </div>
-
-        <div class="stat-group">
-            <div class="stat-label">RAM</div>
-            <div class="stat-value"><span id="ram">-</span>%
-                <span class="bar"><span class="bar-fill" id="ram-bar" style="width: 0%"></span></span>
-            </div>
-        </div>
-
-        <div class="stat-group">
-            <div class="stat-label">DISK</div>
-            <div class="stat-value"><span id="disk">-</span>%
-                <span class="bar"><span class="bar-fill" id="disk-bar" style="width: 0%"></span></span>
-            </div>
-        </div>
-
-        <div class="stat-group">
-            <div class="stat-label">NETWORK</div>
-            <div class="stat-value">RX: <span id="net-rx">-</span> MB/s</div>
-            <div class="stat-value">TX: <span id="net-tx">-</span> MB/s</div>
-            <div class="stat-value">TEMP: <span id="temp">-</span></div>
-        </div>
-    </div>
-
-    <div class="main">
+    <div class="container">
         <div class="header">
-            <h1>[PROJECT SUNNY CHAT]</h1>
-            <div class="status">Commands: morning | evening | !tasks | !task add "title" | questions</div>
+            <h1>SUNNY</h1>
+            <p>Chat with your AI assistant</p>
         </div>
 
         <div class="messages" id="messages"></div>
@@ -297,7 +229,7 @@ def create_chatbot_router() -> APIRouter:
             <input
                 type="text"
                 id="input"
-                placeholder="enter command or ask question"
+                placeholder="Ask me anything..."
                 autocomplete="off"
             />
             <button onclick="sendMessage()">SEND</button>
@@ -307,55 +239,10 @@ def create_chatbot_router() -> APIRouter:
     <script>
         const messagesDiv = document.getElementById('messages');
         const input = document.getElementById('input');
-        let lastNetStats = null;
 
-        input.addEventListener('keypress', (e) => {
+        input.addEventListener('keypress', (e) => {{
             if (e.key === 'Enter') sendMessage();
-        });
-
-        async function updateStats() {{
-            try {{
-                const response = await fetch('/console/api/stats');
-                const data = await response.json();
-
-                document.getElementById('hostname').textContent = data.hostname;
-                document.getElementById('tailscale-ip').textContent = data.tailscale_ip || 'N/A';
-
-                const cpuPercent = data.cpu;
-                document.getElementById('cpu').textContent = cpuPercent.toFixed(1);
-                const cpuBar = document.getElementById('cpu-bar');
-                cpuBar.style.width = cpuPercent + '%';
-                cpuBar.className = 'bar-fill ' + (cpuPercent > 90 ? 'critical' : cpuPercent > 70 ? 'warning' : '');
-
-                const ramPercent = data.ram;
-                document.getElementById('ram').textContent = ramPercent.toFixed(1);
-                const ramBar = document.getElementById('ram-bar');
-                ramBar.style.width = ramPercent + '%';
-                ramBar.className = 'bar-fill ' + (ramPercent > 90 ? 'critical' : ramPercent > 70 ? 'warning' : '');
-
-                const diskPercent = data.disk;
-                document.getElementById('disk').textContent = diskPercent.toFixed(1);
-                const diskBar = document.getElementById('disk-bar');
-                diskBar.style.width = diskPercent + '%';
-                diskBar.className = 'bar-fill ' + (diskPercent > 90 ? 'critical' : diskPercent > 70 ? 'warning' : '');
-
-                if (data.temp) {{
-                    document.getElementById('temp').textContent = data.temp.toFixed(1) + 'C';
-                }} else {{
-                    document.getElementById('temp').textContent = 'N/A';
-                }}
-
-                if (lastNetStats) {{
-                    const rxSpeed = ((data.net_rx - lastNetStats.rx) / 1024 / 1024).toFixed(2);
-                    const txSpeed = ((data.net_tx - lastNetStats.tx) / 1024 / 1024).toFixed(2);
-                    document.getElementById('net-rx').textContent = rxSpeed;
-                    document.getElementById('net-tx').textContent = txSpeed;
-                }}
-                lastNetStats = {{ rx: data.net_rx, tx: data.net_tx }};
-            }} catch (e) {{
-                console.error('Stats update error:', e);
-            }}
-        }}
+        }});
 
         async function sendMessage() {{
             const text = input.value.trim();
@@ -364,7 +251,11 @@ def create_chatbot_router() -> APIRouter:
             input.value = '';
             addMessage(text, 'user');
 
-            addMessage('[processing...]', 'bot');
+            const typingMsg = document.createElement('div');
+            typingMsg.className = 'message bot';
+            typingMsg.innerHTML = '<div class="bubble"><span class="typing"></span><span class="typing"></span><span class="typing"></span></div>';
+            messagesDiv.appendChild(typingMsg);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
             try {{
                 let endpoint, params;
@@ -389,11 +280,7 @@ def create_chatbot_router() -> APIRouter:
                 const response = await fetch(url);
                 const data = await response.json();
 
-                // Remove processing message
-                const messages = messagesDiv.querySelectorAll('.message');
-                if (messages.length > 0) {{
-                    messages[messages.length - 1].remove();
-                }}
+                messagesDiv.removeChild(typingMsg);
 
                 let botText = '';
                 if (data.message) {{
@@ -410,10 +297,7 @@ def create_chatbot_router() -> APIRouter:
 
                 addMessage(botText, 'bot');
             }} catch (error) {{
-                const messages = messagesDiv.querySelectorAll('.message');
-                if (messages.length > 0) {{
-                    messages[messages.length - 1].remove();
-                }}
+                messagesDiv.removeChild(typingMsg);
                 addMessage('ERROR: ' + error.message, 'bot');
             }}
         }}
@@ -421,16 +305,20 @@ def create_chatbot_router() -> APIRouter:
         function addMessage(text, sender) {{
             const msg = document.createElement('div');
             msg.className = 'message ' + sender;
-            msg.textContent = text;
+            msg.innerHTML = '<div class="bubble">' + escapeHtml(text) + '</div>';
             messagesDiv.appendChild(msg);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }}
 
+        function escapeHtml(text) {{
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }}
+
         window.addEventListener('load', () => {{
             addMessage('Welcome to Project SUNNY', 'bot');
-            addMessage('Type "morning" for briefing, "!tasks" to see tasks, or ask a question', 'bot');
-            updateStats();
-            setInterval(updateStats, 2000);
+            addMessage('Try: "morning" for briefing, "!tasks" for your tasks, or ask a question', 'bot');
         }});
     </script>
 </body>
