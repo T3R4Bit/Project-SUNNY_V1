@@ -4,6 +4,7 @@
 # Examples:
 #   ./run.sh                    Start web server (default)
 #   ./run.sh chatbot            Start console (non-reload mode)
+#   ./run.sh chat               Terminal chat — full assistant, no web server needed
 #   ./run.sh cli briefing       Start briefing CLI
 #   ./run.sh cli tasks          Start tasks CLI
 #   ./run.sh test briefing      Run briefing tests
@@ -154,6 +155,10 @@ case "$COMMAND" in
         python -m uvicorn sunny_code.main:app --host 0.0.0.0 --port 5000
         ;;
 
+    "chat")
+        python chat.py
+        ;;
+
     "cli")
         case "$SUBCOMMAND" in
             "briefing")
@@ -205,6 +210,7 @@ case "$COMMAND" in
         echo -e "${YELLOW}Available commands:${NC}"
         echo -e "  ${CYAN}./run.sh${NC}                Start web server (default)"
         echo -e "  ${CYAN}./run.sh chatbot${NC}         Start console (non-reload mode)"
+        echo -e "  ${CYAN}./run.sh chat${NC}            Terminal chat — full assistant, no web server needed"
         echo -e "  ${CYAN}./run.sh cli briefing${NC}    Start briefing CLI"
         echo -e "  ${CYAN}./run.sh cli tasks${NC}       Start task management CLI"
         echo -e "  ${CYAN}./run.sh test briefing${NC}   Test briefing system"
