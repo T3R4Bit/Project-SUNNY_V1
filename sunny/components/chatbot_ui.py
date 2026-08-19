@@ -5,7 +5,6 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 import logging
 import asyncio
 
-from sunny.components.briefing import BriefingEngine
 from sunny.components.tasks_engine import TaskEngine
 from sunny.components.tasks_db import TaskDB
 from sunny.config import get_settings
@@ -19,7 +18,6 @@ def create_chatbot_router() -> APIRouter:
 
     # Initialize engines
     settings = get_settings()
-    briefing_engine = BriefingEngine()
     tasks_db = TaskDB(settings.project_root / "tasks.db")
     tasks_engine = TaskEngine(tasks_db)
 
@@ -555,23 +553,5 @@ def create_chatbot_router() -> APIRouter:
 </html>
         """
         return HTMLResponse(content=html)
-
-    @router.get("/api/ask")
-    async def ask(q: str):
-        """Ask a question (for non-WebSocket requests)."""
-        response = await briefing_engine.answer_question(q)
-        return {"response": response}
-
-    @router.get("/api/morning")
-    async def morning():
-        """Get morning briefing."""
-        briefing = await briefing_engine.generate_morning_briefing()
-        return {"content": briefing}
-
-    @router.get("/api/evening")
-    async def evening():
-        """Get evening briefing."""
-        briefing = await briefing_engine.generate_evening_briefing()
-        return {"content": briefing}
 
     return router

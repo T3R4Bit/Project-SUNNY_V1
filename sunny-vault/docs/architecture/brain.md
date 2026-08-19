@@ -21,8 +21,8 @@ The always-on central compute for Project SUNNY. Runs Sunny core process, handle
 ## Operating System
 
 - **OS**: Ubuntu Server 26.04 LTS
-- **GUI**: Installed (kept during initial setup rather than stripped down); Sunny itself runs headless regardless
-- **SSH**: Remote access available
+- **GUI**: None — runs headless
+- **SSH**: Remote access available (primary way in, since there's no GUI)
 
 ## Critical BIOS Settings
 

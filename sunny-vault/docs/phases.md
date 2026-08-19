@@ -23,17 +23,17 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 - [x] Decide on headless Linux OS (Ubuntu Server 26.04 LTS, switched from Debian)
 - [x] Decide on LiFePO4 battery swap and matching charger/cell sizing
 - [x] Decide on BIOS restore-on-AC-loss requirement
-- [x] Install Ubuntu Server 26.04 LTS on Lenovo mini PC (GUI kept rather than stripped to headless)
+- [x] Install Ubuntu Server 26.04 LTS on Lenovo mini PC (headless, no GUI)
 - [x] Python env setup on the Lenovo (`run.sh` creates/manages `venv/` automatically — no manual venv step)
 - [x] Git repo + folder structure
 - [x] Logging from the start
-- [x] Set up local dashboard skeleton — now functional, not just skeleton: FastAPI app bound to `0.0.0.0:5000`, chatbot UI at `/`, system console at `/console`, sunny.db + tasks.db via SQLite
+- [x] Set up local dashboard skeleton — now functional, not just skeleton: FastAPI app bound to `0.0.0.0:5000`, chatbot UI at `/chatbot` (`/` redirects there), system console at `/console`, sunny.db + tasks.db via SQLite
+- [x] Set up Obsidian vault structure (inbox/staging/archive/log/state)
 - [ ] Skip Featured Server Snaps at install (avoid snapd entirely rather than purging later)
 - [ ] Set BIOS to restore power state on AC loss
 - [ ] Set up Sunny as a systemd unit with Restart=always
 - [ ] Disable unattended-upgrades auto-reboot, or pin to a window
 - [ ] Secrets via env vars + config file
-- [ ] Set up Obsidian vault structure (inbox/staging/archive/log/state)
 
 ### Deliverables When Complete
 
@@ -43,8 +43,8 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ✅ Python env auto-managed by run.sh (no manual venv)
 ⏳ Sunny process starts on boot via systemd (works via ./run.sh, not yet a service)
 ✅ Structured logging to logs/ folder
-⏳ Obsidian vault ready (empty but structured)
-✅ Dashboard accessible at http://100.117.41.53:5000 — functional: chatbot UI + live system console
+✅ Obsidian vault ready (inbox/staging/archive/log/state folders + docs, still empty of runtime content since nothing writes to it yet)
+✅ Dashboard accessible at http://100.117.41.53:5000 — functional: chatbot UI (at /chatbot, / redirects there) + live system console
 ```
 
 **Next Step**: Finish systemd autostart, then Phase 1 cleanup items

@@ -12,7 +12,7 @@ chmod +x run.sh
 ./run.sh
 ```
 
-**Done!** Server starts at `http://127.0.0.1:5000`
+**Done!** Server starts at `http://127.0.0.1:5000`, which redirects to the chatbot at `http://127.0.0.1:5000/chatbot`
 
 No manual Python setup needed — `run.sh` creates and manages its own virtual environment automatically on first run.
 

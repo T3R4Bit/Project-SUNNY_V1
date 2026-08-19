@@ -14,6 +14,8 @@ Sunny is an always-on voice assistant that lives on a bedside device and Lenovo 
 - **Remote Power Control** — Wake desktop and control devices via Tailscale network
 - **Smart Logging** — Discord activity channels, Notion sync, Obsidian vault mirroring
 
+None of the above beyond the briefing engine and task system are built yet — see Current Status below and [[./phases.md]] for what's actually working today versus planned.
+
 ## Design Principles
 
 - **Templates first, tokens last** — Fixed briefings with API-filled slots, no LLM overhead
@@ -24,15 +26,15 @@ Sunny is an always-on voice assistant that lives on a bedside device and Lenovo 
 ## Architecture
 
 ### Hardware
-- **Brain**: Lenovo mini PC (always-on, Debian stable, headless)
-- **Clock**: ESP32-S3 with OLED display, LiFePO4 battery, microphone, speaker
+- **Brain**: Lenovo mini PC (always-on, Ubuntu Server 26.04 LTS, headless — no GUI)
+- **Clock**: ESP32-S3 with OLED display, LiFePO4 battery, microphone, speaker (not yet built)
 - **Network**: Tailscale mesh connecting all devices securely
 
 ### Services
-- Voice: Sonic API, Piper TTS, Whisper STT, openWakeWord
-- Communication: Twilio, Discord bot, Tailscale/MicroLink
-- Data: Calendar, Weather API, Email, Traffic APIs
-- Brain: Claude API, Notion, Obsidian vault, TrueNAS
+- Voice: Sonic API, Piper TTS, Whisper STT, openWakeWord (not yet built)
+- Communication: Twilio, Discord bot, Tailscale/MicroLink (Tailscale is live; Twilio and Discord bot are not yet built)
+- Data: Calendar, Weather API, Email, Traffic APIs (not yet built — briefing engine runs on mock data)
+- Brain: Claude API, Notion, Obsidian vault, TrueNAS (not yet built — no LLM calls are wired up)
 
 ## Getting Started
 
@@ -40,34 +42,36 @@ Sunny is an always-on voice assistant that lives on a bedside device and Lenovo 
 ```bash
 chmod +x run.sh
 ./run.sh
-# Open: http://127.0.0.1:5000
+# Open: http://127.0.0.1:5000 (redirects to /chatbot)
 ```
 
 See [[./QUICKSTART.md]] for full quick-start guide.
 
 ### Current Status
-Phase 0 (Foundations) complete — Briefing system, task management, web chatbot UI, and live system console all working. `run.sh` manages Python dependencies automatically (no manual venv setup).
+Phase 0 (Foundations) mostly complete — briefing engine (mock data), task system (SQLite + REST API, chatbot-driven), web chatbot UI (at `/chatbot`, `/` redirects there), and live system console (`/console`) all working. `run.sh` manages Python dependencies automatically (no manual venv setup). Systemd autostart is the main piece still outstanding.
 
 ### Documentation
 - [[./QUICKSTART.md]] — Get started in 30 seconds
-- [[./architecture/index.md]] — System architecture
+- [[./architecture/Mind-Map.md]] — System architecture overview
 - [[./phases.md]] — Build timeline (phases 0-7)
 - [[./TASK_SYSTEM.md]] — Task management system
 - [[./BACKLOG.md]] — Deferred items not tied to a specific phase
 
 ## Costs
 
-Estimated monthly spend: ~$5–$8
+Estimated monthly spend once the voice/phone phases are live: ~$5–$8
 - Claude API (primary: Haiku ~$1.50, Sonnet ~$3)
 - Twilio voice calls (~$0.01–$0.15/min)
 - Sonic API (hosted TTS)
 - Traffic/location APIs (~$3–$4)
 
+**Today**: $0 — no LLM or paid API is called yet; the briefing engine runs entirely on hardcoded mock data.
+
 Hard spending caps enforced at the provider level (Anthropic, Twilio).
 
 ## Security
 
-- Caller ID allowlist + PIN for phone authentication
+- Caller ID allowlist + PIN for phone authentication (planned, once phone integration exists)
 - API keys rotated regularly, never hardcoded
 - Confirmation required for irreversible actions
 - Tailscale network keeps devices off public internet

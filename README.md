@@ -68,7 +68,7 @@ Clock (ESP32-S3)        Brain (Lenovo Mini PC)      External APIs
 - ✓ Ubuntu Server 26.04 LTS on Lenovo mini PC
 - ✓ Briefing system with Q&A engine (mock data)
 - ✓ Task management system
-- ✓ Web chatbot UI over Tailscale (served at site root)
+- ✓ Web chatbot UI over Tailscale (served at `/chatbot`, `/` redirects there)
 - ✓ Live system console (`/console`) — CPU, RAM, disk, network, temp
 - ✓ Comprehensive documentation
 
@@ -89,12 +89,14 @@ See `sunny-vault/docs/phases.md` for full build timeline.
 
 ## Estimated Costs
 
-~USD 5-8/month
+~USD 5-8/month once Phases 3-5 (voice, phone) are live:
 - Claude API (Haiku): $1.50
 - Sonic API (TTS): $0.12+
 - Twilio (phone calls): <$1
 - Traffic APIs: $3-4
 - Others: Free tier or self-hosted
+
+**Today**: $0 — briefings run entirely on mock data and hardcoded templates, no LLM or paid API is called yet.
 
 Hard spending caps enforced at provider accounts.
 

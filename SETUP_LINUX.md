@@ -27,7 +27,7 @@ Done! The launcher will:
 - ✓ Create a virtual environment automatically if one doesn't exist (you never create or activate it yourself)
 - ✓ Install Python dependencies
 - ✓ Start the web server
-- ✓ Serve the chatbot at `http://127.0.0.1:5000`
+- ✓ Serve the chatbot at `http://127.0.0.1:5000/chatbot` (`http://127.0.0.1:5000` redirects there)
 
 ## Installation Steps
 
@@ -125,8 +125,8 @@ exit  # Exit dev mode
 ## Features Available
 
 ### 🤖 Web Chatbot UI
-- Console-style web interface, served at the site root (`/`)
-- Chat with AI assistant
+- Chat interface at `/chatbot` (`/` redirects there)
+- Talk to the briefing engine and task system
 - Access from phone over Tailscale
 - No installation needed on phone
 

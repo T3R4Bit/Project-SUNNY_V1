@@ -19,7 +19,7 @@ A lightweight web-based control panel for monitoring Sunny's health, spending, a
 **Authentication**: None (Tailscale itself provides security)  
 **Storage**: SQLite sunny.db (local metrics)
 
-> **Implementation note**: The panels below (Spend, Health, Clock Battery, Tailscale, Activity) describe the target design. What's actually built today is the console-style system stats page at `/console` (CPU, RAM, disk, network, temperature) and the chatbot UI at `/`. Spend tracking, service health, and clock battery panels are not yet implemented — see [[../phases.md]] for status.
+> **Implementation note**: The panels below (Spend, Health, Clock Battery, Tailscale, Activity) describe the target design. What's actually built today is the console-style system stats page at `/console` (CPU, RAM, disk, network, temperature) and the chatbot UI at `/chatbot` (`/` redirects there). A JSON backend for this dashboard also exists (`/api/dashboard/health`, `/metrics/latest`, `/metrics/record`, `/spend/today`, `/status`) but nothing calls it yet — no metrics-collection loop runs, and `/spend/today` is hardcoded to $0 since no LLM/paid API is wired up. Spend tracking, service health, and clock battery panels are not yet implemented — see [[../phases.md]] for status.
 
 ## Architecture
 

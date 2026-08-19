@@ -20,7 +20,7 @@ chmod +x run.sh
 ./run.sh
 ```
 
-Server starts automatically at: **`http://127.0.0.1:5000`**
+Server starts automatically at: **`http://127.0.0.1:5000`**, which redirects to the chatbot at **`http://127.0.0.1:5000/chatbot`**
 
 No manual Python environment setup required — `run.sh` creates and manages its own virtual environment automatically on first run, and reuses it on every run after.
 
@@ -29,8 +29,8 @@ No manual Python environment setup required — `run.sh` creates and manages its
 ## What You Get
 
 ### Chatbot Web UI
-- Console-style chat interface at the site root
-- Talk to briefing engine and task system
+- Chat interface at `/chatbot` (`/` redirects there)
+- Talk to the briefing engine and task system
 - Works over Tailscale (access from phone)
 
 ### System Console
@@ -41,11 +41,13 @@ No manual Python environment setup required — `run.sh` creates and manages its
 - Morning briefing (9 sections)
 - Evening briefing (7 sections)
 - Q&A engine (ask anything)
+- Runs entirely on mock data today — no live calendar/weather/email APIs wired up yet
 
 ### Task Management
 - Create, update, delete tasks
 - Filter by tag, status, priority
 - Hardcoded commands (no LLM parsing)
+- Driven through the chatbot/API today; a Discord bot is the planned primary interface — see [[./TASK_SYSTEM.md]]
 
 ---
 
@@ -114,7 +116,7 @@ exit
 ## Next Steps
 
 1. ✓ Run `./run.sh`
-2. ✓ Open `http://127.0.0.1:5000` in browser
+2. ✓ Open `http://127.0.0.1:5000` in browser (redirects to `/chatbot`)
 3. ✓ Type "morning" to see morning briefing
 4. ✓ Type "!tasks" to see task list
 5. ✓ Check `/console` for live system stats
@@ -125,7 +127,7 @@ exit
 ## Full Guides
 
 - **Setup & Deployment**: See [[../SETUP_LINUX.md]]
-- **Architecture**: See [[./architecture/index.md]]
+- **Architecture**: See [[./architecture/Mind-Map.md]]
 - **Build Timeline**: See [[./phases.md]]
 - **Task System**: See [[./TASK_SYSTEM.md]]
 

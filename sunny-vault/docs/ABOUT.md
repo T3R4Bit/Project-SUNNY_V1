@@ -80,7 +80,7 @@ Project SUNNY is a self-hosted voice assistant for personal productivity and aut
 ## Architecture
 
 ### Hardware
-- **Brain**: Lenovo mini PC (always-on, Debian/Linux, headless)
+- **Brain**: Lenovo mini PC (always-on, Ubuntu Server 26.04 LTS, headless — no GUI)
 - **Clock**: ESP32-S3 with OLED display, LiFePO4 battery, microphone, speaker
 - **Network**: Tailscale mesh connecting all devices securely
 
@@ -94,11 +94,11 @@ Project SUNNY is a self-hosted voice assistant for personal productivity and aut
 
 ## Current Status
 
-**Phase 0 (Foundations)** — Complete
-- Briefing system with 9-section morning and 7-section evening templates
-- Task management with Discord-style command parsing
-- Web chatbot UI accessible over Tailscale
-- System monitoring dashboard with live stats
+**Phase 0 (Foundations)** — Mostly complete (systemd autostart still outstanding)
+- Briefing system with 9-section morning and 7-section evening templates, running on mock data
+- Task management with Discord-style command parsing, driven today through the web chatbot/REST API (Discord bot itself not yet built — see [[./TASK_SYSTEM.md]])
+- Web chatbot UI at `/chatbot` (`/` redirects there), accessible over Tailscale
+- System monitoring dashboard with live stats at `/console`
 - Console-style web interfaces
 
 **Phase 1-7** — In planning
@@ -107,11 +107,13 @@ See [[./phases.md]] for detailed build timeline.
 
 ## Estimated Costs
 
-Monthly spend: ~$5–$8
+Monthly spend once voice/phone phases are live: ~$5–$8
 - Claude API (primary: Haiku ~$1.50, Sonnet ~$3)
 - Twilio voice calls (~$0.01–$0.15/min)
 - Sonic API (hosted TTS)
 - Traffic/location APIs (~$3–$4)
+
+**Today**: $0 — no LLM or paid API is called yet.
 
 Hard spending caps enforced at the provider level.
 
