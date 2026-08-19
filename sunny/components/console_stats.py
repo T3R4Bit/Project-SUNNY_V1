@@ -150,6 +150,13 @@ def create_console_router() -> APIRouter:
         </div>
 
         <div class="header">
+            <pre class="title" style="margin: 0 0 10px 0; font-size: 11px; line-height: 1.2;">
+  ____  ____  ____  ____
+ | oo || oo || oo || oo |
+ |____|____|____|____|
+  \_____/ \_____/ \_____/
+   SUNNY   SUNNY   SUNNY
+            </pre>
             <span class="title">[PROJECT SUNNY SYSTEM MONITOR]</span>
         </div>
 
@@ -168,7 +175,7 @@ def create_console_router() -> APIRouter:
             </div>
             <div class="stat-line">
                 <span class="label">NETWORK:</span>
-                <span class="value"><a href="{tailscale_url}/console" style="color: #0f0; text-decoration: none;">{tailscale_url}</a></span>
+                <span class="value"><a href="{tailscale_url}/chatbot" style="color: #0f0; text-decoration: none;">{tailscale_url}/chatbot</a></span>
             </div>
         </div>
 
