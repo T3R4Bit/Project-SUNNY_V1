@@ -61,7 +61,7 @@ The bot ships built but disconnected — `sunny_code/main.py` checks for `DISCOR
 ### 4. Configure and restart
 
 ```bash
-# In .env (create from .env.example if you haven't):
+# In .env (run.sh creates it automatically on first run if it's missing):
 DISCORD_BOT_TOKEN=<your token>
 DISCORD_TASKS_CHANNEL_ID=<your channel id>
 ```

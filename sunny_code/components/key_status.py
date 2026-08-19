@@ -38,7 +38,7 @@ def startup_summary() -> str:
     lines = []
 
     if missing:
-        lines.append("⚠️  Still needs an API key (set in .env, see .env.example):")
+        lines.append("⚠️  Still needs an API key (set in .env at the project root):")
         for label, env_var in missing:
             lines.append(f"  • {label} — {env_var}")
         lines.append('Nothing breaks without these — affected features just say')

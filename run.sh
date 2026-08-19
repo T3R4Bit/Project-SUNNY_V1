@@ -32,15 +32,48 @@ fi
 source venv/bin/activate
 
 # First run (or a fresh pull — .env is gitignored, so git never creates or
-# updates it): seed .env from the template so Sunny has something to read
+# updates it): write .env from the template below so Sunny has something to
+# read. The template lives here, not in a separate .env.example file, so
+# .env is the only config file that ever exists on disk.
 if [ ! -f ".env" ]; then
-    if [ -f ".env.example" ]; then
-        cp ".env.example" ".env"
-        echo -e "${YELLOW}⚠️  No .env found — created one from .env.example.${NC}"
-        echo -e "${YELLOW}   Fill in real API keys/secrets in .env before things go fully live.${NC}"
-    else
-        echo -e "${RED}⚠️  No .env or .env.example found — Sunny will run with defaults only.${NC}"
-    fi
+    cat > ".env" <<'ENV_TEMPLATE'
+# Project SUNNY Configuration — fill in real values below
+
+# App
+APP_ENV=development
+DEBUG=true
+APP_NAME="Project SUNNY"
+
+# APIs (get from respective services)
+CLAUDE_API_KEY=sk-ant-...
+OPENWEATHERMAP_API_KEY=...
+
+# Google Sign-In (OAuth 2.0) — powers Calendar + Gmail (read-only).
+# Setup steps: sunny-vault/docs/architecture/google-integration.md
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_OAUTH_REDIRECT_URI=http://100.117.41.53:5000/auth/google/callback
+
+# Discord bot (tasks channel) — leave both blank to run without the bot (console chat still works)
+# See sunny-vault/docs/architecture/discord-bot.md for setup steps
+DISCORD_BOT_TOKEN=
+DISCORD_TASKS_CHANNEL_ID=
+
+# Network (will bind to this on Lenovo in production)
+TAILSCALE_IP=100.117.41.53
+API_PORT=5000
+API_HOST=127.0.0.1
+
+# Spending caps
+DAILY_SPEND_CAP=20.0
+MONTHLY_SPEND_CAP=100.0
+
+# Logging
+LOG_LEVEL=INFO
+LOG_FORMAT=json
+ENV_TEMPLATE
+    echo -e "${YELLOW}⚠️  No .env found — created one with default/placeholder values.${NC}"
+    echo -e "${YELLOW}   Fill in real API keys/secrets in .env before things go fully live.${NC}"
 fi
 
 # .env holds API keys/secrets — make sure only the owner can read it

@@ -47,10 +47,10 @@ class Settings(BaseSettings):
     @field_validator("discord_tasks_channel_id", mode="before")
     @classmethod
     def _coerce_channel_id(cls, v):
-        """A blank value or a leftover '...' placeholder from .env.example
-        means "not set," same as omitting the line entirely — not a crash.
-        Settings() is built from a hand-edited .env (an external boundary),
-        so this is real input validation, not a hypothetical."""
+        """A blank value or a leftover '...' placeholder from the .env template
+        (see run.sh) means "not set," same as omitting the line entirely —
+        not a crash. Settings() is built from a hand-edited .env (an external
+        boundary), so this is real input validation, not a hypothetical."""
         if v in (None, ""):
             return 0
         try:
