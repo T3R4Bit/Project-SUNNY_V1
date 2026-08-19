@@ -8,31 +8,10 @@ import asyncio
 from sunny.components.briefing import BriefingEngine
 from sunny.components.tasks_engine import TaskEngine
 from sunny.components.tasks_db import TaskDB
-from sunny.components.tasks_parser import TaskCommandParser
+from sunny.components.assistant import handle_message
 from sunny.config import get_settings
 
 logger = logging.getLogger(__name__)
-
-HELP_TEXT = """🌞 Here's what I can do — no LLM, plain pattern matching:
-
-TASKS (real data, backed by tasks.db)
-  add <title> to my tasks       — create a task
-  show my tasks                 — list open tasks
-  mark <id-or-title> as done    — complete a task
-  delete <id-or-title>          — remove a task
-  Examples: "add buy milk to my tasks", "mark buy milk as done"
-
-BRIEFINGS
-  morning / evening             — full briefing
-
-QUESTIONS
-  Ask about tasks and I'll answer for real.
-  Weather, calendar, email, commute, health, motorsports, and news
-  aren't connected to a real API yet, so I'll say so instead of
-  making something up — every one of those gets logged to
-  sunny-vault/log/requests.md.
-
-Type "help" any time to see this again."""
 
 
 def create_chatbot_router() -> APIRouter:
@@ -52,29 +31,9 @@ def create_chatbot_router() -> APIRouter:
 
     @router.post("/api/assistant/message")
     async def assistant_message(text: str = Query(..., description="Free-text message from the chatbot")):
-        """Single entry point for the chatbot: task commands (natural or legacy !task) go
-        to the task engine, morning/evening keywords trigger a briefing, everything else
-        goes to the briefing Q&A engine."""
-        stripped = text.strip()
-        lowered = stripped.lower().strip("? ")
-
-        if lowered in ("", "help", "commands", "info", "what can you do", "what can i ask"):
-            return {"response": HELP_TEXT}
-
-        cmd_type, _, _ = TaskCommandParser.parse_command(stripped)
-        if cmd_type != "unknown":
-            success, message = await tasks_engine.execute_command(stripped)
-            return {"response": message}
-
-        if lowered in ("morning", "morning briefing"):
-            content = await briefing_engine.generate_morning_briefing()
-            return {"response": content}
-
-        if lowered in ("evening", "evening briefing"):
-            content = await briefing_engine.generate_evening_briefing()
-            return {"response": content}
-
-        response = await briefing_engine.answer_question(stripped)
+        """Single entry point for the chatbot — routing lives in sunny.components.assistant
+        so the web chatbot and the Discord bot behave identically."""
+        response = await handle_message(text, tasks_engine, briefing_engine)
         return {"response": response}
 
     @router.get("/chatbot")

@@ -1,6 +1,6 @@
 # Task Management System
 
-Task management with hardcoded logic (no LLM required). **Discord is the intended primary interface** — a live bot dashboard you view and command from a `#tasks` channel — but it hasn't been built yet. Until it exists, the same command syntax is available through the web chatbot, which is fully working today and will remain the fallback for whenever the Discord bot is down.
+Task management with hardcoded logic (no LLM required). **Discord is the intended primary interface** — a live bot dashboard you view and command from a `#tasks` channel. The code is built (see [[architecture/discord-bot.md]]) but not yet connected to a real Discord server — that last step needs a bot token and channel ID only you can create. The web chatbot is fully working today and remains the fallback for whenever the Discord bot is down.
 
 ## Status
 
@@ -10,11 +10,11 @@ Task management with hardcoded logic (no LLM required). **Discord is the intende
 | Command parser (natural phrasing, no LLM) | ✅ Built (`sunny/components/tasks_parser.py`) |
 | Task engine (command execution, dashboard formatting) | ✅ Built (`sunny/components/tasks_engine.py`) |
 | REST API | ✅ Built (`sunny/components/tasks_api.py`) |
-| Web chatbot interface (`/chatbot`) | ✅ Built — current primary way to use the task system |
-| **Discord bot dashboard** | ⏳ **Not built** — planned as the primary interface, see [[../phases.md]] "Discord Activity Log" |
+| Web chatbot interface (`/chatbot`) | ✅ Built — working fallback interface |
+| **Discord bot** | ✅ Built (`sunny/components/discord_bot.py`), ⏳ **not yet connected** — see [[architecture/discord-bot.md]] Setup |
 | Obsidian staging integration | ⏳ Not built — nothing writes to `staging/` yet |
 
-Current focus: fleshing out the task system itself (the table above) before starting the Discord bot.
+Current focus: connect the Discord bot to a real server (bot token + channel ID in `.env`) — see [[architecture/discord-bot.md]].
 
 ## Overview
 
@@ -151,9 +151,9 @@ No fuzzy matching or LLM involved — just case-insensitive string comparison ag
 ### Legacy `!task` / `!tasks` Syntax
 The old Discord-style syntax (`!task add "Title" --tag School`, `!tasks --tag School`, `!task <id> delete`) still works — the parser tries it first — but it's no longer required or shown in the UI. Existing scripts/tests that use it keep working unchanged.
 
-## Planned: Discord Dashboard (Not Yet Built)
+## Discord Dashboard (Built, Not Yet Connected)
 
-Once the Discord bot exists, the plan is a pinned message in a dedicated `#tasks` channel showing the same data the `/api/tasks/dashboard` endpoint already formats today:
+The bot posts a pinned message in the configured tasks channel showing the same data the `/api/tasks/dashboard` endpoint already formats today:
 
 ```
 📋 OPEN TASKS
@@ -180,7 +180,7 @@ Once the Discord bot exists, the plan is a pinned message in a dedicated `#tasks
 ✅ DONE (7) | ⏳ IN PROGRESS (2) | 📌 DUE THIS WEEK (3)
 ```
 
-**Planned update behavior**: dashboard refreshes every 5 minutes, plus an on-demand 🔄 reaction to update instantly. This is a design target — see [[../phases.md]] "Discord Activity Log" for the actual build checklist.
+Refreshes automatically every 5 minutes, plus an on-demand 🔄 reaction to update instantly — both built and working in `sunny/components/discord_bot.py`. See [[architecture/discord-bot.md]] for setup steps to connect it to a real server, and [[../phases.md]] "Discord Activity Log" for the broader (not yet built) multi-channel activity-log idea this is scoped out of.
 
 When it ships, the web chatbot stays available as the fallback interface for whenever the Discord bot is down or unreachable.
 
@@ -292,10 +292,12 @@ Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging c
 - [x] REST API + web chatbot interface
 - [x] Title-based resolution for mark/complete/finish/delete (with filler-word handling)
 - [x] `help`/`commands`/`info` response in the chatbot
-- [ ] Discord bot setup + token env var
-- [ ] Discord embed dashboard builder
-- [ ] 5-minute refresh loop
-- [ ] 🔄 reaction for on-demand refresh
-- [ ] Pin dashboard message to `#tasks` channel
+- [x] Discord bot code (`sunny/components/discord_bot.py`) + config fields (token/channel env vars)
+- [x] Discord dashboard builder (reuses `format_dashboard()`)
+- [x] 5-minute refresh loop
+- [x] 🔄 reaction for on-demand refresh
+- [x] Pin dashboard message to the configured channel
+- [x] Startup summary of missing API keys, logged + posted to Discord
+- [ ] **Connect a real bot token and verify against a live server**
 - [ ] Logging to Obsidian staging
-- [ ] Test all commands via Discord
+- [ ] Slash command variants (optional)

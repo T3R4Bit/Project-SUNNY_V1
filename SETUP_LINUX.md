@@ -142,11 +142,17 @@ exit  # Exit dev mode
 
 ### ✅ Task Management
 - Create: `add Title to my tasks` (append `--tag School --priority 5` etc. for precision)
-- Update: `mark abc123 as done`
-- Delete: `delete abc123`
+- Update: `mark abc123 as done` (or by title: `mark Title as done`)
+- Delete: `delete abc123` (or by title)
 - Filter: By tag, status, priority, due date
 - Dashboard: View all tasks organized by category
 - No command prefix required — plain natural phrasing, deterministic regex parsing, no LLM
+
+### 🤖 Discord Bot (Optional)
+- Same task commands as the web chatbot, typed as plain messages in one dedicated channel
+- Pinned dashboard message, auto-refreshes every 5 minutes, 🔄 reaction for instant refresh
+- Not running unless `DISCORD_BOT_TOKEN` and `DISCORD_TASKS_CHANNEL_ID` are set in `.env` — web chatbot works either way
+- Setup steps: `sunny-vault/docs/architecture/discord-bot.md`
 
 ### 📊 API Endpoints
 - `/api/briefing/morning` — Get morning briefing
@@ -264,29 +270,47 @@ EOF
 ./run.sh
 ```
 
+## API Keys & Secrets
+
+All API keys (Claude, OpenWeatherMap, Google Calendar, Discord bot token) live in `.env`, never in code:
+
+- **Never committed** — `.env`, `.env.local`, and `.env.*.local` are all in `.gitignore`. Only `.env.example` (no real values) is tracked.
+- **File permissions** — `run.sh` runs `chmod 600 .env` automatically on every start, so only the owning user can read it.
+- **Never paste a real key into chat, a commit, or an issue** — edit `.env` directly on the machine instead. If a key ever does leak, rotate it at the provider immediately (regenerating invalidates the old one).
+- **What's still missing** — Sunny logs a summary at startup of which tracked keys aren't set yet (`sunny/components/key_status.py`), and if the Discord bot is connected it posts the same summary to the tasks channel once per run. Nothing crashes without a key; the affected feature just says "not connected" instead of faking data — see `sunny-vault/log/requests.md` for what's actually being asked for.
+
 ## Project Structure
 
 ```
 Project-SUNNY/
 ├── run.sh                  # Main launcher (bash)
 ├── requirements.txt        # Python dependencies
+├── .env                    # Your local secrets (gitignored, chmod 600)
+├── .env.example            # Template — no real values
 ├── sunny/
 │   ├── __init__.py
 │   ├── config.py          # Configuration management
 │   ├── logging_config.py  # Logging setup
-│   ├── main.py            # FastAPI app
+│   ├── main.py            # FastAPI app + Discord bot startup
 │   └── components/
-│       ├── briefing.py    # Briefing engine
+│       ├── briefing.py         # Briefing engine (real tasks, honest gaps elsewhere)
 │       ├── briefing_api.py
-│       ├── briefing_data.py
-│       ├── tasks_db.py    # Task database
+│       ├── briefing_data.py    # Mock data structures (unused by briefing.py directly)
+│       ├── data_sources.py     # Which data sources are real vs unconfigured
+│       ├── request_log.py      # Logs unfulfilled requests to sunny-vault/log/requests.md
+│       ├── key_status.py       # Startup summary of missing API keys
+│       ├── tasks_db.py         # Task database
 │       ├── tasks_engine.py
-│       ├── tasks_parser.py
+│       ├── tasks_parser.py     # Natural language + legacy !task parsing
 │       ├── tasks_api.py
-│       ├── dashboard.py   # Dashboard
-│       └── chatbot_ui.py  # Web UI
+│       ├── assistant.py        # Shared message routing (web chatbot + Discord bot)
+│       ├── discord_bot.py      # Discord bot — tasks channel + pinned dashboard
+│       ├── dashboard.py        # Dashboard JSON API
+│       ├── console_stats.py    # /console system stats page
+│       └── chatbot_ui.py       # Web UI (/chatbot, / redirects there)
 ├── test_*.py              # Test files
-├── sunny-vault/           # Documentation
+├── sunny-vault/           # Documentation + Obsidian vault
+│   ├── log/requests.md    # What Sunny couldn't fulfill with real data (auto-generated)
 │   └── docs/
 │       ├── architecture/
 │       ├── phases.md

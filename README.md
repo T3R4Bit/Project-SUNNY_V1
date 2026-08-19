@@ -66,9 +66,10 @@ Clock (ESP32-S3)        Brain (Lenovo Mini PC)      External APIs
 
 **Phase 0** — Foundations (✓ Complete)
 - ✓ Ubuntu Server 26.04 LTS on Lenovo mini PC
-- ✓ Briefing system with Q&A engine (mock data)
-- ✓ Task management system
+- ✓ Briefing system with Q&A engine (real task data, honest gaps elsewhere)
+- ✓ Task management system — natural language, no command prefix needed
 - ✓ Web chatbot UI over Tailscale (served at `/chatbot`, `/` redirects there)
+- ✓ Discord bot for tasks (built, needs a bot token connected — see `sunny-vault/docs/architecture/discord-bot.md`)
 - ✓ Live system console (`/console`) — CPU, RAM, disk, network, temp
 - ✓ Comprehensive documentation
 
@@ -82,7 +83,7 @@ See `sunny-vault/docs/phases.md` for full build timeline.
 
 - **Architecture** — `sunny-vault/docs/architecture/` (7 component docs with cross-references)
 - **Build Timeline** — `sunny-vault/docs/phases.md` (phases 0-7 with checklists)
-- **Task System** — `sunny-vault/docs/TASK_SYSTEM.md` (Discord task dashboard design)
+- **Task System** — `sunny-vault/docs/TASK_SYSTEM.md` (natural-language commands + Discord bot)
 - **Dashboard** — `sunny-vault/docs/architecture/dashboard.md` (monitoring UI with Tailscale panel)
 
 ---
@@ -96,7 +97,7 @@ See `sunny-vault/docs/phases.md` for full build timeline.
 - Traffic APIs: $3-4
 - Others: Free tier or self-hosted
 
-**Today**: $0 — briefings run entirely on mock data and hardcoded templates, no LLM or paid API is called yet.
+**Today**: $0 — no LLM or paid API is called yet. Tasks are real; weather/calendar/email/commute/health/news/motorsports say "not connected" instead of faking an answer (see `sunny-vault/log/requests.md` for what's actually being asked for).
 
 Hard spending caps enforced at provider accounts.
 
@@ -105,7 +106,7 @@ Hard spending caps enforced at provider accounts.
 ## Security
 
 - Caller ID allowlist + PIN for phone authentication
-- API keys rotated regularly, never hardcoded
+- API keys in `.env` only — gitignored, `chmod 600`, never hardcoded or committed
 - Confirmation required for irreversible actions
 - Tailscale network (no open ports)
 - Hard spending caps at provider level

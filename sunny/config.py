@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     openweathermap_api_key: str = ""
     google_calendar_api_key: str = ""
 
+    # Discord bot (tasks channel)
+    discord_bot_token: str = ""
+    discord_tasks_channel_id: int = 0
+
     # Spending caps
     daily_spend_cap: float = 20.0  # USD per day
     monthly_spend_cap: float = 100.0  # USD per month

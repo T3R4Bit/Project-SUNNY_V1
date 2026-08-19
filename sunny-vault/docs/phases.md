@@ -33,7 +33,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 - [ ] Set BIOS to restore power state on AC loss
 - [ ] Set up Sunny as a systemd unit with Restart=always
 - [ ] Disable unattended-upgrades auto-reboot, or pin to a window
-- [ ] Secrets via env vars + config file
+- [x] Secrets via env vars + config file — `.env` (gitignored, `chmod 600` on every `run.sh` start), loaded via `sunny/config.py`; startup logs + Discord post what's still missing (`sunny/components/key_status.py`)
 
 ### Deliverables When Complete
 
@@ -319,6 +319,9 @@ Deferred items not yet slotted into a phase — see [[BACKLOG.md]] (currently: s
 Work on these in parallel, integrate incrementally:
 
 ### Discord Activity Log
+
+**Scoped ahead of this**: a single-channel task bot is already built — see [[architecture/discord-bot.md]] and [[TASK_SYSTEM.md]]. It only knows about one `#tasks`-style channel and task commands; it doesn't touch the multi-channel activity log below.
+
 - [ ] Set up Discord server + channels:
   - `#briefings` — Briefing output
   - `#calendar-actions` — Calendar updates

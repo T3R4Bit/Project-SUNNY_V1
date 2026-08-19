@@ -31,6 +31,11 @@ fi
 # Activate venv
 source venv/bin/activate
 
+# .env holds API keys/secrets — make sure only the owner can read it
+if [ -f ".env" ]; then
+    chmod 600 ".env"
+fi
+
 # Install/upgrade dependencies quietly
 echo -e "${CYAN}Checking dependencies...${NC}"
 pip install -q -r requirements.txt 2>/dev/null || true
