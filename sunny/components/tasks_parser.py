@@ -30,13 +30,15 @@ class TaskCommandParser:
     DUE_PATTERN = r'--due\s+([\d\-]+)'  # YYYY-MM-DD
     DESCRIPTION_PATTERN = r'--describe\s+(["\']?)(.+?)\1(?:\s--|$)'
 
-    # Natural-language triggers
+    # Natural-language triggers — order matters, first match wins, so the specific
+    # "X to my tasks" / "task: X" phrasings are tried before the bare "add X" catch-all.
     NATURAL_ADD_TRIGGERS = [
         re.compile(r'^add\s+(.+?)\s+to\s+(?:my\s+)?(?:task\s+)?list$', re.IGNORECASE),
         re.compile(r'^add\s+(.+?)\s+to\s+(?:my\s+)?tasks?$', re.IGNORECASE),
         re.compile(r'^add\s+task[:\s]+(.+)$', re.IGNORECASE),
         re.compile(r'^(?:create|new)\s+task[:\s]+(.+)$', re.IGNORECASE),
         re.compile(r'^remind\s+me\s+to\s+(.+)$', re.IGNORECASE),
+        re.compile(r'^add\s+(.+)$', re.IGNORECASE),  # bare "add X" catch-all
     ]
     NATURAL_LIST_PATTERN = re.compile(
         r'^(?:show|list|see|view)\s+(?:my\s+)?tasks?$'
