@@ -42,19 +42,24 @@ def get_current() -> Optional[Dict]:
         return None
     try:
         resp = requests.get(f"{_BASE_URL}/weather", params=params, timeout=_TIMEOUT)
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        logger.error(f"OpenWeatherMap current-weather call failed: {e}")
+    except requests.RequestException as e:
+        # Not str(e) — a connection/HTTP error's message can embed the full
+        # request URL, which includes the API key in the query string.
+        logger.error(f"OpenWeatherMap current-weather request failed: {type(e).__name__}")
+        return None
+
+    if not resp.ok:
+        logger.error(f"OpenWeatherMap current-weather call failed: HTTP {resp.status_code}")
         return None
 
     try:
+        data = resp.json()
         return {
             "temp": round(data["main"]["temp"]),
             "condition": data["weather"][0]["description"].capitalize(),
             "humidity": data["main"]["humidity"],
         }
-    except (KeyError, IndexError, TypeError) as e:
+    except (KeyError, IndexError, TypeError, ValueError) as e:
         logger.error(f"Unexpected OpenWeatherMap response shape: {e}")
         return None
 
@@ -66,10 +71,18 @@ def get_tomorrow() -> Optional[Dict]:
         return None
     try:
         resp = requests.get(f"{_BASE_URL}/forecast", params=params, timeout=_TIMEOUT)
-        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.error(f"OpenWeatherMap forecast request failed: {type(e).__name__}")
+        return None
+
+    if not resp.ok:
+        logger.error(f"OpenWeatherMap forecast call failed: HTTP {resp.status_code}")
+        return None
+
+    try:
         data = resp.json()
-    except Exception as e:
-        logger.error(f"OpenWeatherMap forecast call failed: {e}")
+    except ValueError as e:
+        logger.error(f"Unexpected OpenWeatherMap forecast response: {e}")
         return None
 
     tomorrow = (datetime.now() + timedelta(days=1)).date()
@@ -92,5 +105,5 @@ def get_tomorrow() -> Optional[Dict]:
             "rain_chance": round(best.get("pop", 0) * 100),
         }
     except (KeyError, IndexError, TypeError) as e:
-        logger.error(f"Unexpected OpenWeatherMap forecast shape: {e}")
+        logger.error(f"Unexpected OpenWeatherMap forecast shape: {type(e).__name__}: {e}")
         return None
