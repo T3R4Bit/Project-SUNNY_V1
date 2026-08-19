@@ -37,7 +37,15 @@ pip install -q -r requirements.txt 2>/dev/null || true
 
 echo ""
 echo -e "${CYAN}╔════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║   🌞 PROJECT SUNNY — Launching         ║${NC}"
+echo -e "${CYAN}║                                        ║${NC}"
+echo -e "${CYAN}║      [•][•]                           ║${NC}"
+echo -e "${CYAN}║       \\_/                             ║${NC}"
+echo -e "${CYAN}║      ·███·                            ║${NC}"
+echo -e "${CYAN}║     ·█████·                           ║${NC}"
+echo -e "${CYAN}║      ·███·                            ║${NC}"
+echo -e "${CYAN}║                                        ║${NC}"
+echo -e "${CYAN}║  PROJECT SUNNY — Launching            ║${NC}"
+echo -e "${CYAN}║                                        ║${NC}"
 echo -e "${CYAN}╚════════════════════════════════════════╝${NC}"
 echo ""
 
