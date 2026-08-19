@@ -1,13 +1,10 @@
 """Configuration management using pydantic-settings."""
 
-import logging
 from pathlib import Path
 from typing import Optional
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
-
-logger = logging.getLogger(__name__)
 
 
 def looks_configured(value: Optional[str]) -> bool:
@@ -64,13 +61,18 @@ class Settings(BaseSettings):
         """A blank value or a leftover '...' placeholder from the .env template
         (see run.sh) means "not set," same as omitting the line entirely —
         not a crash. Settings() is built from a hand-edited .env (an external
-        boundary), so this is real input validation, not a hypothetical."""
+        boundary), so this is real input validation, not a hypothetical.
+
+        No logging here on purpose — get_settings() constructs a fresh
+        Settings() on every call (by design, so a live .env/location edit
+        needs no restart), so this validator runs far more often than
+        "someone changed something." key_status.startup_summary() already
+        reports this once, cleanly, instead of flooding the log."""
         if v in (None, ""):
             return 0
         try:
             return int(v)
         except (TypeError, ValueError):
-            logger.warning("DISCORD_TASKS_CHANNEL_ID is blank or invalid — skipping Discord bot")
             return 0
 
     # Spending caps
@@ -88,5 +90,7 @@ class Settings(BaseSettings):
 
 
 def get_settings() -> Settings:
-    """Lazy-load settings singleton."""
+    """Build a fresh Settings from the current .env — deliberately not cached,
+    so a live edit (location, an API key) takes effect on the very next call
+    with no restart. Called often; keep this cheap and side-effect-free."""
     return Settings()
