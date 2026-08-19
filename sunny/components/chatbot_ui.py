@@ -25,185 +25,270 @@ def create_chatbot_router() -> APIRouter:
 
     @router.get("/")
     async def chatbot_ui():
-        """Serve the chatbot web interface."""
+        """Serve the chatbot web interface (console-style)."""
         html = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project SUNNY — Chatbot</title>
+    <title>PROJECT SUNNY</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #0f0;
+            padding: 0;
             min-height: 100vh;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
         }
 
-        .container {
-            width: 100%;
-            max-width: 600px;
-            height: 80vh;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+        .sidebar {
+            width: 280px;
+            background: #000;
+            border-right: 2px solid #0f0;
+            padding: 15px;
+            font-size: 12px;
+            line-height: 1.6;
+            overflow-y: auto;
+            border-bottom: 1px solid #0f0;
         }
 
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            text-align: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        .stat-group {
+            margin-bottom: 20px;
+            border-bottom: 1px solid #0f0;
+            padding-bottom: 15px;
         }
 
-        .header h1 {
-            font-size: 24px;
+        .stat-group:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            color: #0f0;
+            font-weight: bold;
             margin-bottom: 5px;
         }
 
-        .header p {
-            font-size: 12px;
-            opacity: 0.9;
+        .stat-value {
+            color: #0f0;
+            margin-left: 10px;
+            font-size: 11px;
+        }
+
+        .bar {
+            display: inline-block;
+            width: 80px;
+            height: 8px;
+            background: #111;
+            border: 1px solid #0f0;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+
+        .bar-fill {
+            height: 100%;
+            background: #0f0;
+        }
+
+        .bar-fill.warning { background: #ff0; }
+        .bar-fill.critical { background: #f00; }
+
+        .nav {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #0f0;
+        }
+
+        .nav a {
+            display: block;
+            color: #0f0;
+            text-decoration: none;
+            margin: 5px 0;
+            font-size: 11px;
+        }
+
+        .nav a:hover {
+            text-decoration: underline;
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #000;
+            border-left: 2px solid #0f0;
+        }
+
+        .header {
+            background: #000;
+            border-bottom: 2px solid #0f0;
+            padding: 15px;
+            text-align: left;
+        }
+
+        .header h1 {
+            color: #0f0;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+
+        .header .status {
+            font-size: 11px;
+            color: #0f0;
         }
 
         .messages {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
-            background: #f7f7f7;
+            padding: 15px;
+            background: #000;
         }
 
         .message {
-            margin-bottom: 15px;
-            animation: slideIn 0.3s ease-out;
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            margin-bottom: 10px;
+            font-size: 12px;
+            line-height: 1.4;
         }
 
         .message.user {
-            text-align: right;
+            color: #0f0;
         }
 
-        .message.user .bubble {
-            background: #667eea;
-            color: white;
-            border-radius: 18px 18px 0 18px;
+        .message.user::before {
+            content: '> ';
+            font-weight: bold;
         }
 
-        .message.bot .bubble {
-            background: #e0e0e0;
-            color: #333;
-            border-radius: 18px 18px 18px 0;
+        .message.bot {
+            color: #0f0;
             white-space: pre-wrap;
             word-break: break-word;
         }
 
-        .bubble {
-            display: inline-block;
-            max-width: 80%;
-            padding: 12px 16px;
-            border-radius: 18px;
-            font-size: 14px;
-            line-height: 1.4;
+        .message.bot::before {
+            content: '[ ] ';
+            color: #0f0;
         }
 
         .input-area {
             padding: 15px;
-            background: white;
-            border-top: 1px solid #e0e0e0;
+            background: #000;
+            border-top: 2px solid #0f0;
             display: flex;
-            gap: 10px;
+            gap: 5px;
         }
 
         input {
             flex: 1;
-            padding: 12px 15px;
-            border: 1px solid #ddd;
-            border-radius: 24px;
-            font-size: 14px;
+            background: #000;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 8px 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
             outline: none;
-            transition: border-color 0.3s;
         }
 
         input:focus {
-            border-color: #667eea;
+            outline: 1px solid #0f0;
+        }
+
+        input::placeholder {
+            color: #0a0;
+            opacity: 0.5;
         }
 
         button {
-            padding: 10px 20px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 24px;
+            padding: 8px 15px;
+            background: #000;
+            color: #0f0;
+            border: 1px solid #0f0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
             cursor: pointer;
-            font-size: 14px;
-            transition: background 0.3s;
+            transition: all 0.1s;
         }
 
         button:hover {
-            background: #764ba2;
+            background: #0f0;
+            color: #000;
         }
 
         button:active {
-            transform: scale(0.95);
+            background: #000;
+            color: #0f0;
         }
 
-        .typing {
-            display: inline-block;
+        ::-webkit-scrollbar {
             width: 8px;
-            height: 8px;
-            background: #999;
-            border-radius: 50%;
-            animation: typing 1.4s infinite;
-            margin: 0 2px;
         }
 
-        @keyframes typing {
-            0%, 60%, 100% {
-                transform: translateY(0);
-            }
-            30% {
-                transform: translateY(-10px);
-            }
+        ::-webkit-scrollbar-track {
+            background: #000;
         }
 
-        .commands {
-            font-size: 12px;
-            color: #999;
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid #e0e0e0;
+        ::-webkit-scrollbar-thumb {
+            background: #0f0;
+            border: 1px solid #0f0;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #0a0;
         }
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="sidebar">
+        <div class="nav">
+            <a href="/console">STATS</a>
+            <a href="/chatbot">CHAT</a>
+            <a href="/">HOME</a>
+        </div>
+
+        <div class="stat-group">
+            <div class="stat-label">SYSTEM</div>
+            <div class="stat-value">Hostname: <span id="hostname">-</span></div>
+            <div class="stat-value">Tailscale IP: <span id="tailscale-ip">-</span></div>
+            <div class="stat-value">Status: <span id="status">ONLINE</span></div>
+        </div>
+
+        <div class="stat-group">
+            <div class="stat-label">CPU</div>
+            <div class="stat-value"><span id="cpu">-</span>%
+                <span class="bar"><span class="bar-fill" id="cpu-bar" style="width: 0%"></span></span>
+            </div>
+        </div>
+
+        <div class="stat-group">
+            <div class="stat-label">RAM</div>
+            <div class="stat-value"><span id="ram">-</span>%
+                <span class="bar"><span class="bar-fill" id="ram-bar" style="width: 0%"></span></span>
+            </div>
+        </div>
+
+        <div class="stat-group">
+            <div class="stat-label">DISK</div>
+            <div class="stat-value"><span id="disk">-</span>%
+                <span class="bar"><span class="bar-fill" id="disk-bar" style="width: 0%"></span></span>
+            </div>
+        </div>
+
+        <div class="stat-group">
+            <div class="stat-label">NETWORK</div>
+            <div class="stat-value">RX: <span id="net-rx">-</span> MB/s</div>
+            <div class="stat-value">TX: <span id="net-tx">-</span> MB/s</div>
+            <div class="stat-value">TEMP: <span id="temp">-</span></div>
+        </div>
+    </div>
+
+    <div class="main">
         <div class="header">
-            <h1>🌞 Project SUNNY</h1>
-            <p>Chatbot — Try asking questions or commands</p>
+            <h1>[PROJECT SUNNY CHAT]</h1>
+            <div class="status">Commands: morning | evening | !tasks | !task add "title" | questions</div>
         </div>
 
         <div class="messages" id="messages"></div>
@@ -212,108 +297,141 @@ def create_chatbot_router() -> APIRouter:
             <input
                 type="text"
                 id="input"
-                placeholder="Ask me anything... (e.g., 'morning briefing', '!tasks', 'weather')"
+                placeholder="enter command or ask question"
                 autocomplete="off"
             />
-            <button onclick="sendMessage()">Send</button>
+            <button onclick="sendMessage()">SEND</button>
         </div>
     </div>
 
     <script>
         const messagesDiv = document.getElementById('messages');
         const input = document.getElementById('input');
+        let lastNetStats = null;
 
         input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendMessage();
         });
 
-        async function sendMessage() {
+        async function updateStats() {{
+            try {{
+                const response = await fetch('/console/api/stats');
+                const data = await response.json();
+
+                document.getElementById('hostname').textContent = data.hostname;
+                document.getElementById('tailscale-ip').textContent = data.tailscale_ip || 'N/A';
+
+                const cpuPercent = data.cpu;
+                document.getElementById('cpu').textContent = cpuPercent.toFixed(1);
+                const cpuBar = document.getElementById('cpu-bar');
+                cpuBar.style.width = cpuPercent + '%';
+                cpuBar.className = 'bar-fill ' + (cpuPercent > 90 ? 'critical' : cpuPercent > 70 ? 'warning' : '');
+
+                const ramPercent = data.ram;
+                document.getElementById('ram').textContent = ramPercent.toFixed(1);
+                const ramBar = document.getElementById('ram-bar');
+                ramBar.style.width = ramPercent + '%';
+                ramBar.className = 'bar-fill ' + (ramPercent > 90 ? 'critical' : ramPercent > 70 ? 'warning' : '');
+
+                const diskPercent = data.disk;
+                document.getElementById('disk').textContent = diskPercent.toFixed(1);
+                const diskBar = document.getElementById('disk-bar');
+                diskBar.style.width = diskPercent + '%';
+                diskBar.className = 'bar-fill ' + (diskPercent > 90 ? 'critical' : diskPercent > 70 ? 'warning' : '');
+
+                if (data.temp) {{
+                    document.getElementById('temp').textContent = data.temp.toFixed(1) + 'C';
+                }} else {{
+                    document.getElementById('temp').textContent = 'N/A';
+                }}
+
+                if (lastNetStats) {{
+                    const rxSpeed = ((data.net_rx - lastNetStats.rx) / 1024 / 1024).toFixed(2);
+                    const txSpeed = ((data.net_tx - lastNetStats.tx) / 1024 / 1024).toFixed(2);
+                    document.getElementById('net-rx').textContent = rxSpeed;
+                    document.getElementById('net-tx').textContent = txSpeed;
+                }}
+                lastNetStats = {{ rx: data.net_rx, tx: data.net_tx }};
+            }} catch (e) {{
+                console.error('Stats update error:', e);
+            }}
+        }}
+
+        async function sendMessage() {{
             const text = input.value.trim();
             if (!text) return;
 
             input.value = '';
-
-            // Add user message
             addMessage(text, 'user');
 
-            // Show typing indicator
-            const typingMsg = document.createElement('div');
-            typingMsg.className = 'message bot';
-            typingMsg.innerHTML = '<div class="bubble"><span class="typing"></span><span class="typing"></span><span class="typing"></span></div>';
-            messagesDiv.appendChild(typingMsg);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            addMessage('[processing...]', 'bot');
 
-            try {
-                // Try to determine if it's a task command or briefing/question
+            try {{
                 let endpoint, params;
 
-                if (text.startsWith('!')) {
-                    // Task command
+                if (text.startsWith('!')) {{
                     endpoint = '/api/tasks/command';
-                    params = { cmd: text };
-                } else if (text.toLowerCase() === 'morning' || text.toLowerCase() === 'morning briefing') {
-                    // Morning briefing
+                    params = {{ cmd: text }};
+                }} else if (text.toLowerCase() === 'morning' || text.toLowerCase() === 'morning briefing') {{
                     endpoint = '/api/briefing/morning';
-                    params = {};
-                } else if (text.toLowerCase() === 'evening' || text.toLowerCase() === 'evening briefing') {
-                    // Evening briefing
+                    params = {{}};
+                }} else if (text.toLowerCase() === 'evening' || text.toLowerCase() === 'evening briefing') {{
                     endpoint = '/api/briefing/evening';
-                    params = {};
-                } else {
-                    // Question
+                    params = {{}};
+                }} else {{
                     endpoint = '/api/briefing/ask';
-                    params = { q: text };
-                }
+                    params = {{ q: text }};
+                }}
 
-                // Build URL
                 const url = new URL(endpoint, window.location.origin);
                 Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
 
                 const response = await fetch(url);
                 const data = await response.json();
 
-                // Remove typing indicator
-                messagesDiv.removeChild(typingMsg);
+                // Remove processing message
+                const messages = messagesDiv.querySelectorAll('.message');
+                if (messages.length > 0) {{
+                    messages[messages.length - 1].remove();
+                }}
 
-                // Add bot response
                 let botText = '';
-                if (data.message) {
+                if (data.message) {{
                     botText = data.message;
-                } else if (data.response) {
+                }} else if (data.response) {{
                     botText = data.response;
-                } else if (data.content) {
+                }} else if (data.content) {{
                     botText = data.content;
-                } else if (data.dashboard) {
+                }} else if (data.dashboard) {{
                     botText = data.dashboard;
-                } else {
+                }} else {{
                     botText = JSON.stringify(data, null, 2);
-                }
+                }}
 
                 addMessage(botText, 'bot');
-            } catch (error) {
-                messagesDiv.removeChild(typingMsg);
-                addMessage(`❌ Error: ${error.message}`, 'bot');
-            }
-        }
+            }} catch (error) {{
+                const messages = messagesDiv.querySelectorAll('.message');
+                if (messages.length > 0) {{
+                    messages[messages.length - 1].remove();
+                }}
+                addMessage('ERROR: ' + error.message, 'bot');
+            }}
+        }}
 
-        function addMessage(text, sender) {
+        function addMessage(text, sender) {{
             const msg = document.createElement('div');
-            msg.className = `message ${sender}`;
-            msg.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+            msg.className = 'message ' + sender;
+            msg.textContent = text;
             messagesDiv.appendChild(msg);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
+        }}
 
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-
-        // Welcome message
-        window.addEventListener('load', () => {
-            addMessage('👋 Welcome to Project SUNNY!\\n\\nTry asking:\\n• "morning" for morning briefing\\n• "!tasks" for your task list\\n• "what\\'s the weather?" for weather\\n• "!task add \\"Title\\" --tag School" to create a task', 'bot');
-        });
+        window.addEventListener('load', () => {{
+            addMessage('Welcome to Project SUNNY', 'bot');
+            addMessage('Type "morning" for briefing, "!tasks" to see tasks, or ask a question', 'bot');
+            updateStats();
+            setInterval(updateStats, 2000);
+        }});
     </script>
 </body>
 </html>

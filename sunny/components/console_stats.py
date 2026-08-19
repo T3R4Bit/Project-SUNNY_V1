@@ -146,7 +146,7 @@ def create_console_router() -> APIRouter:
         <div class="nav">
             <a href="{tailscale_url}/console">STATS</a>
             <a href="{tailscale_url}/chatbot">CHAT</a>
-            <a href="{tailscale_url}/docs">API</a>
+            <a href="{tailscale_url}/">HOME</a>
         </div>
 
         <div class="header">
