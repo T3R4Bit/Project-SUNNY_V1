@@ -3,12 +3,12 @@ id: sunny-discord-bot
 type: component
 status: active
 created: 2026-08-19
-tags: [discord, bot, tasks, component]
+tags: [discord, bot, tasks, lists, alarms, reminders, component]
 ---
 
 # Discord Bot — Tasks Channel
 
-The intended **primary** interface for the task system (see [[../TASK_SYSTEM.md]]). Lives in one dedicated Discord channel: reads commands as plain messages, replies in-channel, and keeps a pinned dashboard message up to date. The web chatbot (`/chatbot`) is the fallback whenever the bot is offline.
+The intended **primary** interface for Tasks (see [[../TASK_SYSTEM.md]]), [[lists.md|Lists]], and [[alarms-reminders.md|Alarms/Reminders]] — one bot, one dedicated channel, all three subsystems. Reads commands as plain messages, replies in-channel, keeps a pinned task dashboard up to date, and posts a ping whenever an alarm/reminder comes due. The web chatbot (`/chatbot`) is the fallback whenever the bot is offline.
 
 ## Status
 
@@ -16,11 +16,12 @@ The intended **primary** interface for the task system (see [[../TASK_SYSTEM.md]
 
 ## How It Works
 
-- Uses the exact same routing as the web chatbot (`sunny_code.components.assistant.handle_message`) — natural phrasing, no `!` prefix needed, `help` works, everything behaves identically to `/chatbot`.
+- Uses the exact same routing as the web chatbot (`sunny_code.components.assistant.handle_message`) — natural phrasing, no `!` prefix needed, `help` works, everything behaves identically to `/chatbot`, and covers all three subsystems (Tasks/Lists/Alarms-Reminders) through one message handler.
 - **Scoped to one channel.** Messages anywhere else in the server are ignored entirely.
 - Every message in that channel gets a reply. Task-mutating commands (add/update/delete) also trigger an immediate dashboard refresh; everything else just replies.
 - Long responses (>1900 characters) are split into multiple messages at line boundaries — Discord's hard limit is 2000.
 - Ignores messages from any bot (including itself), so it can't loop with other bots.
+- On first connect (`on_ready`), if any tracked API key is still missing, posts the same missing-key summary that's logged on startup — once per run, and skipped entirely if nothing's missing (`sunny_code/components/key_status.py` — no noise when everything's configured).
 
 ## Pinned Dashboard
 
@@ -28,6 +29,13 @@ The intended **primary** interface for the task system (see [[../TASK_SYSTEM.md]
 - Refreshes automatically every 5 minutes (`discord.ext.tasks.loop(minutes=5)`).
 - React with 🔄 on the pinned dashboard message for an instant refresh — the bot clears the reaction afterward so it's ready to use again.
 - Content is exactly `TaskEngine.format_dashboard()` — the same formatter the `/api/tasks/dashboard` endpoint already uses.
+- Lists don't get a pinned dashboard today — only Tasks does.
+
+## Scheduled Items (Alarms/Reminders) — Due Check
+
+- Separate loop, `scheduled_check_loop`, runs every 30 seconds (`discord.ext.tasks.loop(seconds=30)`) — independent of the 5-minute task dashboard refresh.
+- Queries `scheduled_engine.db.get_due_items(now)`. For each due item, posts `⏰ Alarm: <label>` or `🔔 Reminder: <label>` to the tasks channel, then either reschedules it (recurring items, via `next_occurrence()`) or deactivates it (one-off items).
+- This is currently the **only real "sounding" mechanism** for alarms/reminders — see [[alarms-reminders.md]] for why, and for what happens when the bot isn't connected (items still get created and stored, they just never announce themselves).
 
 ## Setup
 
@@ -68,7 +76,7 @@ Restart Sunny (`./run.sh`). Log line to confirm it connected: `Discord bot conne
 
 ## Dependencies
 
-- [[../TASK_SYSTEM.md]] — the command parser and task engine this bot drives
+- [[../TASK_SYSTEM.md]], [[lists.md]], [[alarms-reminders.md]] — the three subsystems this bot drives, all through the same `handle_message()`
 - `discord.py>=2.3.0` (installed via `requirements.txt`)
 - [[dashboard]] — `TaskEngine.format_dashboard()` is the shared formatter
 
@@ -81,6 +89,9 @@ Restart Sunny (`./run.sh`). Log line to confirm it connected: `Discord bot conne
 - [x] 🔄 reaction for on-demand refresh
 - [x] Long-message chunking
 - [x] Graceful no-op when not configured (web chatbot unaffected)
+- [x] Lists and Alarms/Reminders routed through the same bot (no separate bot/channel needed)
+- [x] 30-second scheduled-item due check, posts + reschedules/deactivates
+- [x] Startup missing-API-key summary posted once per run
 - [ ] **Connect a real bot token and verify against a live server** — this step needs you
 - [ ] Multi-channel activity log (briefings, warnings, etc.) — separate, larger scope
 - [ ] Slash command variants (optional, nice-to-have)

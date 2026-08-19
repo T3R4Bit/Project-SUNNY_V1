@@ -40,7 +40,8 @@ class TaskDB:
                     priority INTEGER CHECK(priority BETWEEN 1 AND 5) DEFAULT 3,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    due_date DATETIME
+                    due_date DATETIME,
+                    source TEXT
                 )
                 """
             )
@@ -77,6 +78,14 @@ class TaskDB:
                 )
                 cursor.execute("DROP TABLE tasks_old")
 
+            # Older databases predate the "source" column (which device created
+            # the task — web/discord/api). Additive, so a plain ALTER is enough.
+            cursor.execute("PRAGMA table_info(tasks)")
+            columns = {row[1] for row in cursor.fetchall()}
+            if "source" not in columns:
+                logger.info("Migrating tasks table: adding source column")
+                cursor.execute("ALTER TABLE tasks ADD COLUMN source TEXT")
+
             # Indexes for faster queries
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_tag ON tasks(tag)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_status ON tasks(status)")
@@ -93,6 +102,7 @@ class TaskDB:
         priority: int = 3,
         description: str = None,
         due_date: str = None,
+        source: str = None,
     ) -> str:
         """Create a new task. Returns task ID."""
         # Validate inputs
@@ -111,13 +121,13 @@ class TaskDB:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                INSERT INTO tasks (id, title, description, tag, priority, created_at, updated_at, due_date, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open')
+                INSERT INTO tasks (id, title, description, tag, priority, created_at, updated_at, due_date, status, source)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
                 """,
-                (task_id, title, description, tag, priority, now, now, due_date),
+                (task_id, title, description, tag, priority, now, now, due_date, source),
             )
             conn.commit()
-            logger.info(f"Task created: {task_id} - {title}")
+            logger.info(f"Task created: {task_id} - {title} (source: {source})")
 
         return task_id
 

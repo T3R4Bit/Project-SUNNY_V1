@@ -138,7 +138,7 @@ exit  # Exit dev mode
 - Morning briefing (9 sections)
 - Evening briefing (7 sections)
 - Q&A engine for custom questions
-- Mock data built-in (no API keys needed for testing)
+- Tasks queried live from `tasks.db`; no API key needed. Everything else (weather/calendar/email/commute/health/news) honestly says "not connected" instead of faking data — no mock data anywhere
 
 ### ✅ Task Management
 - Create: `add Title to my tasks` (append `--tag Category --priority 5` etc. for precision)
@@ -150,9 +150,20 @@ exit  # Exit dev mode
 - Dashboard: View all tasks organized by category
 - No command prefix required — plain natural phrasing, deterministic regex parsing, no LLM
 
+### 📝 Lists
+- Named checkable lists: `add milk to my grocery list`, `what's on my grocery list`, `my lists`
+- No name given → falls back to a default "To-Do" list
+- Same no-LLM, free-form philosophy as tasks — see `sunny-vault/docs/architecture/lists.md`
+
+### ⏰ Alarms & Reminders
+- `set an alarm for 7am`, `remind me to call Mom at 5pm`, `what alarms are set`, `cancel my 7am alarm`
+- Time-based only (no location tracking) — deterministic parsing, no external date library
+- Nothing "sounds" without hardware; the only real delivery today is a Discord ping when due — see `sunny-vault/docs/architecture/alarms-reminders.md`
+
 ### 🤖 Discord Bot (Optional)
-- Same task commands as the web chatbot, typed as plain messages in one dedicated channel
-- Pinned dashboard message, auto-refreshes every 5 minutes, 🔄 reaction for instant refresh
+- Same task/list/alarm/reminder commands as the web chatbot, typed as plain messages in one dedicated channel
+- Pinned task dashboard, auto-refreshes every 5 minutes, 🔄 reaction for instant refresh
+- Separate 30-second loop posts a ping (`⏰`/`🔔`) whenever an alarm or reminder comes due
 - Not running unless `DISCORD_BOT_TOKEN` and `DISCORD_TASKS_CHANNEL_ID` are set in `.env` — web chatbot works either way
 - Setup steps: `sunny-vault/docs/architecture/discord-bot.md`
 
@@ -305,8 +316,16 @@ Project-SUNNY/
 │       ├── tasks_engine.py
 │       ├── tasks_parser.py     # Natural language + legacy !task parsing
 │       ├── tasks_api.py
+│       ├── lists_db.py         # List database (lists + list_items)
+│       ├── lists_engine.py
+│       ├── lists_parser.py     # Natural language parsing for lists
+│       ├── scheduled_db.py     # Alarm/reminder database
+│       ├── scheduled_engine.py
+│       ├── scheduled_parser.py # Natural language parsing for alarms/reminders
+│       ├── time_parse.py       # Deterministic time/recurrence parsing (no library)
+│       ├── device.py           # Maps a session_id to source: web | discord | api
 │       ├── assistant.py        # Shared message routing (web chatbot + Discord bot)
-│       ├── discord_bot.py      # Discord bot — tasks channel + pinned dashboard
+│       ├── discord_bot.py      # Discord bot — tasks/lists/alarms, pinned dashboard, due-item pings
 │       ├── dashboard.py        # Dashboard JSON API
 │       ├── console_stats.py    # /console system stats page
 │       └── chatbot_ui.py       # Web UI (/chatbot, / redirects there)

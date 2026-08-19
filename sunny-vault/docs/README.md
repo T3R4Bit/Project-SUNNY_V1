@@ -14,7 +14,7 @@ Sunny is an always-on voice assistant that lives on a bedside device and Lenovo 
 - **Remote Power Control** — Wake desktop and control devices via Tailscale network
 - **Smart Logging** — Discord activity channels, Notion sync, Obsidian vault mirroring
 
-None of the above beyond the briefing engine and task system are built yet — see Current Status below and [[./phases.md]] for what's actually working today versus planned.
+None of the above beyond the briefing engine, task system, lists, and alarms/reminders are built yet — see Current Status below and [[./phases.md]] for what's actually working today versus planned.
 
 ## Design Principles
 
@@ -48,13 +48,16 @@ chmod +x run.sh
 See [[./QUICKSTART.md]] for full quick-start guide.
 
 ### Current Status
-Phase 0 (Foundations) mostly complete — briefing engine (mock data), task system (SQLite + REST API, chatbot-driven), web chatbot UI (at `/chatbot`, `/` redirects there), and live system console (`/console`) all working. `run.sh` manages Python dependencies automatically (no manual venv setup). Systemd autostart is the main piece still outstanding.
+Phase 0 (Foundations) mostly complete — briefing engine (real task data, honest "not connected" for everything else), task system, lists, and alarms/reminders (all SQLite + chatbot/Discord-driven), web chatbot UI (at `/chatbot`, `/` redirects there), Discord bot (code complete, needs a bot token connected), and live system console (`/console`) all working. `run.sh` manages Python dependencies automatically (no manual venv setup). Systemd autostart is the main piece still outstanding.
 
 ### Documentation
 - [[./QUICKSTART.md]] — Get started in 30 seconds
 - [[./architecture/Mind-Map.md]] — System architecture overview
 - [[./phases.md]] — Build timeline (phases 0-7)
 - [[./TASK_SYSTEM.md]] — Task management system
+- [[./architecture/lists.md]] — Lists (groceries, packing, anything checkable)
+- [[./architecture/alarms-reminders.md]] — Alarms & Reminders (ping Discord when due)
+- [[./architecture/discord-bot.md]] — Discord bot setup (drives all three subsystems above)
 - [[./BACKLOG.md]] — Deferred items not tied to a specific phase
 
 ## Costs
@@ -65,7 +68,7 @@ Estimated monthly spend once the voice/phone phases are live: ~$5–$8
 - Sonic API (hosted TTS)
 - Traffic/location APIs (~$3–$4)
 
-**Today**: $0 — no LLM or paid API is called yet; the briefing engine runs entirely on hardcoded mock data.
+**Today**: $0 — no LLM or paid API is called yet. Tasks, lists, and alarms/reminders are real data; weather/calendar/email/commute/health/news say "not connected" instead of faking an answer.
 
 Hard spending caps enforced at the provider level (Anthropic, Twilio).
 

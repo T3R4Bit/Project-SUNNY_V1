@@ -68,8 +68,11 @@ Clock (ESP32-S3)        Brain (Lenovo Mini PC)      External APIs
 - ✓ Ubuntu Server 26.04 LTS on Lenovo mini PC
 - ✓ Briefing system with Q&A engine (real task data, honest gaps elsewhere)
 - ✓ Task management system — natural language, no command prefix needed
+- ✓ Lists (groceries, packing, anything checkable) — see `sunny-vault/docs/architecture/lists.md`
+- ✓ Alarms & Reminders — time-based, ping Discord when due — see `sunny-vault/docs/architecture/alarms-reminders.md`
+- ✓ Device/source tracking (web/discord/api) on every task, list item, and alarm
 - ✓ Web chatbot UI over Tailscale (served at `/chatbot`, `/` redirects there)
-- ✓ Discord bot for tasks (built, needs a bot token connected — see `sunny-vault/docs/architecture/discord-bot.md`)
+- ✓ Discord bot for tasks/lists/alarms/reminders (built, needs a bot token connected — see `sunny-vault/docs/architecture/discord-bot.md`)
 - ✓ Live system console (`/console`) — CPU, RAM, disk, network, temp
 - ✓ Comprehensive documentation
 
@@ -81,9 +84,11 @@ See `sunny-vault/docs/phases.md` for full build timeline.
 
 ## Documentation
 
-- **Architecture** — `sunny-vault/docs/architecture/` (7 component docs with cross-references)
+- **Architecture** — `sunny-vault/docs/architecture/` (component docs with cross-references)
 - **Build Timeline** — `sunny-vault/docs/phases.md` (phases 0-7 with checklists)
 - **Task System** — `sunny-vault/docs/TASK_SYSTEM.md` (natural-language commands + Discord bot)
+- **Lists** — `sunny-vault/docs/architecture/lists.md` (groceries, packing, anything checkable)
+- **Alarms & Reminders** — `sunny-vault/docs/architecture/alarms-reminders.md` (time-based, ping Discord when due)
 - **Dashboard** — `sunny-vault/docs/architecture/dashboard.md` (monitoring UI with Tailscale panel)
 
 ---

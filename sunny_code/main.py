@@ -15,6 +15,10 @@ from sunny_code.components.briefing_api import create_briefing_router
 from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.tasks_api import create_tasks_router
+from sunny_code.components.lists_db import ListDB
+from sunny_code.components.lists_engine import ListEngine
+from sunny_code.components.scheduled_db import ScheduledDB
+from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.chatbot_ui import create_chatbot_router
 from sunny_code.components.console_stats import create_console_router
 from sunny_code.components.discord_bot import create_discord_bot
@@ -30,25 +34,33 @@ class SunnyCore:
     def __init__(self):
         self.settings = get_settings()
         self.logger = setup_logging()
-        # One TaskEngine/BriefingEngine shared by the web chatbot, REST API, and
-        # Discord bot, so a task change from any interface is visible everywhere
-        # immediately (e.g. an instant Discord dashboard refresh) instead of
-        # waiting on a timer — see TaskEngine.on_change.
+        # Shared engine instances used by the web chatbot, REST API, and Discord
+        # bot, so a change from any interface is visible everywhere immediately
+        # (e.g. an instant Discord dashboard refresh) instead of waiting on a
+        # timer — see TaskEngine.on_change / ScheduledEngine.on_change.
         tasks_db = TaskDB(self.settings.project_root / "tasks.db")
         self.tasks_engine = TaskEngine(tasks_db)
         self.briefing_engine = BriefingEngine()
+        lists_db = ListDB(self.settings.project_root / "lists.db")
+        self.list_engine = ListEngine(lists_db)
+        scheduled_db = ScheduledDB(self.settings.project_root / "scheduled.db")
+        self.scheduled_engine = ScheduledEngine(scheduled_db)
         self.app = self._create_app()
         self.discord_bot = self._create_discord_bot()
 
     def _create_discord_bot(self):
         """Build the Discord bot if a token is configured; otherwise skip it quietly —
-        the web chatbot covers the same task commands regardless."""
+        the web chatbot covers the same commands regardless."""
         if not self.settings.discord_bot_token or not self.settings.discord_tasks_channel_id:
             self.logger.info("Discord bot not configured (no token/channel) — skipping")
             return None
 
         return create_discord_bot(
-            self.tasks_engine, self.briefing_engine, self.settings.discord_tasks_channel_id
+            self.tasks_engine,
+            self.briefing_engine,
+            self.list_engine,
+            self.scheduled_engine,
+            self.settings.discord_tasks_channel_id,
         )
 
     def _create_app(self) -> FastAPI:
@@ -76,7 +88,9 @@ class SunnyCore:
         app.include_router(tasks_router, prefix="/api")
 
         # Chatbot UI
-        chatbot_router = create_chatbot_router(self.tasks_engine, self.briefing_engine)
+        chatbot_router = create_chatbot_router(
+            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine
+        )
         app.include_router(chatbot_router)
 
         # Console stats dashboard

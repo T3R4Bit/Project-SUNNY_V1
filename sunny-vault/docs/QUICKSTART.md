@@ -41,13 +41,18 @@ No manual Python environment setup required — `run.sh` creates and manages its
 - Morning briefing (9 sections)
 - Evening briefing (7 sections)
 - Q&A engine (ask anything)
-- Runs entirely on mock data today — no live calendar/weather/email APIs wired up yet
+- Tasks are queried live from `tasks.db`; calendar/weather/email/commute/health/news say "not connected" honestly instead of faking data — no live APIs wired up for those yet
 
 ### Task Management
 - Create, update, delete tasks
 - Filter by tag, status, priority
 - Hardcoded commands (no LLM parsing)
-- Driven through the chatbot/API today; a Discord bot is the planned primary interface — see [[./TASK_SYSTEM.md]]
+- Driven through the chatbot/API today; a Discord bot is built and is the planned primary interface (needs a bot token connected) — see [[./TASK_SYSTEM.md]]
+
+### Lists & Alarms/Reminders
+- Named checkable lists (groceries, packing, anything) — see [[./architecture/lists.md]]
+- Time-based alarms and reminders that ping the Discord tasks channel when due — see [[./architecture/alarms-reminders.md]]
+- Same natural-language, no-LLM philosophy as tasks; both route through the same chatbot/Discord bot
 
 ---
 
@@ -61,6 +66,10 @@ morning                          → Morning briefing
 show my tasks                    → List tasks
 add Title to my tasks            → Create task (append --priority 5 etc. if you want)
 mark Title as done               → Complete a task (by ID or title)
+add milk to my grocery list      → Add to a list (creates it if it's new)
+what's on my grocery list        → Show a list
+set an alarm for 7am             → Create an alarm
+remind me to call Mom at 5pm     → Create a reminder
 What's the weather?              → Ask a question
 Tell me about tomorrow           → Tomorrow preview
 ```
@@ -132,6 +141,9 @@ exit
 - **Architecture**: See [[./architecture/Mind-Map.md]]
 - **Build Timeline**: See [[./phases.md]]
 - **Task System**: See [[./TASK_SYSTEM.md]]
+- **Lists**: See [[./architecture/lists.md]]
+- **Alarms & Reminders**: See [[./architecture/alarms-reminders.md]]
+- **Discord Bot Setup**: See [[./architecture/discord-bot.md]]
 
 ---
 

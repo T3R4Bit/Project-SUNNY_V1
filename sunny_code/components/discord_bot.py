@@ -1,13 +1,19 @@
-"""Discord bot — task commands and a live-updating dashboard in a dedicated channel.
+"""Discord bot — task/list/alarm/reminder commands and a live-updating task
+dashboard, in one dedicated channel.
 
-Uses the exact same routing as the web chatbot (sunny_code.components.assistant.handle_message),
-so behavior is identical across interfaces. Scoped to one channel (DISCORD_TASKS_CHANNEL_ID) —
-messages elsewhere are ignored.
+Uses the exact same routing as the web chatbot (sunny_code.components.assistant.
+handle_message), so behavior is identical across interfaces. Scoped to one
+channel (DISCORD_TASKS_CHANNEL_ID) — messages elsewhere are ignored.
+
+Also the only real delivery mechanism for alarms/reminders today: there's no
+clock/speaker hardware yet, so "sounding" an alarm means posting a message in
+this channel when it's due (see the scheduled-items loop below).
 
 Setup steps: see sunny-vault/docs/architecture/discord-bot.md
 """
 
 import logging
+from datetime import datetime
 
 import discord
 from discord.ext import tasks
@@ -15,7 +21,10 @@ from discord.ext import tasks
 from sunny_code.components.assistant import handle_message
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.key_status import missing_api_keys, startup_summary
+from sunny_code.components.lists_engine import ListEngine
+from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.tasks_engine import TaskEngine
+from sunny_code.components.time_parse import next_occurrence
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +32,7 @@ DASHBOARD_MARKER = "​"  # zero-width space appended to the dashboard message s
 # restarted bot can recognize its own pinned message and start editing it again
 REFRESH_EMOJI = "🔄"
 MAX_MESSAGE_LENGTH = 1900  # Discord's real limit is 2000; leave headroom
+SCHEDULED_CHECK_INTERVAL_SECONDS = 30
 
 
 def _chunk_message(text: str, limit: int = MAX_MESSAGE_LENGTH):
@@ -46,6 +56,8 @@ def _chunk_message(text: str, limit: int = MAX_MESSAGE_LENGTH):
 def create_discord_bot(
     tasks_engine: TaskEngine,
     briefing_engine: BriefingEngine,
+    list_engine: ListEngine,
+    scheduled_engine: ScheduledEngine,
     tasks_channel_id: int,
 ) -> discord.Client:
     """Build (but don't start) the Discord client."""
@@ -104,11 +116,41 @@ def create_discord_bot(
     async def refresh_loop():
         await refresh_dashboard()
 
+    @tasks.loop(seconds=SCHEDULED_CHECK_INTERVAL_SECONDS)
+    async def scheduled_check_loop():
+        """Post a ping for any due alarm/reminder — the only real 'sounding'
+        mechanism until there's a clock/speaker device."""
+        due = scheduled_engine.db.get_due_items(datetime.now())
+        if not due:
+            return
+
+        try:
+            channel = await client.fetch_channel(tasks_channel_id)
+        except (discord.NotFound, discord.Forbidden) as e:
+            logger.warning(f"Cannot access Discord tasks channel {tasks_channel_id}: {e}")
+            return
+
+        for item in due:
+            icon = "⏰" if item["kind"] == "alarm" else "🔔"
+            noun = "Alarm" if item["kind"] == "alarm" else "Reminder"
+            try:
+                await channel.send(f'{icon} {noun}: {item["label"]}')
+            except discord.Forbidden:
+                logger.warning("Missing permission to send scheduled-item ping")
+
+            if item["recurrence"]:
+                trigger_at = datetime.fromisoformat(item["trigger_at"])
+                scheduled_engine.db.reschedule(item["id"], next_occurrence(trigger_at, item["recurrence"]))
+            else:
+                scheduled_engine.db.deactivate(item["id"])
+
     @client.event
     async def on_ready():
         logger.info(f"Discord bot connected as {client.user} (tasks channel: {tasks_channel_id})")
         if not refresh_loop.is_running():
             refresh_loop.start()  # runs immediately, then every 5 minutes
+        if not scheduled_check_loop.is_running():
+            scheduled_check_loop.start()  # runs immediately, then every 30s
 
         # Post what's still missing an API key once per run, so it's visible right
         # in the channel — but skip it entirely if everything's configured (no noise).
@@ -130,7 +172,9 @@ def create_discord_bot(
             return
 
         session_id = f"discord:{message.channel.id}:{message.author.id}"
-        response = await handle_message(message.content, tasks_engine, briefing_engine, session_id=session_id)
+        response = await handle_message(
+            message.content, tasks_engine, briefing_engine, list_engine, scheduled_engine, session_id=session_id
+        )
         for chunk in _chunk_message(response):
             await message.channel.send(chunk)
         # Dashboard refresh (if this was a mutating command) happens automatically

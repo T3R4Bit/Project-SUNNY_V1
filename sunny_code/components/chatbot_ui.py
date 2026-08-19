@@ -7,16 +7,23 @@ import asyncio
 
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.tasks_engine import TaskEngine
+from sunny_code.components.lists_engine import ListEngine
+from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.assistant import handle_message
 
 logger = logging.getLogger(__name__)
 
 
-def create_chatbot_router(tasks_engine: TaskEngine, briefing_engine: BriefingEngine) -> APIRouter:
+def create_chatbot_router(
+    tasks_engine: TaskEngine,
+    briefing_engine: BriefingEngine,
+    list_engine: ListEngine,
+    scheduled_engine: ScheduledEngine,
+) -> APIRouter:
     """Create chatbot UI routes.
 
     Takes shared engine instances (same ones the REST API and Discord bot use) so
-    a task change made here triggers the same on_change effects everywhere else.
+    a change made here triggers the same on_change effects everywhere else.
     """
     router = APIRouter(prefix="")
 
@@ -32,7 +39,9 @@ def create_chatbot_router(tasks_engine: TaskEngine, briefing_engine: BriefingEng
     ):
         """Single entry point for the chatbot — routing lives in sunny_code.components.assistant
         so the web chatbot and the Discord bot behave identically."""
-        response = await handle_message(text, tasks_engine, briefing_engine, session_id=f"web:{session}")
+        response = await handle_message(
+            text, tasks_engine, briefing_engine, list_engine, scheduled_engine, session_id=f"web:{session}"
+        )
         return {"response": response}
 
     @router.get("/chatbot")

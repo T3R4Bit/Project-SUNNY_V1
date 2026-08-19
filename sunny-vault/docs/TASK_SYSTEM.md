@@ -2,6 +2,8 @@
 
 Task management with hardcoded logic (no LLM required). **Discord is the intended primary interface** — a live bot dashboard you view and command from a `#tasks` channel. The code is built (see [[architecture/discord-bot.md]]) but not yet connected to a real Discord server — that last step needs a bot token and channel ID only you can create. The web chatbot is fully working today and remains the fallback for whenever the Discord bot is down.
 
+Tasks are one of three sibling subsystems that share the same routing entry point, database-per-feature approach, and "no LLM, plain pattern matching" philosophy — see [[architecture/lists.md]] for named checkable lists (groceries, packing, etc.) and [[architecture/alarms-reminders.md]] for time-triggered alarms/reminders that ping Discord when due. They are **not** part of Tasks — a list item never has a priority, and a task is never "due at 7am" in the alarm sense. All three route through the same `sunny_code/components/assistant.py`.
+
 ## Status
 
 | Piece | Status |
@@ -12,6 +14,9 @@ Task management with hardcoded logic (no LLM required). **Discord is the intende
 | REST API | ✅ Built (`sunny_code/components/tasks_api.py`) |
 | Web chatbot interface (`/chatbot`) | ✅ Built — working fallback interface |
 | **Discord bot** | ✅ Built (`sunny_code/components/discord_bot.py`), ⏳ **not yet connected** — see [[architecture/discord-bot.md]] Setup |
+| Device/source tracking (which interface created a record) | ✅ Built (`sunny_code/components/device.py`) — see Device Tracking below |
+| Lists (groceries, packing, etc.) | ✅ Built, separate subsystem — see [[architecture/lists.md]] |
+| Alarms & Reminders | ✅ Built, separate subsystem — see [[architecture/alarms-reminders.md]] |
 | Obsidian staging integration | ⏳ Not built — nothing writes to `staging/` yet |
 
 Current focus: connect the Discord bot to a real server (bot token + channel ID in `.env`) — see [[architecture/discord-bot.md]].
@@ -43,11 +48,23 @@ Task {
 
 ## How It Works Today (Web Chatbot)
 
-Open `/chatbot` (or `/`, which redirects there) and just talk to it naturally — "add buy milk to my tasks", "show my tasks", "mark a1b2c3d4 as done". No command prefix required. Type **"help"** (or "commands"/"info", or just hit enter with nothing typed) any time for a capability summary. The chatbot sends every message to one endpoint, which checks for "help" first, then tries to parse it as a task command, then falls back to the briefing Q&A engine if it isn't either:
+Open `/chatbot` (or `/`, which redirects there) and just talk to it naturally — "add buy milk to my tasks", "show my tasks", "mark a1b2c3d4 as done". No command prefix required. Type **"help"** (or "commands"/"info", or just hit enter with nothing typed) any time for a capability summary. The chatbot sends every message to one shared endpoint (`sunny_code/components/assistant.py`'s `handle_message()`, also used by the Discord bot — identical behavior on both interfaces):
 
 ```
 POST /api/assistant/message?text=<message>
 ```
+
+**Routing order**: pending follow-up question (if any) → help trigger → [[architecture/lists.md|list command]] → [[architecture/alarms-reminders.md|alarm/reminder command]] → task command (natural phrasing or legacy `!task`) → morning/evening briefing → briefing Q&A fallback. Lists and alarms/reminders are checked *before* tasks on purpose: their trigger phrases require a specific keyword ("list"/"alarm"/"reminder"), while tasks' bare `delete <x>`/`mark <x> as done` patterns are deliberately broad and would otherwise swallow "delete my reminder to call Mom" or "remove milk from my list" before the more specific parser ever got a look.
+
+## Device Tracking
+
+Every record created anywhere (a task, a list item, an alarm) gets tagged with `source: web | discord | api`, derived from the `session_id` passed into `handle_message()` (`sunny_code/components/device.py`'s `device_from_session()`):
+
+- Web chatbot sessions: `web:<random-id-persisted-in-browser-localStorage>` → `source = "web"`
+- Discord messages: `discord:<channel_id>:<user_id>` → `source = "discord"`
+- Anything else (direct REST API calls with no session): `source = "api"`
+
+This exists so future features (e.g. "show me what I created from my phone today") have real data to query against — nothing currently filters or displays by `source` yet, it's just recorded on every row in `tasks.db`, `lists.db`, and `scheduled.db`.
 
 ## REST API
 
@@ -311,6 +328,8 @@ Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging c
 - [x] 🔄 reaction for on-demand refresh
 - [x] Pin dashboard message to the configured channel
 - [x] Startup summary of missing API keys, logged + posted to Discord
+- [x] Device/source tracking (`web`/`discord`/`api`) on every created task — see Device Tracking above
+- [x] Lists and Alarms/Reminders built as separate sibling subsystems, routed through the same `handle_message()` — see [[architecture/lists.md]] and [[architecture/alarms-reminders.md]] for their own checklists
 - [ ] **Connect a real bot token and verify against a live server**
 - [ ] Logging to Obsidian staging
 - [ ] Slash command variants (optional)

@@ -35,6 +35,10 @@ morning                    → Morning briefing
 show my tasks              → List tasks
 add Title to my tasks      → Create task
 mark Title as done         → Complete a task
+add milk to my grocery list → Add to a list (creates it if new)
+what's on my grocery list  → Show a list
+set an alarm for 7am       → Create an alarm
+remind me to call Mom at 5pm → Create a reminder
 What's the weather?        → Weather info
 ```
 

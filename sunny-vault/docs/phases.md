@@ -15,7 +15,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ## Phase 0: Foundations (MOSTLY COMPLETE)
 
 **Timeline**: This week  
-**Current Status**: Ubuntu Server 26.04 LTS installed and running on the Lenovo (sunshine-m700). Core app — briefing engine, task system, chatbot UI, system console — all built and working over Tailscale. Systemd autostart is the main remaining piece.  
+**Current Status**: Ubuntu Server 26.04 LTS installed and running on the Lenovo (sunshine-m700). Core app — briefing engine, task system, [[architecture/lists.md|lists]], [[architecture/alarms-reminders.md|alarms/reminders]], chatbot UI, system console, Discord bot (code complete, token not yet connected) — all built and working over Tailscale. Systemd autostart is the main remaining piece.  
 **Deliverable**: Sunny process running locally, basic logging, systemd autostart
 
 ### Setup Tasks
@@ -320,7 +320,7 @@ Work on these in parallel, integrate incrementally:
 
 ### Discord Activity Log
 
-**Scoped ahead of this**: a single-channel task bot is already built — see [[architecture/discord-bot.md]] and [[TASK_SYSTEM.md]]. It only knows about one `#tasks`-style channel and task commands; it doesn't touch the multi-channel activity log below.
+**Scoped ahead of this**: a single-channel bot is already built — see [[architecture/discord-bot.md]], [[TASK_SYSTEM.md]], [[architecture/lists.md]], and [[architecture/alarms-reminders.md]]. It handles Tasks, Lists, and Alarms/Reminders (including a 30-second due-item check that pings the channel), all in one `#tasks`-style channel; it doesn't touch the multi-channel activity log below.
 
 - [ ] Set up Discord server + channels:
   - `#briefings` — Briefing output

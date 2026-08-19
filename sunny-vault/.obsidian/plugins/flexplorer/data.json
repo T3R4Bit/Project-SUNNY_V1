@@ -54,6 +54,9 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "alarms-reminders.md",
+        "discord-bot.md",
+        "lists.md",
         "dashboard.md",
         "Mind-Map.md",
         "brain.md",
@@ -99,6 +102,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "requests.md",
         "README.md"
       ]
     },
@@ -147,6 +151,22 @@
       "isHidden": false
     },
     "docs/BACKLOG.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/alarms-reminders.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/discord-bot.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/lists.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "log/requests.md": {
       "isPinned": false,
       "isHidden": false
     }

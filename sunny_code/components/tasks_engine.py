@@ -23,8 +23,9 @@ class TaskEngine:
         # regardless of which interface made it. Not set = no-op.
         self.on_change = None
 
-    async def execute_command(self, command: str) -> Tuple[bool, str]:
-        """Execute a task command and return (success, message)."""
+    async def execute_command(self, command: str, source: str = None) -> Tuple[bool, str]:
+        """Execute a task command and return (success, message). `source` (web/discord/api)
+        is only used for "add" — it's recorded on the created task for future reference."""
         try:
             cmd_type, success, data = self.parser.parse_command(command)
 
@@ -34,7 +35,7 @@ class TaskEngine:
                 return False, f"❌ {error}"
 
             if cmd_type == "add":
-                result = await self._execute_add(data)
+                result = await self._execute_add(data, source=source)
             elif cmd_type == "update":
                 result = await self._execute_update(data)
             elif cmd_type == "delete":
@@ -104,7 +105,7 @@ class TaskEngine:
 
         return None, f'No task found matching "{identifier}"'
 
-    async def _execute_add(self, data: Dict) -> Tuple[bool, str]:
+    async def _execute_add(self, data: Dict, source: str = None) -> Tuple[bool, str]:
         """Create a new task."""
         try:
             task_id = self.db.create_task(
@@ -113,6 +114,7 @@ class TaskEngine:
                 priority=data.get("priority", 3),
                 description=data.get("description"),
                 due_date=data.get("due_date"),
+                source=source,
             )
 
             message = f"""✅ Task created: {data['title']}
