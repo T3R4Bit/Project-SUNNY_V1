@@ -112,7 +112,7 @@ Once on mesh, all devices reach each other:
 
 | Device | Hostname | IP | OS | Status |
 |--------|----------|----|----|--------|
-| Brain | sunshine-m700 | 100.117.41.53 | Ubuntu 20.04 | ✅ Active, reachable |
+| Brain | sunshine-m700 | 100.117.41.53 | Ubuntu 26.04 LTS | ✅ Active, reachable |
 | TrueNAS | caliop-truenas | 100.123.58.119 | TrueNAS Scale | ✅ Active, reachable |
 | Phone | iphone181 | 100.73.98.114 | iOS | ✅ Active |
 | Workstation | keaton-pc | 100.82.153.78 | Windows | ✅ Active |

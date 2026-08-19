@@ -12,7 +12,9 @@ chmod +x run.sh
 ./run.sh
 ```
 
-**Done!** Server starts at `http://127.0.0.1:5000/chatbot`
+**Done!** Server starts at `http://127.0.0.1:5000`
+
+No manual Python setup needed — `run.sh` creates and manages its own virtual environment automatically on first run.
 
 ## Commands
 
@@ -22,7 +24,7 @@ chmod +x run.sh
 ./run.sh cli briefing      # Interactive briefing CLI
 ./run.sh cli tasks         # Interactive task CLI
 ./run.sh test all          # Run all tests
-./run.sh dev               # Dev shell (venv pre-activated)
+./run.sh dev               # Dev shell (auto-managed venv pre-activated)
 ```
 
 ## Try in Chatbot
@@ -37,8 +39,8 @@ What's the weather?        → Weather info
 ## Access from Phone
 
 1. Phone on Tailscale mesh
-2. Open: `http://100.117.41.53:5000/chatbot`
-   (or `http://sunshine-m700:5000/chatbot`)
+2. Open: `http://100.117.41.53:5000`
+   (or `http://sunshine-m700:5000`)
 
 ## Troubleshooting
 
@@ -49,7 +51,8 @@ nano run.sh              # Edit file
 ./run.sh
 ```
 
-**venv broken?**
+**Something broken after an update?**
+`run.sh` manages its own virtual environment — you never create or activate it yourself. If dependencies get into a bad state, just delete the auto-created folder and let the launcher rebuild it:
 ```bash
 rm -rf venv
 ./run.sh

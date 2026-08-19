@@ -65,10 +65,11 @@ Clock (ESP32-S3)        Brain (Lenovo Mini PC)      External APIs
 ## Current Status
 
 **Phase 0** — Foundations (✓ Complete)
-- ✓ Ubuntu Server 20.04+ on Lenovo mini PC
-- ✓ Briefing system with Q&A engine
+- ✓ Ubuntu Server 26.04 LTS on Lenovo mini PC
+- ✓ Briefing system with Q&A engine (mock data)
 - ✓ Task management system
-- ✓ Web chatbot UI over Tailscale
+- ✓ Web chatbot UI over Tailscale (served at site root)
+- ✓ Live system console (`/console`) — CPU, RAM, disk, network, temp
 - ✓ Comprehensive documentation
 
 **Next** — Phase 1: Tailscale networking verified, Phase 2: Clock hardware & voice I/O
@@ -114,14 +115,16 @@ Hard spending caps enforced at provider accounts.
 ### Linux/macOS Quick Start
 ```bash
 chmod +x run.sh
-./run.sh                    # Starts chatbot at http://127.0.0.1:5000/chatbot
+./run.sh                    # Starts chatbot at http://127.0.0.1:5000
 ```
+
+`run.sh` creates and manages its own Python virtual environment automatically — there's nothing to set up by hand.
 
 ### Full Setup
 See [SETUP_LINUX.md](SETUP_LINUX.md) for complete installation guide.
 
 ### Lenovo Brain Deployment
-1. Install Ubuntu Server 20.04+ on Lenovo mini PC
+1. Install Ubuntu Server 26.04 LTS on Lenovo mini PC
 2. Clone this repo
 3. `chmod +x run.sh && ./run.sh` to start
 4. Create systemd service for auto-start (see SETUP_LINUX.md)

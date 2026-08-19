@@ -13,11 +13,13 @@ A lightweight web-based control panel for monitoring Sunny's health, spending, a
 ## Overview
 
 **Framework**: FastAPI (Python async web framework)  
-**Binding**: Tailscale interface only (100.x.x.x, not 0.0.0.0)  
+**Binding**: `0.0.0.0:5000` — listens on all interfaces so it's reachable both locally and over Tailscale; security comes from Tailscale being the only network that can route to the box, not from interface binding  
 **Port**: 5000  
 **Access**: From phone anywhere via Tailscale mesh  
 **Authentication**: None (Tailscale itself provides security)  
 **Storage**: SQLite sunny.db (local metrics)
+
+> **Implementation note**: The panels below (Spend, Health, Clock Battery, Tailscale, Activity) describe the target design. What's actually built today is the console-style system stats page at `/console` (CPU, RAM, disk, network, temperature) and the chatbot UI at `/`. Spend tracking, service health, and clock battery panels are not yet implemented — see [[../phases.md]] for status.
 
 ## Architecture
 
@@ -166,7 +168,7 @@ Filling the root disk crashes Obsidian vault, logs, and sunny.db. Separate `/boo
 
 📍 CONNECTED DEVICES (in tailnet)
   ✅ brain (100.1.1.2)
-     OS: Linux (Ubuntu 20.04)
+     OS: Linux (Ubuntu 26.04 LTS)
      Hostname: lenovo-mini-pc
      Status: Active, online
      Last seen: now

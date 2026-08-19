@@ -40,19 +40,20 @@ Sunny is an always-on voice assistant that lives on a bedside device and Lenovo 
 ```bash
 chmod +x run.sh
 ./run.sh
-# Open: http://127.0.0.1:5000/chatbot
+# Open: http://127.0.0.1:5000
 ```
 
 See [[./QUICKSTART.md]] for full quick-start guide.
 
 ### Current Status
-Phase 0 (Foundations) complete — Briefing system, task management, web chatbot UI all working.
+Phase 0 (Foundations) complete — Briefing system, task management, web chatbot UI, and live system console all working. `run.sh` manages Python dependencies automatically (no manual venv setup).
 
 ### Documentation
 - [[./QUICKSTART.md]] — Get started in 30 seconds
 - [[./architecture/index.md]] — System architecture
 - [[./phases.md]] — Build timeline (phases 0-7)
 - [[./TASK_SYSTEM.md]] — Task management system
+- [[./BACKLOG.md]] — Deferred items not tied to a specific phase
 
 ## Costs
 

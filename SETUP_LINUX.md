@@ -4,7 +4,7 @@ Complete setup instructions for Linux (Ubuntu/Debian/Fedora) and macOS.
 
 ## Prerequisites
 
-- Linux (Ubuntu 20.04+, Debian, Fedora) or macOS
+- Linux (Ubuntu 26.04 LTS recommended, Debian, Fedora) or macOS
 - Python 3.9+
 - Git
 - ~500MB disk space
@@ -24,10 +24,10 @@ chmod +x run.sh
 ```
 
 Done! The launcher will:
-- ✓ Create virtual environment if needed
+- ✓ Create a virtual environment automatically if one doesn't exist (you never create or activate it yourself)
 - ✓ Install Python dependencies
 - ✓ Start the web server
-- ✓ Open chatbot at `http://127.0.0.1:5000/chatbot`
+- ✓ Serve the chatbot at `http://127.0.0.1:5000`
 
 ## Installation Steps
 
@@ -73,22 +73,24 @@ ls -la run.sh  # Verify it has 'x' permission
 ```
 
 First run will:
-- Create `venv/` directory (~200MB)
+- Create `venv/` directory automatically (~200MB) — this is handled entirely by `run.sh`, not a manual step
 - Install dependencies from `requirements.txt`
 - Start FastAPI server on `127.0.0.1:5000`
+
+Every run after the first reuses the existing `venv/` and just reinstalls/updates dependencies quietly.
 
 ## Usage
 
 ### Start Web Server (Default)
 ```bash
 ./run.sh
-# Access: http://127.0.0.1:5000/chatbot
+# Access: http://127.0.0.1:5000
 ```
 
 ### Start Just Chatbot
 ```bash
 ./run.sh chatbot
-# Access: http://127.0.0.1:5000/chatbot
+# Access: http://127.0.0.1:5000
 ```
 
 ### Interactive CLIs
@@ -112,7 +114,7 @@ First run will:
 
 ### Development Mode
 ```bash
-# Opens shell with venv pre-activated
+# Opens shell with the auto-managed venv pre-activated
 ./run.sh dev
 
 # Now you can run Python directly
@@ -123,10 +125,14 @@ exit  # Exit dev mode
 ## Features Available
 
 ### 🤖 Web Chatbot UI
-- Beautiful web interface
+- Console-style web interface, served at the site root (`/`)
 - Chat with AI assistant
 - Access from phone over Tailscale
 - No installation needed on phone
+
+### 📊 System Console
+- Live CPU, RAM, disk, network, and temperature stats at `/console`
+- Auto-refreshes every 2 seconds
 
 ### 📋 Briefing System
 - Morning briefing (9 sections)
@@ -164,24 +170,23 @@ chmod +x run.sh
 nano run.sh
 # Change: --port 5000 to --port 5001
 ./run.sh
-# Access: http://127.0.0.1:5001/chatbot
+# Access: http://127.0.0.1:5001
 ```
 
 ### Python version too old
 ```bash
 # Check version
 python3 --version  # Need 3.9+
-
-# Use python3.11 if available
-python3.11 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python -m uvicorn sunny.main:app --host 127.0.0.1 --port 5000
+```
+If your default `python3` is too old but a newer interpreter is installed (e.g. `python3.11`), edit the `python3 -m venv venv` line near the top of `run.sh` to call that interpreter instead, then let the launcher rebuild everything:
+```bash
+rm -rf venv
+./run.sh
 ```
 
 ### Virtual environment issues
+`run.sh` owns the `venv/` directory end-to-end — you never create, activate, or manage it yourself. If something's broken, just delete it and let the launcher rebuild it on the next run:
 ```bash
-# Remove and recreate
 rm -rf venv
 ./run.sh
 ```
@@ -235,9 +240,9 @@ sudo systemctl status sunny.service
 Access from anywhere via Tailscale:
 ```bash
 # From phone or laptop
-http://100.117.41.53:5000/chatbot
+http://100.117.41.53:5000
 # or
-http://sunshine-m700:5000/chatbot
+http://sunshine-m700:5000
 ```
 
 ## Environment Variables
@@ -292,11 +297,12 @@ Project-SUNNY/
 ## Next Steps
 
 1. ✓ Run `./run.sh` to start
-2. ✓ Open `http://127.0.0.1:5000/chatbot` in browser
+2. ✓ Open `http://127.0.0.1:5000` in browser
 3. ✓ Type "morning" to see briefing
 4. ✓ Type "!tasks" to see task list
-5. ✓ Deploy to Lenovo brain for 24/7 access
-6. ✓ Access from phone over Tailscale
+5. ✓ Check `/console` for live system stats
+6. ✓ Deploy to Lenovo brain for 24/7 access
+7. ✓ Access from phone over Tailscale
 
 ## Support
 

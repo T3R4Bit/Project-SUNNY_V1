@@ -12,10 +12,10 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ---
 
-## Phase 0: Foundations (IN PROGRESS)
+## Phase 0: Foundations (MOSTLY COMPLETE)
 
 **Timeline**: This week  
-**Current Status**: Ubuntu Server 26.04 LTS install pending, BIOS decisions finalized  
+**Current Status**: Ubuntu Server 26.04 LTS installed and running on the Lenovo (sunshine-m700). Core app — briefing engine, task system, chatbot UI, system console — all built and working over Tailscale. Systemd autostart is the main remaining piece.  
 **Deliverable**: Sunny process running locally, basic logging, systemd autostart
 
 ### Setup Tasks
@@ -23,35 +23,35 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 - [x] Decide on headless Linux OS (Ubuntu Server 26.04 LTS, switched from Debian)
 - [x] Decide on LiFePO4 battery swap and matching charger/cell sizing
 - [x] Decide on BIOS restore-on-AC-loss requirement
-- [ ] Install Ubuntu Server 26.04 LTS on Lenovo mini PC
+- [x] Install Ubuntu Server 26.04 LTS on Lenovo mini PC (GUI kept rather than stripped to headless)
+- [x] Python env setup on the Lenovo (`run.sh` creates/manages `venv/` automatically — no manual venv step)
+- [x] Git repo + folder structure
+- [x] Logging from the start
+- [x] Set up local dashboard skeleton — now functional, not just skeleton: FastAPI app bound to `0.0.0.0:5000`, chatbot UI at `/`, system console at `/console`, sunny.db + tasks.db via SQLite
 - [ ] Skip Featured Server Snaps at install (avoid snapd entirely rather than purging later)
 - [ ] Set BIOS to restore power state on AC loss
 - [ ] Set up Sunny as a systemd unit with Restart=always
 - [ ] Disable unattended-upgrades auto-reboot, or pin to a window
-- [ ] Python env setup on the Lenovo
 - [ ] Secrets via env vars + config file
-- [ ] Git repo + folder structure
-- [ ] Logging from the start
 - [ ] Set up Obsidian vault structure (inbox/staging/archive/log/state)
-- [ ] Set up local dashboard skeleton (FastAPI, bound to Tailscale interface, sunny.db)
 
 ### Deliverables When Complete
 
 ```
-✅ Lenovo running Ubuntu Server 20.04
-✅ BIOS configured for auto-boot on power restore
-✅ Python venv with base dependencies
-✅ Sunny process starts on boot via systemd
+✅ Lenovo running Ubuntu Server 26.04 LTS
+⏳ BIOS configured for auto-boot on power restore
+✅ Python env auto-managed by run.sh (no manual venv)
+⏳ Sunny process starts on boot via systemd (works via ./run.sh, not yet a service)
 ✅ Structured logging to logs/ folder
-✅ Obsidian vault ready (empty but structured)
-✅ Dashboard accessible at http://localhost:5000 (not yet functional)
+⏳ Obsidian vault ready (empty but structured)
+✅ Dashboard accessible at http://100.117.41.53:5000 — functional: chatbot UI + live system console
 ```
 
-**Next Step**: Phase 1 (Networking)
+**Next Step**: Finish systemd autostart, then Phase 1 cleanup items
 
 ---
 
-## Phase 1: Networking
+## Phase 1: Networking (COMPLETE except future hardware)
 
 **Timeline**: Week 2  
 **Dependencies**: Phase 0 complete  
@@ -63,12 +63,14 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 - [x] Generate stable private IP for Lenovo (100.117.41.53, stable)
 - [x] Install Tailscale on TrueNAS server (caliop-truenas, 100.123.58.119)
 - [x] Verify TrueNAS connectivity to Lenovo (61ms latency, reachable)
-- [ ] Flash MicroLink firmware on future ESP32 [[clock]] (pending hardware)
-
-- [ ] Configure Tailscale ACLs (optional, all devices trust each other for now)
 - [x] Install Tailscale on phone (iphone181, 100.73.98.114)
-- [ ] Test phone dashboard access via Tailscale (manual test needed)
+- [x] Install Tailscale on workstation (keaton-pc, 100.82.153.78)
+- [x] Fixed server binding so it's reachable over Tailscale, not just localhost (`--host 0.0.0.0`)
+- [x] Confirmed cross-device access — chatbot + console dashboard reachable from workstation over Tailscale
 - [x] Document all device IPs and hostnames (updated [[networking]] and [[dashboard]])
+- [ ] Test phone dashboard access via Tailscale specifically (workstation confirmed, phone not yet verified)
+- [ ] Configure Tailscale ACLs (optional, all devices trust each other for now)
+- [ ] Flash MicroLink firmware on future ESP32 [[clock]] (pending hardware)
 
 ### Deliverables When Complete
 
@@ -84,42 +86,47 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ---
 
-## Phase 2: Briefing Engine
+## Phase 2: Briefing Engine (TEMPLATES DONE, REAL DATA PENDING)
 
 **Timeline**: Week 3-4  
 **Dependencies**: Phase 0-1 complete  
 **Deliverable**: Working morning and evening briefings
 
+**Current status**: The engine itself is built and working — hardcoded morning (9-section) and evening (7-section) templates, slot-filling text generation, and a Q&A system answering questions about weather, calendar, email, tasks, commute, health, motorsports, news, and tomorrow. All of it currently runs on mock data (`briefing_data.py`), so the text is realistic but not live. What's left is swapping each mock data source for a real API.
+
 ### Briefing Integration Tasks
 
-- [ ] Calendar API integration (Google Calendar or Notion)
-- [ ] Weather API integration (OpenWeatherMap or similar)
-- [ ] Traffic API integration (Google Maps)
-- [ ] Task summary queries (from Notion or SQLite)
-- [ ] Email header parsing + urgency detection
-- [ ] Hardcoded briefing template (morning + evening)
-- [ ] Text generation engine (slot-filling, no LLM)
-- [ ] Scheduling (7am morning, 9pm evening)
-- [ ] Error handling per API (fail gracefully)
+- [x] Hardcoded briefing template (morning + evening)
+- [x] Text generation engine (slot-filling, no LLM)
+- [x] Q&A engine for freeform questions (weather, calendar, tasks, commute, etc.)
+- [x] Mock data layer for all sections (weather, calendar, email, tasks, traffic, health, news, motorsports)
+- [x] Task summary queries (from SQLite via [[../TASK_SYSTEM.md|task system]])
+- [ ] Calendar API integration (Google Calendar or Notion) — replace mock data
+- [ ] Weather API integration (OpenWeatherMap or similar) — replace mock data
+- [ ] Traffic API integration (Google Maps) — replace mock data
+- [ ] Email header parsing + urgency detection — replace mock data
+- [ ] Scheduling (7am morning, 9pm evening) — currently manual trigger only
+- [ ] Error handling per live API (fail gracefully) — not needed yet since data is mocked
 - [ ] Optional: Email triage via LLM (simple classification)
 - [ ] Obsidian staging integration (log briefings)
 - [ ] Dashboard: Show last briefing time, next scheduled, status
 
 ### Test Deliverables
 
-- [ ] Manually trigger morning briefing → see formatted text
-- [ ] Verify all API calls work
+- [x] Manually trigger morning briefing → see formatted text
+- [ ] Verify all live API calls work (blocked on API integration above)
 - [ ] Test fallback behavior (API fails → briefing continues)
 - [ ] Check Obsidian logging
 
 ### Deliverables When Complete
 
 ```
-✅ 7am: Briefing generated automatically
-✅ 9pm: Evening briefing generated automatically
-✅ All data from APIs (no LLM calls except optional email triage)
-✅ Failures logged to Discord #warnings
-✅ Obsidian staging has briefing record
+⏳ 7am: Briefing generated automatically (manual trigger works today)
+⏳ 9pm: Evening briefing generated automatically (manual trigger works today)
+⏳ All data from live APIs (mock data today, no LLM calls except optional email triage)
+⏳ Failures logged to Discord #warnings
+⏳ Obsidian staging has briefing record
+✅ Briefing templates + Q&A engine fully working end-to-end on mock data
 ```
 
 **Next Step**: Phase 3 (Voice Hardware & TTS)
@@ -300,6 +307,12 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ---
 
+## Backlog
+
+Deferred items not yet slotted into a phase — see [[BACKLOG.md]] (currently: service orchestration — systemd unit, single-command startup for all services, per-service runtime toggle, autostart-per-service config).
+
+---
+
 ## Ongoing / Cross-Cutting (All Phases)
 
 Work on these in parallel, integrate incrementally:
@@ -362,9 +375,9 @@ Work on these in parallel, integrate incrementally:
 
 | Milestone | Target | Status |
 |-----------|--------|--------|
-| Phase 0: Foundations | This week | 🔄 In Progress |
-| Phase 1: Networking | Week 2 | ⏳ Upcoming |
-| Phase 2: Briefing | Week 3-4 | ⏳ Upcoming |
+| Phase 0: Foundations | This week | 🔄 Mostly complete — systemd autostart remaining |
+| Phase 1: Networking | Week 2 | 🔄 Mostly complete — phone verification + ACLs remaining |
+| Phase 2: Briefing | Week 3-4 | 🔄 Templates/Q&A done on mock data — real API integration remaining |
 | Phase 3: Clock Hardware | Week 5-6 | ⏳ Upcoming |
 | Phase 4: Wake Word | Week 7-8 | ⏳ Upcoming |
 | Phase 5: Phone | Week 8-9 | ⏳ Upcoming |
