@@ -161,10 +161,10 @@ class TaskCommandParser:
         if command.startswith("!task add"):
             success, data = TaskCommandParser.parse_add_command(command)
             return "add", success, data
-        elif command.startswith("!task") and "delete" in command:
+        elif re.match(TaskCommandParser.TASK_DELETE_PATTERN, command):
             success, data = TaskCommandParser.parse_delete_command(command)
             return "delete", success, data
-        elif command.startswith("!task") and not "add" in command:
+        elif re.match(TaskCommandParser.TASK_UPDATE_PATTERN, command):
             success, data = TaskCommandParser.parse_update_command(command)
             return "update", success, data
         elif command.startswith("!tasks") or command.startswith("!task"):
