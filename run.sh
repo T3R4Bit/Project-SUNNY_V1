@@ -2,8 +2,9 @@
 # Project SUNNY — Auto-launch with venv (Bash version)
 # Usage: ./run.sh [command]
 # Examples:
-#   ./run.sh                    Start web server (default)
-#   ./run.sh chatbot            Start console (non-reload mode)
+#   ./run.sh                    Start web server (default) — this is what systemd runs
+#   ./run.sh reload             Same, but with auto-reload on file changes — local dev only
+#   ./run.sh chatbot            Alias for the default server (kept for old muscle memory)
 #   ./run.sh chat               Terminal chat — full assistant, no web server needed
 #   ./run.sh cli briefing       Start briefing CLI
 #   ./run.sh cli tasks          Start tasks CLI
@@ -143,7 +144,7 @@ case "$COMMAND" in
         echo -e "${GREEN}Console: http://100.117.41.53:5000/console${NC}"
         echo -e "${CYAN}Press Ctrl+C to stop${NC}"
         echo ""
-        python -m uvicorn sunny_code.main:app --reload --host 0.0.0.0 --port 5000
+        python -m uvicorn sunny_code.main:app --host 0.0.0.0 --port 5000
         ;;
 
     "chatbot")
@@ -153,6 +154,14 @@ case "$COMMAND" in
         echo -e "${CYAN}Press Ctrl+C to stop${NC}"
         echo ""
         python -m uvicorn sunny_code.main:app --host 0.0.0.0 --port 5000
+        ;;
+
+    "reload")
+        echo -e "${GREEN}Starting web server on 0.0.0.0:5000 (auto-reload — local dev only)${NC}"
+        echo -e "${GREEN}Local: http://127.0.0.1:5000${NC}"
+        echo -e "${CYAN}Press Ctrl+C to stop${NC}"
+        echo ""
+        python -m uvicorn sunny_code.main:app --reload --host 0.0.0.0 --port 5000
         ;;
 
     "chat")
@@ -208,8 +217,8 @@ case "$COMMAND" in
         echo -e "${RED}Unknown command: $COMMAND${NC}"
         echo ""
         echo -e "${YELLOW}Available commands:${NC}"
-        echo -e "  ${CYAN}./run.sh${NC}                Start web server (default)"
-        echo -e "  ${CYAN}./run.sh chatbot${NC}         Start console (non-reload mode)"
+        echo -e "  ${CYAN}./run.sh${NC}                Start web server (default) — this is what systemd runs"
+        echo -e "  ${CYAN}./run.sh reload${NC}          Same, with auto-reload on file changes — local dev only"
         echo -e "  ${CYAN}./run.sh chat${NC}            Terminal chat — full assistant, no web server needed"
         echo -e "  ${CYAN}./run.sh cli briefing${NC}    Start briefing CLI"
         echo -e "  ${CYAN}./run.sh cli tasks${NC}       Start task management CLI"
