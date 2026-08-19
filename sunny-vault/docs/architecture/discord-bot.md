@@ -3,25 +3,49 @@ id: sunny-discord-bot
 type: component
 status: active
 created: 2026-08-19
-tags: [discord, bot, tasks, lists, alarms, reminders, component]
+tags: [discord, bot, tasks, lists, alarms, reminders, server-admin, component]
 ---
 
-# Discord Bot — Tasks Channel
+# Discord Bot — Tasks Channel + Server Admin
 
-The intended **primary** interface for Tasks (see [[../TASK_SYSTEM.md]]), [[lists.md|Lists]], and [[alarms-reminders.md|Alarms/Reminders]] — one bot, one dedicated channel, all three subsystems. Reads commands as plain messages, replies in-channel, keeps a pinned task dashboard up to date, and posts a ping whenever an alarm/reminder comes due. The console chat (`/console`) is the fallback whenever the bot is offline.
+The intended **primary** interface for Tasks (see [[../TASK_SYSTEM.md]]), [[lists.md|Lists]], and [[alarms-reminders.md|Alarms/Reminders]] — one bot, one dedicated channel, all three subsystems. Reads commands as plain messages, replies in-channel, keeps a pinned task dashboard up to date, and posts a ping whenever an alarm/reminder comes due. The console chat (`/console`) is the fallback whenever the bot is offline. It can also administer the server itself — create/delete channels and roles, assign roles to members — since that's a Discord-only capability with nowhere else to live.
 
 ## Status
 
-✅ Built (`sunny_code/components/discord_bot.py`) — code is complete and unit-verified, but **not yet connected to a real Discord server**, since that requires a bot token and channel ID only you can create. See Setup below.
+✅ Built (`sunny_code/components/discord_bot.py`, `sunny_code/components/server_admin_parser.py`) — code is complete and unit-verified (parser matches + mocked-guild execution, both success paths and both guardrails), but **not yet connected to a real Discord server**, since that requires a bot token and channel ID only you can create. See Setup below.
 
 ## How It Works
 
 - Uses the exact same routing as the console chat (`sunny_code.components.assistant.handle_message`) — natural phrasing, no `!` prefix needed, `help` works, everything behaves identically to `/console`, and covers all three subsystems (Tasks/Lists/Alarms-Reminders) through one message handler.
-- **Scoped to one channel.** Messages anywhere else in the server are ignored entirely.
+- **Scoped to one channel.** Messages anywhere else in the server are ignored entirely — including server-admin commands.
 - Every message in that channel gets a reply. Task-mutating commands (add/update/delete) also trigger an immediate dashboard refresh; everything else just replies.
 - Long responses (>1900 characters) are split into multiple messages at line boundaries — Discord's hard limit is 2000.
 - Ignores messages from any bot (including itself), so it can't loop with other bots.
 - On first connect (`on_ready`), if any tracked API key is still missing, posts the same missing-key summary that's logged on startup — once per run, and skipped entirely if nothing's missing (`sunny_code/components/key_status.py` — no noise when everything's configured).
+
+## Server Admin (Channels & Roles)
+
+Discord-only, and checked *before* the shared `handle_message()` router — same reason lists/alarms are checked before tasks there: a generic "delete <title>" task pattern would otherwise swallow "delete channel #general" as an attempt to delete a task titled that.
+
+**Commands** (`sunny_code/components/server_admin_parser.py`, regex-only, no LLM — same approach as `tasks_parser.py`):
+- `create/add/make a channel called <name>` — text channel
+- `delete/remove channel <name>`
+- `list channels` / `show channels`
+- `create/add/make a role called <name>`
+- `delete/remove role <name>`
+- `list roles` / `show roles`
+- `give <@user> the <role> role` (either order works — also `give the <role> role to <@user>`)
+- `remove <@user> from the <role> role` (either order — also `remove the <role> role from <@user>`)
+
+**Deletions run immediately — no confirmation step.** This was a deliberate choice, not an oversight: it matches the trust model every other delete command in this app already uses (task/list deletion also runs immediately). Two hard guardrails exist regardless, because these specific mistakes would break the bot itself rather than just being undesired:
+- Can't delete the channel the bot is listening in (`DISCORD_TASKS_CHANNEL_ID`) — would strand it with no way to talk to you.
+- Can't delete `@everyone` — Discord's API refuses this anyway, but the guard gives a clean message instead of a raw API error.
+
+Any other Discord API failure (missing permission, role-hierarchy limit, role/channel already gone) becomes a plain-text reply — same fail-quietly contract as the rest of the app, never a crash.
+
+**Why this can't be an interface-agnostic command like tasks/lists**: creating/deleting a channel or role requires a live `discord.Guild` object — there's no equivalent concept on `/console` or in `chat.py`. So unlike everything else the bot does, these commands are handled entirely inside `discord_bot.py` and never touch `sunny_code.components.assistant`.
+
+**Permissions required**: the bot's role needs **Manage Channels** and **Manage Roles** in the server (see Setup below) — without them every command here returns a friendly "I don't have permission" instead of failing silently. For role commands specifically, Discord also requires the bot's own role to sit *above* any role it's creating/deleting/assigning in the server's role list — newly created roles land at the bottom by default so this is rarely an issue for new roles, but can bite if you're trying to manage a role positioned above the bot.
 
 ## Pinned Dashboard
 
@@ -50,8 +74,10 @@ The bot ships built but disconnected — `sunny_code/main.py` checks for `DISCOR
 ### 2. Invite the bot to your server
 
 1. Under **OAuth2 → URL Generator**, check the `bot` scope.
-2. Under Bot Permissions, check: **View Channel**, **Send Messages**, **Read Message History**, **Manage Messages** (needed to pin the dashboard and clear the 🔄 reaction after use), **Add Reactions** (optional, only if you want the bot to react to things later).
+2. Under Bot Permissions, check: **View Channel**, **Send Messages**, **Read Message History**, **Manage Messages** (needed to pin the dashboard and clear the 🔄 reaction after use), **Add Reactions** (optional, only if you want the bot to react to things later), **Manage Channels** and **Manage Roles** (needed for the server-admin commands below — skip these two if you only want Tasks/Lists/Alarms and don't want the bot able to create/delete channels or roles).
 3. Open the generated URL, pick your server, authorize.
+
+If the bot's already in your server without Manage Channels/Manage Roles and you want to add them later, re-run the same invite URL with those boxes checked and re-authorize — Discord updates the existing bot's permissions in place, no need to kick and re-invite.
 
 ### 3. Get the tasks channel ID
 
@@ -70,9 +96,11 @@ Restart Sunny (`./run.sh`). Log line to confirm it connected: `Discord bot conne
 
 ## Known Limitations
 
-- **One channel only.** No multi-channel support (e.g. separate `#briefings`, `#warnings` channels from the original design docs) — that's the broader "Discord Activity Log" idea in [[../phases.md]], not built.
-- **No slash commands.** Plain-message parsing only, matching the chatbot's UX. Could be added later without touching the parsing logic — Discord's slash-command UI would just be another caller into `handle_message()`.
+- **One channel only.** No multi-channel support (e.g. separate `#briefings`, `#warnings` channels from the original design docs) — that's the broader "Discord Activity Log" idea in [[../phases.md]], not built. Server-admin commands can still create *other* channels in the server, just can't be issued from them.
+- **No slash commands.** Plain-message parsing only, matching the chatbot's UX. Could be added later without touching the parsing logic — Discord's slash-command UI would just be another caller into `handle_message()` (tasks/lists/alarms) or `server_admin_parser`/`_execute_server_admin` (channels/roles).
 - **Single tasks channel per bot process.** No per-guild/multi-server config yet — fine for personal use, would need work for anything more.
+- **Text channels only.** Channel creation doesn't support voice channels or categories — not asked for, easy to add later (`guild.create_voice_channel`/`create_category` alongside `create_text_channel` in `discord_bot.py`) if needed.
+- **No role color/permission customization on create.** `create role <name>` makes a plain role with no color and no permissions set — matches Discord's own default for a freshly created role. Edit color/permissions in Discord's UI after creating it, or ask to add `--color` support later if this comes up in practice.
 
 ## Dependencies
 
@@ -92,6 +120,8 @@ Restart Sunny (`./run.sh`). Log line to confirm it connected: `Discord bot conne
 - [x] Lists and Alarms/Reminders routed through the same bot (no separate bot/channel needed)
 - [x] 30-second scheduled-item due check, posts + reschedules/deactivates
 - [x] Startup missing-API-key summary posted once per run
-- [ ] **Connect a real bot token and verify against a live server** — this step needs you
+- [x] Server admin: create/delete channels, create/delete roles, assign/remove roles on members — parser + execution unit-tested (mocked guild), including both guardrails
+- [ ] **Connect a real bot token and verify against a live server** — this step needs you (now also needs Manage Channels/Manage Roles granted if you want server-admin commands live)
 - [ ] Multi-channel activity log (briefings, warnings, etc.) — separate, larger scope
 - [ ] Slash command variants (optional, nice-to-have)
+- [ ] Voice channels / categories / role color on create (optional, not asked for yet)

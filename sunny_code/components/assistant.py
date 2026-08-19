@@ -51,6 +51,13 @@ ALARMS & REMINDERS
 BRIEFINGS
   morning / evening             — full briefing
 
+SERVER ADMIN (Discord only — needs a live server to act on)
+  create/delete channel <name>       — text channels
+  create/delete role <name>
+  give <@user> the <role> role / remove <@user> from the <role> role
+  list channels / list roles
+  Deletions run immediately, no confirmation — same as everything else here.
+
 QUESTIONS
   Ask about tasks and I'll answer for real.
   Weather, calendar, email, commute, health, and news aren't connected to
