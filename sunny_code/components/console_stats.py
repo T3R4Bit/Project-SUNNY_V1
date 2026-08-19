@@ -1,4 +1,5 @@
-"""Console-style system stats API and UI."""
+"""The console — Sunny's one web surface: chat on one side, live system/Google
+status on the other. Replaces the old split between /chatbot and /console."""
 
 import psutil
 import logging
@@ -23,12 +24,12 @@ def get_tailscale_ip():
 
 
 def create_console_router() -> APIRouter:
-    """Create console stats routes."""
+    """Create console routes: the combined UI plus its stats API."""
     router = APIRouter(prefix="/console")
 
     @router.get("/")
     async def console_ui():
-        """Serve the system status dashboard."""
+        """Serve the combined chat + system status page."""
         tailscale_ip = get_tailscale_ip()
         tailscale_url = f"http://{tailscale_ip}:5000" if tailscale_ip else "http://127.0.0.1:5000"
 
@@ -40,7 +41,7 @@ def create_console_router() -> APIRouter:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="dark">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%80%EF%B8%8F%3C/text%3E%3C/svg%3E">
-    <title>SUNNY Console</title>
+    <title>SUNNY</title>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 
@@ -64,33 +65,21 @@ def create_console_router() -> APIRouter:
             font-family: ui-monospace, 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace;
             background: radial-gradient(circle at 50% -10%, #16204a 0%, var(--bg) 45%, #05070f 100%);
             color: var(--text);
-            min-height: 100vh;
+            height: 100vh;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 24px 16px;
-        }}
-
-        .app {{
-            width: 100%;
-            max-width: 760px;
-            background: linear-gradient(180deg, var(--panel) 0%, var(--bg) 100%);
-            border: 1px solid var(--border);
-            border-radius: 20px;
+            flex-direction: column;
             overflow: hidden;
-            box-shadow:
-                0 24px 60px -24px rgba(0, 0, 0, 0.7),
-                0 0 50px -18px rgba(0, 212, 255, 0.25);
         }}
 
-        .header {{
+        .topbar {{
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 12px;
-            padding: 16px 20px;
+            padding: 14px 20px;
             background: linear-gradient(135deg, rgba(0, 212, 255, 0.14), rgba(0, 255, 136, 0.06));
             border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
         }}
 
         .brand {{
@@ -102,19 +91,19 @@ def create_console_router() -> APIRouter:
 
         .sun-badge {{
             flex-shrink: 0;
-            width: 38px;
-            height: 38px;
+            width: 36px;
+            height: 36px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
+            font-size: 17px;
             background: radial-gradient(circle at 35% 30%, #fff6d8, var(--green) 55%, var(--cyan) 100%);
             box-shadow: 0 0 18px rgba(0, 255, 136, 0.45);
         }}
 
         .brand-text h1 {{
-            font-size: 16px;
+            font-size: 15px;
             letter-spacing: 3px;
             font-weight: 800;
             background: linear-gradient(90deg, var(--cyan), var(--green));
@@ -127,7 +116,7 @@ def create_console_router() -> APIRouter:
             display: flex;
             align-items: center;
             gap: 6px;
-            font-size: 11px;
+            font-size: 10.5px;
             color: var(--dim);
             margin-top: 2px;
         }}
@@ -146,35 +135,261 @@ def create_console_router() -> APIRouter:
             50% {{ opacity: 0.4; }}
         }}
 
-        .nav-link {{
+        .icon-btn {{
             flex-shrink: 0;
-            font-size: 10.5px;
-            letter-spacing: 1.5px;
-            color: var(--cyan);
-            text-decoration: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
             border: 1px solid var(--border);
-            padding: 7px 12px;
-            border-radius: 20px;
+            background: transparent;
+            color: var(--dim);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
             transition: all 0.2s;
         }}
 
-        .nav-link:hover {{
-            background: rgba(0, 212, 255, 0.12);
-            box-shadow: 0 0 12px rgba(0, 212, 255, 0.3);
+        .icon-btn:hover {{
+            color: var(--pink);
+            border-color: var(--pink);
+            background: rgba(255, 77, 126, 0.1);
         }}
 
-        .content {{
-            padding: 20px;
+        .layout {{
+            flex: 1;
+            display: flex;
+            gap: 16px;
+            padding: 16px;
+            min-height: 0;
+            overflow: hidden;
+        }}
+
+        /* ---- Chat column ---- */
+
+        .chat-col {{
+            flex: 1.5;
+            min-width: 0;
+            display: flex;
+        }}
+
+        .chat-card {{
+            flex: 1;
             display: flex;
             flex-direction: column;
-            gap: 18px;
+            min-width: 0;
+            background: linear-gradient(180deg, var(--panel) 0%, var(--bg) 100%);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.7), 0 0 50px -18px rgba(0, 212, 255, 0.2);
+        }}
+
+        .chips {{
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding: 14px 18px 0;
+        }}
+
+        .chip {{
+            font-family: inherit;
+            font-size: 11.5px;
+            padding: 7px 12px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            background: rgba(0, 212, 255, 0.06);
+            color: var(--cyan);
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }}
+
+        .chip:hover {{
+            background: rgba(0, 212, 255, 0.16);
+            transform: translateY(-1px);
+        }}
+
+        .messages {{
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            scroll-behavior: smooth;
+            min-height: 0;
+        }}
+
+        .message {{
+            display: flex;
+            gap: 10px;
+            max-width: 88%;
+            animation: rise 0.3s ease-out;
+        }}
+
+        @keyframes rise {{
+            from {{ opacity: 0; transform: translateY(8px); }}
+            to {{ opacity: 1; transform: translateY(0); }}
+        }}
+
+        .message.user {{ align-self: flex-end; flex-direction: row-reverse; }}
+        .message.bot {{ align-self: flex-start; }}
+
+        .avatar {{
+            flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+        }}
+
+        .message.bot .avatar {{
+            background: linear-gradient(135deg, var(--cyan), var(--green));
+            color: #04101f;
+        }}
+
+        .message.user .avatar {{
+            background: linear-gradient(135deg, var(--pink), #ff8a5c);
+            color: #240a12;
+        }}
+
+        .bubble-wrap {{ display: flex; flex-direction: column; gap: 4px; min-width: 0; }}
+        .message.user .bubble-wrap {{ align-items: flex-end; }}
+
+        .bubble {{
+            padding: 11px 15px;
+            font-size: 13.5px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            word-break: break-word;
+            box-shadow: 0 4px 14px -6px rgba(0, 0, 0, 0.5);
+        }}
+
+        .message.bot .bubble {{
+            background: var(--elevated);
+            color: #d7f4ff;
+            border: 1px solid rgba(0, 212, 255, 0.18);
+            border-radius: 4px 14px 14px 14px;
+        }}
+
+        .message.user .bubble {{
+            background: linear-gradient(135deg, var(--pink), #ff7a5c);
+            color: #fff;
+            border-radius: 14px 4px 14px 14px;
+        }}
+
+        .meta {{ font-size: 10px; color: var(--dim); padding: 0 4px; }}
+
+        .input-bar {{
+            padding: 14px 16px;
+            background: #080b1c;
+            border-top: 1px solid var(--border);
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+        }}
+
+        .input-shell {{
+            flex: 1;
+            display: flex;
+            align-items: flex-end;
+            background: var(--elevated);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 6px 6px 6px 16px;
+            transition: all 0.2s;
+        }}
+
+        .input-shell:focus-within {{
+            border-color: var(--green);
+            box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.12);
+        }}
+
+        #input {{
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            resize: none;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 13.5px;
+            line-height: 1.4;
+            max-height: 100px;
+            padding: 8px 0;
+        }}
+
+        #input::placeholder {{ color: var(--dim); }}
+
+        .send-btn {{
+            flex-shrink: 0;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: none;
+            background: linear-gradient(135deg, var(--cyan), var(--green));
+            color: #04101f;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 15px;
+            transition: all 0.2s;
+        }}
+
+        .send-btn:hover:not(:disabled) {{
+            transform: scale(1.06);
+            box-shadow: 0 0 16px rgba(0, 255, 136, 0.5);
+        }}
+
+        .send-btn:disabled {{ opacity: 0.4; cursor: not-allowed; }}
+
+        .typing-dots {{ display: inline-flex; gap: 4px; padding: 4px 2px; }}
+        .typing-dots span {{
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: typing 1.4s infinite;
+        }}
+        .typing-dots span:nth-child(2) {{ animation-delay: 0.2s; }}
+        .typing-dots span:nth-child(3) {{ animation-delay: 0.4s; }}
+
+        @keyframes typing {{
+            0%, 60%, 100% {{ transform: translateY(0); opacity: 0.5; }}
+            30% {{ transform: translateY(-6px); opacity: 1; }}
+        }}
+
+        .messages::-webkit-scrollbar, .side-col::-webkit-scrollbar {{ width: 7px; }}
+        .messages::-webkit-scrollbar-track, .side-col::-webkit-scrollbar-track {{ background: transparent; }}
+        .messages::-webkit-scrollbar-thumb, .side-col::-webkit-scrollbar-thumb {{
+            background: rgba(0, 212, 255, 0.35);
+            border-radius: 4px;
+        }}
+        .messages::-webkit-scrollbar-thumb:hover, .side-col::-webkit-scrollbar-thumb:hover {{ background: var(--cyan); }}
+
+        /* ---- Side column ---- */
+
+        .side-col {{
+            width: 300px;
+            flex-shrink: 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            padding-right: 2px;
         }}
 
         .section-label {{
             font-size: 10.5px;
             letter-spacing: 2px;
             color: var(--dim);
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }}
 
         .card {{
@@ -192,47 +407,14 @@ def create_console_router() -> APIRouter:
             font-size: 13px;
         }}
 
-        .kv-grid dt {{
-            color: var(--dim);
-            font-size: 11px;
-            letter-spacing: 0.5px;
-            align-self: center;
-        }}
+        .kv-grid dt {{ color: var(--dim); font-size: 11px; letter-spacing: 0.5px; align-self: center; }}
+        .kv-grid dd {{ color: var(--text); font-weight: 600; overflow-wrap: anywhere; }}
+        .kv-grid a {{ color: var(--cyan); text-decoration: none; }}
+        .kv-grid a:hover {{ text-decoration: underline; }}
 
-        .kv-grid dd {{
-            color: var(--text);
-            font-weight: 600;
-            overflow-wrap: anywhere;
-        }}
-
-        .kv-grid a {{
-            color: var(--cyan);
-            text-decoration: none;
-        }}
-
-        .kv-grid a:hover {{
-            text-decoration: underline;
-        }}
-
-        .metrics {{
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-        }}
-
-        .metric-row {{
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }}
-
-        .metric-label {{
-            width: 60px;
-            flex-shrink: 0;
-            font-size: 11px;
-            letter-spacing: 0.5px;
-            color: var(--dim);
-        }}
+        .metrics {{ display: flex; flex-direction: column; gap: 14px; }}
+        .metric-row {{ display: flex; align-items: center; gap: 12px; }}
+        .metric-label {{ width: 46px; flex-shrink: 0; font-size: 11px; letter-spacing: 0.5px; color: var(--dim); }}
 
         .metric-bar {{
             flex: 1;
@@ -263,11 +445,7 @@ def create_console_router() -> APIRouter:
             color: var(--text);
         }}
 
-        .stat-grid {{
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-        }}
+        .stat-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }}
 
         .stat-tile {{
             background: var(--elevated);
@@ -277,47 +455,55 @@ def create_console_router() -> APIRouter:
             text-align: center;
         }}
 
-        .stat-tile .label {{
-            font-size: 10px;
-            letter-spacing: 0.5px;
-            color: var(--dim);
-            margin-bottom: 4px;
-        }}
+        .stat-tile .label {{ font-size: 10px; letter-spacing: 0.5px; color: var(--dim); margin-bottom: 4px; }}
+        .stat-tile .value {{ font-size: 15px; font-weight: 700; color: var(--green); }}
 
-        .stat-tile .value {{
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--green);
-        }}
+        .side-footer {{ font-size: 10px; color: var(--dim); text-align: center; padding: 4px 0 8px; }}
 
-        .footer {{
-            font-size: 10.5px;
-            color: var(--dim);
-            text-align: center;
-            padding-top: 4px;
-        }}
-
-        @media (max-width: 640px) {{
-            body {{ padding: 0; }}
-            .app {{ max-width: 100%; border-radius: 0; border: none; }}
+        @media (max-width: 900px) {{
+            body {{ height: auto; overflow: auto; }}
+            .layout {{ flex-direction: column; overflow: visible; padding: 12px; }}
+            .chat-col {{ height: 72vh; }}
+            .side-col {{ width: 100%; overflow: visible; }}
             .stat-grid {{ grid-template-columns: 1fr 1fr; }}
         }}
     </style>
 </head>
 <body>
-    <div class="app">
-        <div class="header">
-            <div class="brand">
-                <div class="sun-badge">&#9728;&#65039;</div>
-                <div class="brand-text">
-                    <h1>SUNNY</h1>
-                    <p><span class="status-dot"></span>Console</p>
+    <div class="topbar">
+        <div class="brand">
+            <div class="sun-badge">&#9728;&#65039;</div>
+            <div class="brand-text">
+                <h1>SUNNY</h1>
+                <p><span class="status-dot"></span>Online</p>
+            </div>
+        </div>
+        <button class="icon-btn" id="clearBtn" title="Clear chat history" aria-label="Clear chat history">&#128465;&#65039;</button>
+    </div>
+
+    <div class="layout">
+        <div class="chat-col">
+            <div class="chat-card">
+                <div class="chips" id="chips">
+                    <button class="chip" data-cmd="morning" data-send="1">&#9728;&#65039; Morning</button>
+                    <button class="chip" data-cmd="evening" data-send="1">&#127769; Evening</button>
+                    <button class="chip" data-cmd="show my tasks" data-send="1">&#10003; Tasks</button>
+                    <button class="chip" data-cmd="add " data-send="0">&#65291; Add task</button>
+                    <button class="chip" data-cmd="setup" data-send="1">&#128295; Setup</button>
+                </div>
+
+                <div class="messages" id="messages"></div>
+
+                <div class="input-bar">
+                    <div class="input-shell">
+                        <textarea id="input" rows="1" placeholder="Ask me anything..." autocomplete="off"></textarea>
+                    </div>
+                    <button class="send-btn" id="sendBtn" aria-label="Send message">&#10148;</button>
                 </div>
             </div>
-            <a class="nav-link" href="{tailscale_url}/chatbot">CHAT</a>
         </div>
 
-        <div class="content">
+        <aside class="side-col">
             <div>
                 <div class="section-label">CONNECTION</div>
                 <div class="card">
@@ -325,7 +511,7 @@ def create_console_router() -> APIRouter:
                         <dt>HOSTNAME</dt><dd id="hostname">connecting&hellip;</dd>
                         <dt>TAILSCALE IP</dt><dd id="tailscale-ip">connecting&hellip;</dd>
                         <dt>STATUS</dt><dd id="status">ONLINE</dd>
-                        <dt>CHATBOT</dt><dd><a href="{tailscale_url}/chatbot">{tailscale_url}/chatbot</a></dd>
+                        <dt>ACCESS</dt><dd><a href="{tailscale_url}">{tailscale_url}</a></dd>
                     </dl>
                 </div>
             </div>
@@ -382,11 +568,165 @@ def create_console_router() -> APIRouter:
                 </div>
             </div>
 
-            <div class="footer">Last updated: <span id="timestamp">-</span> &middot; refreshes every 2s</div>
-        </div>
+            <div class="side-footer">Last updated: <span id="timestamp">-</span> &middot; refreshes every 2s</div>
+        </aside>
     </div>
 
     <script>
+        // ---------- Chat ----------
+        const messagesDiv = document.getElementById('messages');
+        const input = document.getElementById('input');
+        const sendBtn = document.getElementById('sendBtn');
+        const chips = document.getElementById('chips');
+        const clearBtn = document.getElementById('clearBtn');
+
+        const STORAGE_KEY = 'sunny-chat-history';
+        const SESSION_KEY = 'sunny-chat-session';
+        const MAX_HISTORY = 200;
+
+        function getSessionId() {{
+            let id = localStorage.getItem(SESSION_KEY);
+            if (!id) {{
+                id = 'sess-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+                try {{ localStorage.setItem(SESSION_KEY, id); }} catch (e) {{ /* no persistence */ }}
+            }}
+            return id;
+        }}
+
+        const sessionId = getSessionId();
+
+        function loadHistory() {{
+            try {{
+                const raw = localStorage.getItem(STORAGE_KEY);
+                return raw ? JSON.parse(raw) : [];
+            }} catch (e) {{ return []; }}
+        }}
+
+        function saveHistory() {{
+            try {{ localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-MAX_HISTORY))); }}
+            catch (e) {{ /* storage full/unavailable — chat still works this session */ }}
+        }}
+
+        let history = loadHistory();
+
+        function autoGrow() {{
+            input.style.height = 'auto';
+            input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+        }}
+        input.addEventListener('input', autoGrow);
+
+        input.addEventListener('keydown', (e) => {{
+            if (e.key === 'Enter' && !e.shiftKey) {{
+                e.preventDefault();
+                sendMessage();
+            }}
+        }});
+
+        sendBtn.addEventListener('click', sendMessage);
+
+        chips.addEventListener('click', (e) => {{
+            const chip = e.target.closest('.chip');
+            if (!chip) return;
+            const cmd = chip.dataset.cmd;
+            if (chip.dataset.send === '1') {{
+                input.value = cmd;
+                sendMessage();
+            }} else {{
+                input.value = cmd;
+                autoGrow();
+                input.focus();
+            }}
+        }});
+
+        function timestamp() {{
+            return new Date().toLocaleTimeString([], {{ hour: '2-digit', minute: '2-digit' }});
+        }}
+
+        async function sendMessage() {{
+            const text = input.value.trim();
+            if (!text) return;
+
+            input.value = '';
+            autoGrow();
+            addMessage(text, 'user');
+
+            input.disabled = true;
+            sendBtn.disabled = true;
+
+            const typingMsg = document.createElement('div');
+            typingMsg.className = 'message bot';
+            typingMsg.innerHTML = '<div class="avatar">&#9728;&#65039;</div><div class="bubble-wrap"><div class="bubble"><span class="typing-dots"><span></span><span></span><span></span></span></div></div>';
+            messagesDiv.appendChild(typingMsg);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+            try {{
+                const url = new URL('/api/assistant/message', window.location.origin);
+                url.searchParams.append('text', text);
+                url.searchParams.append('session', sessionId);
+
+                const response = await fetch(url, {{ method: 'POST' }});
+                const data = await response.json();
+
+                messagesDiv.removeChild(typingMsg);
+
+                const botText = data.response || JSON.stringify(data, null, 2);
+                addMessage(botText, 'bot');
+            }} catch (error) {{
+                messagesDiv.removeChild(typingMsg);
+                addMessage('ERROR: ' + error.message, 'bot');
+            }} finally {{
+                input.disabled = false;
+                sendBtn.disabled = false;
+                input.focus();
+            }}
+        }}
+
+        function renderMessage(text, sender, time) {{
+            const msg = document.createElement('div');
+            msg.className = 'message ' + sender;
+            const avatar = sender === 'user' ? '&#128100;' : '&#9728;&#65039;';
+            msg.innerHTML =
+                '<div class="avatar">' + avatar + '</div>' +
+                '<div class="bubble-wrap">' +
+                    '<div class="bubble">' + escapeHtml(text) + '</div>' +
+                    '<div class="meta">' + time + '</div>' +
+                '</div>';
+            messagesDiv.appendChild(msg);
+        }}
+
+        function addMessage(text, sender) {{
+            const time = timestamp();
+            renderMessage(text, sender, time);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            history.push({{ text, sender, time }});
+            saveHistory();
+        }}
+
+        function escapeHtml(text) {{
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }}
+
+        clearBtn.addEventListener('click', () => {{
+            if (!confirm('Clear chat history? This only clears it on this device.')) return;
+            history = [];
+            saveHistory();
+            messagesDiv.innerHTML = '';
+            addMessage('Chat cleared. Try a shortcut below or ask me anything.', 'bot');
+        }});
+
+        window.addEventListener('load', () => {{
+            if (history.length > 0) {{
+                history.forEach((m) => renderMessage(m.text, m.sender, m.time));
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            }} else {{
+                addMessage('Welcome to Project SUNNY. Try a shortcut below or ask me anything.', 'bot');
+            }}
+            input.focus();
+        }});
+
+        // ---------- System stats ----------
         let lastNetStats = null;
 
         function setBarState(barEl, valueEl, value, suffix) {{
@@ -398,33 +738,16 @@ def create_console_router() -> APIRouter:
         async function updateStats() {{
             try {{
                 const response = await fetch('/console/api/stats');
-
-                if (!response.ok) {{
-                    throw new Error('HTTP ' + response.status);
-                }}
-
+                if (!response.ok) throw new Error('HTTP ' + response.status);
                 const data = await response.json();
+                if (data.error) {{ console.error('API error:', data.error); return; }}
 
-                if (data.error) {{
-                    console.error('API error:', data.error);
-                    return;
-                }}
-
-                if (data.hostname) {{
-                    document.getElementById('hostname').textContent = data.hostname;
-                }}
-
+                if (data.hostname) document.getElementById('hostname').textContent = data.hostname;
                 document.getElementById('tailscale-ip').textContent = data.tailscale_ip || 'N/A';
 
-                if (typeof data.cpu === 'number') {{
-                    setBarState(document.getElementById('cpu-bar'), document.getElementById('cpu'), data.cpu, '%');
-                }}
-                if (typeof data.ram === 'number') {{
-                    setBarState(document.getElementById('ram-bar'), document.getElementById('ram'), data.ram, '%');
-                }}
-                if (typeof data.disk === 'number') {{
-                    setBarState(document.getElementById('disk-bar'), document.getElementById('disk'), data.disk, '%');
-                }}
+                if (typeof data.cpu === 'number') setBarState(document.getElementById('cpu-bar'), document.getElementById('cpu'), data.cpu, '%');
+                if (typeof data.ram === 'number') setBarState(document.getElementById('ram-bar'), document.getElementById('ram'), data.ram, '%');
+                if (typeof data.disk === 'number') setBarState(document.getElementById('disk-bar'), document.getElementById('disk'), data.disk, '%');
 
                 document.getElementById('temp').textContent = data.temp ? data.temp.toFixed(1) + ' C' : 'N/A';
 
@@ -442,12 +765,12 @@ def create_console_router() -> APIRouter:
                 }}
 
                 document.getElementById('timestamp').textContent = new Date().toLocaleTimeString();
-
             }} catch (error) {{
                 console.error('Stats error:', error);
             }}
         }}
 
+        // ---------- Google status ----------
         async function disconnectGoogle() {{
             await fetch('/auth/google/disconnect', {{ method: 'POST' }});
             updateGoogleStatus();
@@ -484,6 +807,7 @@ def create_console_router() -> APIRouter:
             updateStats();
             setInterval(updateStats, 2000);
             updateGoogleStatus();
+            setInterval(updateGoogleStatus, 30000);
         }});
     </script>
 </body>

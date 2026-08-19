@@ -20,7 +20,7 @@ chmod +x run.sh
 ./run.sh
 ```
 
-Server starts automatically at: **`http://127.0.0.1:5000`**, which redirects to the chatbot at **`http://127.0.0.1:5000/chatbot`**
+Server starts automatically at: **`http://127.0.0.1:5000`**, which redirects to the console at **`http://127.0.0.1:5000/console`**
 
 No manual Python environment setup required — `run.sh` creates and manages its own virtual environment automatically on first run, and reuses it on every run after.
 
@@ -28,14 +28,13 @@ No manual Python environment setup required — `run.sh` creates and manages its
 
 ## What You Get
 
-### Chatbot Web UI
-- Chat interface at `/chatbot` (`/` redirects there)
-- Talk to the briefing engine and task system
+### Console — Chat + System Status
+- One page at `/console` (`/` and the old `/chatbot` both redirect there)
+- Chat panel: talk to the briefing engine and task system; type `setup` for
+  step-by-step instructions on connecting any API
+- Sidebar: live CPU, RAM, disk, network, and temperature stats (refreshes
+  every 2s), plus Google sign-in status
 - Works over Tailscale (access from phone)
-
-### System Console
-- Live CPU, RAM, disk, network, and temperature stats
-- Available at `/console`
 
 ### Briefing System
 - Morning briefing (9 sections)
@@ -47,21 +46,22 @@ No manual Python environment setup required — `run.sh` creates and manages its
 - Create, update, delete tasks
 - Filter by tag, status, priority
 - Hardcoded commands (no LLM parsing)
-- Driven through the chatbot/API today; a Discord bot is built and is the planned primary interface (needs a bot token connected) — see [[./TASK_SYSTEM.md]]
+- Driven through the console chat/API today; a Discord bot is built and is the planned primary interface (needs a bot token connected) — see [[./TASK_SYSTEM.md]]
 
 ### Lists & Alarms/Reminders
 - Named checkable lists (groceries, packing, anything) — see [[./architecture/lists.md]]
 - Time-based alarms and reminders that ping the Discord tasks channel when due — see [[./architecture/alarms-reminders.md]]
-- Same natural-language, no-LLM philosophy as tasks; both route through the same chatbot/Discord bot
+- Same natural-language, no-LLM philosophy as tasks; both route through the same console chat/Discord bot
 
 ---
 
 ## Try These Commands
 
-In the chatbot, type:
+In the console, type:
 
 ```
 help                             → What Sunny can do
+setup                            → What's connected, what needs setup
 morning                          → Morning briefing
 show my tasks                    → List tasks
 add Title to my tasks            → Create task (append --priority 5 etc. if you want)
@@ -80,8 +80,8 @@ Tell me about tomorrow           → Tomorrow preview
 
 | Command | What it Does |
 |---------|--------------|
-| `./run.sh` | Start web server + chatbot (default) |
-| `./run.sh chatbot` | Chatbot UI only |
+| `./run.sh` | Start web server + console (default) |
+| `./run.sh chatbot` | Console, non-reload mode |
 | `./run.sh cli briefing` | Interactive briefing CLI |
 | `./run.sh cli tasks` | Interactive task CLI |
 | `./run.sh test all` | Run all tests |
@@ -127,10 +127,10 @@ exit
 ## Next Steps
 
 1. ✓ Run `./run.sh`
-2. ✓ Open `http://127.0.0.1:5000` in browser (redirects to `/chatbot`)
+2. ✓ Open `http://127.0.0.1:5000` in browser (redirects to `/console`)
 3. ✓ Type "morning" to see morning briefing
 4. ✓ Type "show my tasks" to see task list
-5. ✓ Check `/console` for live system stats
+5. ✓ Check the sidebar for live system stats and Google sign-in status
 6. ✓ Access from phone over Tailscale
 
 ---

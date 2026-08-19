@@ -12,7 +12,7 @@ chmod +x run.sh
 ./run.sh
 ```
 
-**Done!** Server starts at `http://127.0.0.1:5000`, which redirects to the chatbot at `http://127.0.0.1:5000/chatbot`
+**Done!** Server starts at `http://127.0.0.1:5000`, which redirects to the console at `http://127.0.0.1:5000/console`
 
 No manual Python setup needed — `run.sh` creates and manages its own virtual environment automatically on first run.
 
@@ -20,17 +20,18 @@ No manual Python setup needed — `run.sh` creates and manages its own virtual e
 
 ```bash
 ./run.sh                   # Start web server (default)
-./run.sh chatbot           # Chatbot UI only
+./run.sh chatbot           # Console, non-reload mode
 ./run.sh cli briefing      # Interactive briefing CLI
 ./run.sh cli tasks         # Interactive task CLI
 ./run.sh test all          # Run all tests
 ./run.sh dev               # Dev shell (auto-managed venv pre-activated)
 ```
 
-## Try in Chatbot
+## Try in the Console
 
 ```
 help                       → What Sunny can do
+setup                      → What's connected, what needs setup
 morning                    → Morning briefing
 show my tasks              → List tasks
 add Title to my tasks      → Create task

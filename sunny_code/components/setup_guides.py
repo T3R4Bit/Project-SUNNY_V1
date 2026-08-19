@@ -1,0 +1,186 @@
+"""Chat-facing setup guides: "setup weather", "setup calendar", "setup discord",
+or bare "setup" for an overview. Same content as the architecture docs
+(google-integration.md, discord-bot.md) condensed for a chat bubble, with a
+live status line pulled from actual config/connection state — not just static
+text — so the answer is never stale.
+"""
+
+from typing import Optional
+
+from sunny_code.components import google_auth
+from sunny_code.components.data_sources import is_configured
+from sunny_code.config import get_settings
+
+_ALIASES = {
+    "weather": "weather",
+    "openweathermap": "weather",
+    "openweather": "weather",
+    "calendar": "google",
+    "google calendar": "google",
+    "email": "google",
+    "gmail": "google",
+    "google": "google",
+    "sign in": "google",
+    "sign-in": "google",
+    "google sign in": "google",
+    "google sign-in": "google",
+    "discord": "discord",
+    "discord bot": "discord",
+    "commute": "commute",
+    "traffic": "commute",
+    "maps": "commute",
+    "google maps": "commute",
+    "health": "health",
+    "wellness": "health",
+    "news": "news",
+    "motorsports": "motorsports",
+    "racing": "motorsports",
+    "tasks": "tasks",
+    "task": "tasks",
+}
+
+
+def _weather_guide() -> str:
+    settings = get_settings()
+    status = "✅ Connected" if settings.openweathermap_api_key else "⚠️  Not connected"
+    return f"""🌤️  WEATHER SETUP (OpenWeatherMap)
+Status: {status}
+
+1. Go to openweathermap.org/api and create a free account.
+2. Under "My API keys", copy your default key (or generate a new one).
+3. Add to .env:  OPENWEATHERMAP_API_KEY=<your key>
+4. Restart Sunny — weather sections go live automatically, no code changes needed."""
+
+
+def _google_guide() -> str:
+    if not google_auth.is_client_configured():
+        status = "⚠️  Not set up (no OAuth client yet)"
+    elif not google_auth.is_connected():
+        status = "⚠️  Client configured, but not signed in yet"
+    else:
+        status = f"✅ Connected as {google_auth.connected_email()}"
+
+    return f"""📅📧 GOOGLE SIGN-IN SETUP (Calendar + Gmail)
+Status: {status}
+
+1. console.cloud.google.com → create/select a project.
+2. APIs & Services → Library → enable "Google Calendar API" and "Gmail API".
+3. APIs & Services → OAuth consent screen → External, add yourself as a test
+   user, add scopes calendar.readonly + gmail.readonly, set Publishing
+   status to "In production" (Testing mode expires refresh tokens every 7 days).
+4. APIs & Services → Credentials → Create OAuth client ID → Web application
+   → redirect URI: http://<your-tailscale-ip>:5000/auth/google/callback
+5. Copy Client ID/Secret into .env:
+   GOOGLE_CLIENT_ID=...
+   GOOGLE_CLIENT_SECRET=...
+   GOOGLE_OAUTH_REDIRECT_URI=http://<your-tailscale-ip>:5000/auth/google/callback
+6. Restart Sunny, open /console, click "Connect Google Account" in the GOOGLE card.
+
+Covers Calendar + Gmail (read-only) only — not Drive, Contacts, sending mail,
+or Maps/traffic. Full details: sunny-vault/docs/architecture/google-integration.md"""
+
+
+def _discord_guide() -> str:
+    settings = get_settings()
+    if settings.discord_bot_token and settings.discord_tasks_channel_id:
+        status = "✅ Connected"
+    else:
+        status = "⚠️  Not connected"
+
+    return f"""🤖 DISCORD BOT SETUP
+Status: {status}
+
+1. discord.com/developers/applications → New Application.
+2. Bot tab → Reset Token → copy it. Enable the "MESSAGE CONTENT INTENT" toggle
+   (under Privileged Gateway Intents) or commands won't parse.
+3. OAuth2 → URL Generator → check "bot" scope → permissions: View Channel,
+   Send Messages, Read Message History, Manage Messages, Add Reactions.
+   Open the generated URL, pick your server, authorize.
+4. In Discord, enable Developer Mode (User Settings → Advanced), right-click
+   your tasks channel → Copy Channel ID.
+5. Add to .env:
+   DISCORD_BOT_TOKEN=<your token>
+   DISCORD_TASKS_CHANNEL_ID=<channel id, no quotes>
+6. Restart Sunny.
+
+Full details: sunny-vault/docs/architecture/discord-bot.md"""
+
+
+def _not_built_guide(label: str, emoji: str) -> str:
+    return f"""{emoji} {label.upper()} SETUP
+Status: ⚠️  Not built yet — no integration exists to connect
+
+There's no API wired up for this yet, so there's nothing to configure. Every
+time you ask about it, it gets logged to sunny-vault/log/requests.md — real
+usage is what decides what gets built next."""
+
+
+def _tasks_guide() -> str:
+    return """✅ TASKS
+Status: ✅ Always connected — backed directly by tasks.db, no API or setup needed."""
+
+
+_GUIDES = {
+    "weather": _weather_guide,
+    "google": _google_guide,
+    "discord": _discord_guide,
+    "commute": lambda: _not_built_guide("commute/traffic", "🚗"),
+    "health": lambda: _not_built_guide("health/wellness", "❤️"),
+    "news": lambda: _not_built_guide("news", "📰"),
+    "motorsports": lambda: _not_built_guide("motorsports", "🏁"),
+    "tasks": _tasks_guide,
+}
+
+_OVERVIEW_ORDER = ["tasks", "weather", "google", "discord", "commute", "health", "news", "motorsports"]
+_OVERVIEW_LABELS = {
+    "tasks": "Tasks",
+    "weather": "Weather",
+    "google": "Calendar + Email (Google)",
+    "discord": "Discord bot",
+    "commute": "Commute/Traffic",
+    "health": "Health",
+    "news": "News",
+    "motorsports": "Motorsports",
+}
+
+
+def _overview_status(key: str) -> str:
+    if key == "google":
+        if not google_auth.is_client_configured():
+            return "⚠️  not set up"
+        return "✅ connected" if google_auth.is_connected() else "⚠️  needs sign-in"
+    if key == "discord":
+        settings = get_settings()
+        return "✅ connected" if (settings.discord_bot_token and settings.discord_tasks_channel_id) else "⚠️  not connected"
+    if key in ("commute", "health", "news", "motorsports"):
+        return "⚠️  not built yet"
+    source = "weather" if key == "weather" else key
+    return "✅ connected" if is_configured(source) else "⚠️  not connected"
+
+
+def overview() -> str:
+    lines = ["🔧 SETUP STATUS — type \"setup <name>\" for step-by-step instructions\n"]
+    for key in _OVERVIEW_ORDER:
+        lines.append(f"  {_OVERVIEW_LABELS[key]:<28} {_overview_status(key)}")
+    lines.append('\nExample: "setup weather" or "setup calendar"')
+    return "\n".join(lines)
+
+
+def guide_for(query: str) -> Optional[str]:
+    key = _ALIASES.get(query.strip().lower())
+    if key is None:
+        return None
+    return _GUIDES[key]()
+
+
+def respond(query: str) -> str:
+    """query="" means the bare "setup" overview; otherwise a source name/alias."""
+    if not query:
+        return overview()
+    guide = guide_for(query)
+    if guide is None:
+        return (
+            f'Not sure what "{query}" is. Try: setup weather, setup calendar, '
+            f'setup email, setup discord — or just "setup" to see everything.'
+        )
+    return guide

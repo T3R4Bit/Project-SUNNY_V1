@@ -42,13 +42,13 @@ None of the above beyond the briefing engine, task system, lists, and alarms/rem
 ```bash
 chmod +x run.sh
 ./run.sh
-# Open: http://127.0.0.1:5000 (redirects to /chatbot)
+# Open: http://127.0.0.1:5000 (redirects to /console)
 ```
 
 See [[./QUICKSTART.md]] for full quick-start guide.
 
 ### Current Status
-Phase 0 (Foundations) mostly complete — briefing engine (real task data, honest "not connected" for everything else), task system, lists, and alarms/reminders (all SQLite + chatbot/Discord-driven), web chatbot UI (at `/chatbot`, `/` redirects there), Discord bot (code complete, needs a bot token connected), and live system console (`/console`) all working. `run.sh` manages Python dependencies automatically (no manual venv setup). Systemd autostart is the main piece still outstanding.
+Phase 0 (Foundations) mostly complete — briefing engine (real task data, honest "not connected" for everything else), task system, lists, and alarms/reminders (all SQLite + console-chat/Discord-driven), the combined console at `/console` (`/` and the old `/chatbot` redirect there) with chat, live system stats, and Google sign-in status, Discord bot (code complete, needs a bot token connected) all working. `run.sh` manages Python dependencies automatically (no manual venv setup). Systemd autostart is the main piece still outstanding.
 
 ### Documentation
 - [[./QUICKSTART.md]] — Get started in 30 seconds

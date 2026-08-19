@@ -71,9 +71,8 @@ Clock (ESP32-S3)        Brain (Lenovo Mini PC)      External APIs
 - ✓ Lists (groceries, packing, anything checkable) — see `sunny-vault/docs/architecture/lists.md`
 - ✓ Alarms & Reminders — time-based, ping Discord when due — see `sunny-vault/docs/architecture/alarms-reminders.md`
 - ✓ Device/source tracking (web/discord/api) on every task, list item, and alarm
-- ✓ Web chatbot UI over Tailscale (served at `/chatbot`, `/` redirects there)
 - ✓ Discord bot for tasks/lists/alarms/reminders (built, needs a bot token connected — see `sunny-vault/docs/architecture/discord-bot.md`)
-- ✓ Live system console (`/console`) — CPU, RAM, disk, network, temp
+- ✓ Console over Tailscale (`/console`, `/` and `/chatbot` redirect there) — chat plus live system stats (CPU, RAM, disk, network, temp) and Google sign-in status in one page
 - ✓ Comprehensive documentation
 
 **Next** — Phase 1: Tailscale networking verified, Phase 2: Clock hardware & voice I/O
@@ -123,7 +122,7 @@ Hard spending caps enforced at provider accounts.
 ### Linux/macOS Quick Start
 ```bash
 chmod +x run.sh
-./run.sh                    # Starts chatbot at http://127.0.0.1:5000
+./run.sh                    # Starts the console at http://127.0.0.1:5000
 ```
 
 `run.sh` creates and manages its own Python virtual environment automatically — there's nothing to set up by hand.

@@ -15,6 +15,7 @@ list" before the more specific parser ever saw it.
 import time
 from typing import Dict, Optional
 
+from sunny_code.components import setup_guides
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.device import device_from_session
 from sunny_code.components.lists_engine import ListEngine
@@ -56,11 +57,32 @@ QUESTIONS
   a real API yet, so I'll say so instead of making something up — every
   one of those gets logged to sunny-vault/log/requests.md.
 
+SETUP
+  setup                          — what's connected, what still needs setup
+  setup weather / calendar / email / discord
+                                  — step-by-step to connect that one
+
 Type "help" any time to see this again."""
 
 _HELP_TRIGGERS = ("", "help", "commands", "info", "what can you do", "what can i ask")
 _CANCEL_WORDS = ("cancel", "nevermind", "never mind", "stop", "skip", "forget it")
 _BRIEFING_KEYWORDS = ("morning", "morning briefing", "evening", "evening briefing")
+_SETUP_BARE = ("setup", "set up", "connect", "setup steps", "connect steps")
+_SETUP_PREFIXES = (
+    "setup ", "set up ", "connect ",
+    "how do i connect ", "how do i set up ", "how to connect ", "how to set up ",
+)
+
+
+def _extract_setup_query(lowered: str) -> Optional[str]:
+    """None if this isn't a setup-style command at all; "" for the bare
+    overview; otherwise the source name/alias the user asked about."""
+    if lowered in _SETUP_BARE:
+        return ""
+    for prefix in _SETUP_PREFIXES:
+        if lowered.startswith(prefix):
+            return lowered[len(prefix):].strip()
+    return None
 
 # Tiny per-session conversation state — just enough to support one pending
 # follow-up question ("what should the task be called?"). This is a personal,
@@ -143,6 +165,10 @@ async def handle_message(
 
     if lowered in _HELP_TRIGGERS:
         return HELP_TEXT
+
+    setup_query = _extract_setup_query(lowered)
+    if setup_query is not None:
+        return setup_guides.respond(setup_query)
 
     if list_engine is not None:
         handled, _, message = list_engine.try_execute(stripped, source=source)

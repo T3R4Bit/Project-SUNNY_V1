@@ -96,10 +96,8 @@ Project SUNNY is a self-hosted voice assistant for personal productivity and aut
 
 **Phase 0 (Foundations)** — Mostly complete (systemd autostart still outstanding)
 - Briefing system with 9-section morning and 7-section evening templates, running on mock data
-- Task management with Discord-style command parsing, driven today through the web chatbot/REST API (Discord bot itself not yet built — see [[./TASK_SYSTEM.md]])
-- Web chatbot UI at `/chatbot` (`/` redirects there), accessible over Tailscale
-- System monitoring dashboard with live stats at `/console`
-- Console-style web interfaces
+- Task management with Discord-style command parsing, driven today through the console chat/REST API (Discord bot itself not yet built — see [[./TASK_SYSTEM.md]])
+- One combined console at `/console` (`/` and the old `/chatbot` redirect there) — chat, live system stats, and Google sign-in status, accessible over Tailscale
 
 **Phase 1-7** — In planning
 

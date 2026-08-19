@@ -15,7 +15,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ## Phase 0: Foundations (MOSTLY COMPLETE)
 
 **Timeline**: This week  
-**Current Status**: Ubuntu Server 26.04 LTS installed and running on the Lenovo (sunshine-m700). Core app — briefing engine, task system, [[architecture/lists.md|lists]], [[architecture/alarms-reminders.md|alarms/reminders]], chatbot UI, system console, Discord bot (code complete, token not yet connected) — all built and working over Tailscale. Systemd autostart is the main remaining piece.  
+**Current Status**: Ubuntu Server 26.04 LTS installed and running on the Lenovo (sunshine-m700). Core app — briefing engine, task system, [[architecture/lists.md|lists]], [[architecture/alarms-reminders.md|alarms/reminders]], the combined console (chat + system status, one page at `/console`), Discord bot (code complete, token not yet connected) — all built and working over Tailscale. Systemd autostart is the main remaining piece.  
 **Deliverable**: Sunny process running locally, basic logging, systemd autostart
 
 ### Setup Tasks
@@ -27,7 +27,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 - [x] Python env setup on the Lenovo (`run.sh` creates/manages `venv/` automatically — no manual venv step)
 - [x] Git repo + folder structure
 - [x] Logging from the start
-- [x] Set up local dashboard skeleton — now functional, not just skeleton: FastAPI app bound to `0.0.0.0:5000`, chatbot UI at `/chatbot` (`/` redirects there), system console at `/console`, sunny.db + tasks.db via SQLite
+- [x] Set up local dashboard skeleton — now functional, not just skeleton: FastAPI app bound to `0.0.0.0:5000`, one combined console at `/console` (chat + live system/Google status — `/` and the old `/chatbot` both redirect there), sunny.db + tasks.db via SQLite
 - [x] Set up Obsidian vault structure (inbox/staging/archive/log/state)
 
 - [x] Set BIOS to restore power state on AC loss
@@ -50,7 +50,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 - [x] Install Tailscale on phone (iphone181, 100.73.98.114)
 - [x] Install Tailscale on workstation (keaton-pc, 100.82.153.78)
 - [x] Fixed server binding so it's reachable over Tailscale, not just localhost (`--host 0.0.0.0`)
-- [x] Confirmed cross-device access — chatbot + console dashboard reachable from workstation over Tailscale
+- [x] Confirmed cross-device access — console (chat + system status) reachable from workstation over Tailscale
 - [x] Document all device IPs and hostnames (updated [[networking]] and [[dashboard]])
 - [ ] Test phone dashboard access via Tailscale specifically (workstation confirmed, phone not yet verified)
 - [ ] Configure Tailscale ACLs (optional, all devices trust each other for now)

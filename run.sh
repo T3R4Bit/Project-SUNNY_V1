@@ -3,7 +3,7 @@
 # Usage: ./run.sh [command]
 # Examples:
 #   ./run.sh                    Start web server (default)
-#   ./run.sh chatbot            Start chatbot
+#   ./run.sh chatbot            Start console (non-reload mode)
 #   ./run.sh cli briefing       Start briefing CLI
 #   ./run.sh cli tasks          Start tasks CLI
 #   ./run.sh test briefing      Run briefing tests
@@ -89,16 +89,16 @@ case "$COMMAND" in
         echo -e "${GREEN}Starting web server on 0.0.0.0:5000${NC}"
         echo -e "${GREEN}Local: http://127.0.0.1:5000${NC}"
         echo -e "${GREEN}Network/Tailscale: http://100.117.41.53:5000${NC}"
-        echo -e "${GREEN}Chatbot UI: http://100.117.41.53:5000/chatbot${NC}"
+        echo -e "${GREEN}Console: http://100.117.41.53:5000/console${NC}"
         echo -e "${CYAN}Press Ctrl+C to stop${NC}"
         echo ""
         python -m uvicorn sunny_code.main:app --reload --host 0.0.0.0 --port 5000
         ;;
 
     "chatbot")
-        echo -e "${GREEN}Starting chatbot on 0.0.0.0:5000${NC}"
-        echo -e "${GREEN}Local: http://127.0.0.1:5000/chatbot${NC}"
-        echo -e "${GREEN}Network/Tailscale: http://100.117.41.53:5000/chatbot${NC}"
+        echo -e "${GREEN}Starting console on 0.0.0.0:5000${NC}"
+        echo -e "${GREEN}Local: http://127.0.0.1:5000/console${NC}"
+        echo -e "${GREEN}Network/Tailscale: http://100.117.41.53:5000/console${NC}"
         echo -e "${CYAN}Press Ctrl+C to stop${NC}"
         echo ""
         python -m uvicorn sunny_code.main:app --host 0.0.0.0 --port 5000
@@ -154,7 +154,7 @@ case "$COMMAND" in
         echo ""
         echo -e "${YELLOW}Available commands:${NC}"
         echo -e "  ${CYAN}./run.sh${NC}                Start web server (default)"
-        echo -e "  ${CYAN}./run.sh chatbot${NC}         Start chatbot UI"
+        echo -e "  ${CYAN}./run.sh chatbot${NC}         Start console (non-reload mode)"
         echo -e "  ${CYAN}./run.sh cli briefing${NC}    Start briefing CLI"
         echo -e "  ${CYAN}./run.sh cli tasks${NC}       Start task management CLI"
         echo -e "  ${CYAN}./run.sh test briefing${NC}   Test briefing system"

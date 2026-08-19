@@ -27,7 +27,7 @@ Done! The launcher will:
 - ✓ Create a virtual environment automatically if one doesn't exist (you never create or activate it yourself)
 - ✓ Install Python dependencies
 - ✓ Start the web server
-- ✓ Serve the chatbot at `http://127.0.0.1:5000/chatbot` (`http://127.0.0.1:5000` redirects there)
+- ✓ Serve the console at `http://127.0.0.1:5000/console` (`http://127.0.0.1:5000` redirects there)
 
 ## Installation Steps
 
@@ -87,7 +87,7 @@ Every run after the first reuses the existing `venv/` and just reinstalls/update
 # Access: http://127.0.0.1:5000
 ```
 
-### Start Just Chatbot
+### Start Without Auto-Reload
 ```bash
 ./run.sh chatbot
 # Access: http://127.0.0.1:5000
@@ -124,15 +124,13 @@ exit  # Exit dev mode
 
 ## Features Available
 
-### 🤖 Web Chatbot UI
-- Chat interface at `/chatbot` (`/` redirects there)
-- Talk to the briefing engine and task system
-- Access from phone over Tailscale
-- No installation needed on phone
-
-### 📊 System Console
-- Live CPU, RAM, disk, network, and temperature stats at `/console`
-- Auto-refreshes every 2 seconds
+### 💬 Console — Chat + System Status
+- One page at `/console` (`/` and the old `/chatbot` both redirect there)
+- Chat panel: talk to the briefing engine and task system, plus `setup` for
+  step-by-step instructions on connecting any API (weather, Google, Discord)
+- Sidebar: live CPU/RAM/disk/network/temperature (auto-refreshes every 2s) and
+  Google sign-in status
+- Access from phone over Tailscale, no installation needed on phone
 
 ### 📋 Briefing System
 - Morning briefing (9 sections)
@@ -161,10 +159,10 @@ exit  # Exit dev mode
 - Nothing "sounds" without hardware; the only real delivery today is a Discord ping when due — see `sunny-vault/docs/architecture/alarms-reminders.md`
 
 ### 🤖 Discord Bot (Optional)
-- Same task/list/alarm/reminder commands as the web chatbot, typed as plain messages in one dedicated channel
+- Same task/list/alarm/reminder commands as the console chat, typed as plain messages in one dedicated channel
 - Pinned task dashboard, auto-refreshes every 5 minutes, 🔄 reaction for instant refresh
 - Separate 30-second loop posts a ping (`⏰`/`🔔`) whenever an alarm or reminder comes due
-- Not running unless `DISCORD_BOT_TOKEN` and `DISCORD_TASKS_CHANNEL_ID` are set in `.env` — web chatbot works either way
+- Not running unless `DISCORD_BOT_TOKEN` and `DISCORD_TASKS_CHANNEL_ID` are set in `.env` — the console works either way
 - Setup steps: `sunny-vault/docs/architecture/discord-bot.md`
 
 ### 📊 API Endpoints
@@ -312,6 +310,11 @@ Project-SUNNY/
 │       ├── data_sources.py     # Which data sources are real vs unconfigured
 │       ├── request_log.py      # Logs unfulfilled requests to sunny-vault/log/requests.md
 │       ├── key_status.py       # Startup summary of missing API keys
+│       ├── setup_guides.py     # "setup <api>" step-by-step instructions (chat command)
+│       ├── google_auth.py      # Google OAuth sign-in flow + token storage/refresh
+│       ├── google_routes.py    # /auth/google/* routes
+│       ├── google_calendar.py  # Live Calendar reads
+│       ├── google_gmail.py     # Live Gmail reads
 │       ├── tasks_db.py         # Task database
 │       ├── tasks_engine.py
 │       ├── tasks_parser.py     # Natural language + legacy !task parsing
@@ -324,11 +327,11 @@ Project-SUNNY/
 │       ├── scheduled_parser.py # Natural language parsing for alarms/reminders
 │       ├── time_parse.py       # Deterministic time/recurrence parsing (no library)
 │       ├── device.py           # Maps a session_id to source: web | discord | api
-│       ├── assistant.py        # Shared message routing (web chatbot + Discord bot)
+│       ├── assistant.py        # Shared message routing (console chat + Discord bot)
 │       ├── discord_bot.py      # Discord bot — tasks/lists/alarms, pinned dashboard, due-item pings
 │       ├── dashboard.py        # Dashboard JSON API
-│       ├── console_stats.py    # /console system stats page
-│       └── chatbot_ui.py       # Web UI (/chatbot, / redirects there)
+│       ├── console_stats.py    # /console — chat + system status (/, /chatbot redirect here)
+│       └── chatbot_ui.py       # Chat message API + old-URL redirects
 ├── test_*.py              # Test files
 ├── sunny-vault/           # Documentation + Obsidian vault
 │   ├── log/requests.md    # What Sunny couldn't fulfill with real data (auto-generated)
