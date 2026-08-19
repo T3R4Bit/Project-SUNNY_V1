@@ -56,7 +56,7 @@ class Settings(BaseSettings):
         try:
             return int(v)
         except (TypeError, ValueError):
-            logger.warning(f"DISCORD_TASKS_CHANNEL_ID={v!r} isn't a valid integer — treating it as unset")
+            logger.warning("DISCORD_TASKS_CHANNEL_ID is blank or invalid — skipping Discord bot")
             return 0
 
     # Spending caps
