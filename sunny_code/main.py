@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from uvicorn import Server, Config
 
-from sunny_code.config import get_settings
+from sunny_code.config import get_settings, looks_configured
 from sunny_code.logging_config import setup_logging
 from sunny_code.components.dashboard import create_dashboard_app
 from sunny_code.components.briefing import BriefingEngine
@@ -52,7 +52,7 @@ class SunnyCore:
     def _create_discord_bot(self):
         """Build the Discord bot if a token is configured; otherwise skip it quietly —
         the web chatbot covers the same commands regardless."""
-        if not self.settings.discord_bot_token or not self.settings.discord_tasks_channel_id:
+        if not looks_configured(self.settings.discord_bot_token) or not self.settings.discord_tasks_channel_id:
             self.logger.info("Discord bot not configured (no token/channel) — skipping")
             return None
 

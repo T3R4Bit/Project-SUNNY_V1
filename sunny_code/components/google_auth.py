@@ -21,7 +21,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 
-from sunny_code.config import get_settings
+from sunny_code.config import get_settings, looks_configured
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def _client_config() -> dict:
 def is_client_configured() -> bool:
     """Whether GOOGLE_CLIENT_ID/SECRET are set — prerequisite for sign-in to even start."""
     settings = get_settings()
-    return bool(settings.google_client_id and settings.google_client_secret)
+    return looks_configured(settings.google_client_id) and looks_configured(settings.google_client_secret)
 
 
 def build_authorization_url() -> str:

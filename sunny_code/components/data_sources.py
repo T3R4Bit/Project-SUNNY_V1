@@ -10,7 +10,7 @@ tasks.db, no external API needed.
 """
 
 from sunny_code.components import google_auth
-from sunny_code.config import get_settings
+from sunny_code.config import get_settings, looks_configured
 
 _SOURCES = {
     "weather": "OPENWEATHERMAP_API_KEY",
@@ -35,7 +35,7 @@ def is_configured(source: str) -> bool:
     if requirement == "GOOGLE_SIGN_IN":
         return google_auth.is_connected()
     if requirement == "OPENWEATHERMAP_API_KEY":
-        return bool(get_settings().openweathermap_api_key)
+        return looks_configured(get_settings().openweathermap_api_key)
     return False
 
 

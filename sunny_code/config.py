@@ -2,11 +2,22 @@
 
 import logging
 from pathlib import Path
+from typing import Optional
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 logger = logging.getLogger(__name__)
+
+
+def looks_configured(value: Optional[str]) -> bool:
+    """True if `value` looks like a real secret, not empty and not a
+    leftover placeholder from the .env template (see run.sh — every
+    placeholder there, e.g. '...' or 'sk-ant-...', ends in '...'). No real
+    API key/token/client-id/client-secret ends in three literal dots, so
+    this is a safe way to tell "never filled in" from "actually set"."""
+    v = (value or "").strip()
+    return bool(v) and not v.endswith("...")
 
 
 class Settings(BaseSettings):

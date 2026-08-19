@@ -9,7 +9,7 @@ posted to Discord when the bot connects.
 from typing import List, Tuple
 
 from sunny_code.components import google_auth
-from sunny_code.config import get_settings
+from sunny_code.config import get_settings, looks_configured
 
 # (label, settings attribute, env var name)
 _TRACKED_KEYS = [
@@ -27,7 +27,13 @@ def missing_api_keys() -> List[Tuple[str, str]]:
     settings = get_settings()
     missing = []
     for label, attr, env_var in _TRACKED_KEYS:
-        if not getattr(settings, attr, None):
+        value = getattr(settings, attr, None)
+        # discord_tasks_channel_id is the one int-typed field here — its own
+        # validator already turns a blank/placeholder value into 0, so plain
+        # truthiness is correct for it. Every other tracked field is a string,
+        # where "..." (a leftover template placeholder) is truthy but not real.
+        configured = looks_configured(value) if isinstance(value, str) else bool(value)
+        if not configured:
             missing.append((label, env_var))
     return missing
 
