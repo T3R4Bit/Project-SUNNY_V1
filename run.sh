@@ -31,6 +31,18 @@ fi
 # Activate venv
 source venv/bin/activate
 
+# First run (or a fresh pull — .env is gitignored, so git never creates or
+# updates it): seed .env from the template so Sunny has something to read
+if [ ! -f ".env" ]; then
+    if [ -f ".env.example" ]; then
+        cp ".env.example" ".env"
+        echo -e "${YELLOW}⚠️  No .env found — created one from .env.example.${NC}"
+        echo -e "${YELLOW}   Fill in real API keys/secrets in .env before things go fully live.${NC}"
+    else
+        echo -e "${RED}⚠️  No .env or .env.example found — Sunny will run with defaults only.${NC}"
+    fi
+fi
+
 # .env holds API keys/secrets — make sure only the owner can read it
 if [ -f ".env" ]; then
     chmod 600 ".env"
