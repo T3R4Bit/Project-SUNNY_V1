@@ -412,6 +412,40 @@ def create_console_router() -> APIRouter:
         .kv-grid a {{ color: var(--cyan); text-decoration: none; }}
         .kv-grid a:hover {{ text-decoration: underline; }}
 
+        .loc-row {{ display: flex; gap: 6px; }}
+
+        .loc-input {{
+            flex: 1;
+            min-width: 0;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 6px 10px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 12.5px;
+            outline: none;
+        }}
+
+        .loc-input:focus {{ border-color: var(--green); }}
+
+        .loc-save {{
+            flex-shrink: 0;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: rgba(0, 255, 136, 0.08);
+            color: var(--green);
+            font-family: inherit;
+            font-size: 11.5px;
+            padding: 6px 10px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }}
+
+        .loc-save:hover {{ background: rgba(0, 255, 136, 0.18); }}
+
+        .loc-status {{ font-size: 10.5px; color: var(--dim); margin-top: 8px; }}
+
         .metrics {{ display: flex; flex-direction: column; gap: 14px; }}
         .metric-row {{ display: flex; align-items: center; gap: 12px; }}
         .metric-label {{ width: 46px; flex-shrink: 0; font-size: 11px; letter-spacing: 0.5px; color: var(--dim); }}
@@ -525,6 +559,17 @@ def create_console_router() -> APIRouter:
                         <dt>ACCOUNT</dt><dd id="google-account">&mdash;</dd>
                         <dt>ACTION</dt><dd id="google-action">&mdash;</dd>
                     </dl>
+                </div>
+            </div>
+
+            <div>
+                <div class="section-label">LOCATION</div>
+                <div class="card">
+                    <div class="loc-row">
+                        <input class="loc-input" id="location-input" type="text" placeholder="City,State,Country" autocomplete="off">
+                        <button class="loc-save" id="location-save">Save</button>
+                    </div>
+                    <div class="loc-status" id="location-status">Used for weather. Saves instantly, no restart needed.</div>
                 </div>
             </div>
 
@@ -804,11 +849,52 @@ def create_console_router() -> APIRouter:
             }}
         }}
 
+        // ---------- Location (weather) ----------
+        async function loadLocation() {{
+            try {{
+                const response = await fetch('/api/weather/location');
+                const data = await response.json();
+                document.getElementById('location-input').value = data.location || '';
+            }} catch (error) {{
+                console.error('Location load error:', error);
+            }}
+        }}
+
+        async function saveLocation() {{
+            const input = document.getElementById('location-input');
+            const statusEl = document.getElementById('location-status');
+            const value = input.value.trim();
+            if (!value) {{
+                statusEl.textContent = 'Enter a location first, e.g. "Detroit,MI,US".';
+                return;
+            }}
+            try {{
+                const response = await fetch('/api/weather/location', {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ location: value }}),
+                }});
+                const data = await response.json();
+                statusEl.textContent = data.status === 'saved'
+                    ? 'Saved — weather updates immediately, no restart needed.'
+                    : (data.message || 'Error saving location.');
+            }} catch (error) {{
+                statusEl.textContent = 'Error saving location — check the console log.';
+                console.error('Location save error:', error);
+            }}
+        }}
+
+        document.getElementById('location-save').addEventListener('click', saveLocation);
+        document.getElementById('location-input').addEventListener('keydown', (e) => {{
+            if (e.key === 'Enter') {{ e.preventDefault(); saveLocation(); }}
+        }});
+
         window.addEventListener('load', () => {{
             updateStats();
             setInterval(updateStats, 2000);
             updateGoogleStatus();
             setInterval(updateGoogleStatus, 30000);
+            loadLocation();
         }});
     </script>
 </body>

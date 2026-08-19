@@ -1,6 +1,7 @@
 """Live weather reads via OpenWeatherMap — needs both OPENWEATHERMAP_API_KEY
-and WEATHER_LOCATION (a lat/lon or "City,State,CountryCode" isn't enough on
-its own; OpenWeatherMap can't answer without knowing where).
+(in .env) and a location (set via /console's LOCATION card, see
+sunny_code.components.location_store — not just .env's WEATHER_LOCATION,
+which is only the initial fallback).
 
 Same fail-quietly contract as google_calendar/google_gmail: any error (bad
 key, bad location, network failure) returns None, never raises — callers
@@ -13,7 +14,8 @@ from typing import Dict, Optional
 
 import requests
 
-from sunny_code.config import get_settings
+from sunny_code.components import location_store
+from sunny_code.config import get_settings, looks_configured
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +25,11 @@ _TIMEOUT = 5
 
 def _params() -> Optional[dict]:
     settings = get_settings()
-    if not settings.openweathermap_api_key or not settings.weather_location:
+    location = location_store.get_location()
+    if not looks_configured(settings.openweathermap_api_key) or not location:
         return None
     return {
-        "q": settings.weather_location,
+        "q": location,
         "appid": settings.openweathermap_api_key,
         "units": "imperial",
     }

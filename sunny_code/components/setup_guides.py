@@ -7,7 +7,7 @@ text — so the answer is never stale.
 
 from typing import Optional
 
-from sunny_code.components import google_auth
+from sunny_code.components import google_auth, location_store
 from sunny_code.components.data_sources import is_configured
 from sunny_code.config import get_settings, looks_configured
 
@@ -42,17 +42,19 @@ _ALIASES = {
 
 def _weather_guide() -> str:
     status = "✅ Connected" if is_configured("weather") else "⚠️  Not connected"
+    location = location_store.get_location()
     return f"""🌤️  WEATHER SETUP (OpenWeatherMap)
 Status: {status}
+Location: {location or "not set"}
+
+Needs two things — a key alone can't tell OpenWeatherMap where you are:
 
 1. Go to openweathermap.org/api and create a free account.
 2. Under "My API keys", copy your default key (or generate a new one).
-3. Add to .env:
-   OPENWEATHERMAP_API_KEY=<your key>
-   WEATHER_LOCATION=<City,State,CountryCode, e.g. Detroit,MI,US>
-4. Restart Sunny — weather sections go live automatically, no code changes needed.
-
-Needs both values — a key alone can't tell OpenWeatherMap where you are."""
+3. Add to .env:  OPENWEATHERMAP_API_KEY=<your key>  — then restart Sunny.
+4. Set your location on /console (LOCATION card) — saves instantly, no
+   restart needed, and can be changed anytime. Format: City,State,Country
+   (e.g. Detroit,MI,US). See sunny-vault/docs/architecture/location.md."""
 
 
 def _google_guide() -> str:

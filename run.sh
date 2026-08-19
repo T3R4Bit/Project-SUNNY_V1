@@ -47,7 +47,10 @@ APP_NAME="Project SUNNY"
 # APIs (get from respective services)
 CLAUDE_API_KEY=sk-ant-...
 OPENWEATHERMAP_API_KEY=...
-# "City,State,CountryCode" — e.g. Detroit,MI,US (state code only applies to US cities)
+# Optional fallback only — set your real location on /console (LOCATION card)
+# instead, it saves instantly with no restart. See
+# sunny-vault/docs/architecture/location.md. Format if you do set it here:
+# "City,State,CountryCode" — e.g. Detroit,MI,US (state code only applies to US)
 WEATHER_LOCATION=...
 
 # Google Sign-In (OAuth 2.0) — powers Calendar + Gmail (read-only).

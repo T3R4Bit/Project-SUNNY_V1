@@ -88,7 +88,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 - [x] Google Sign-In (OAuth) — one connect flow powering both Calendar and Gmail below; code complete, needs a Google Cloud OAuth client + one-time sign-in to go live — see [[architecture/google-integration]]
 - [x] Calendar API integration (Google Calendar, via Google Sign-In)
 - [x] Email header parsing + urgency detection (Gmail, via Google Sign-In — unread/important counts + subject lines)
-- [x] Weather API integration (OpenWeatherMap) — code complete, needs `OPENWEATHERMAP_API_KEY` + `WEATHER_LOCATION` in `.env` to go live
+- [x] Weather API integration (OpenWeatherMap) — code complete, needs `OPENWEATHERMAP_API_KEY` in `.env` + a location set on `/console` (LOCATION card) to go live — see [[architecture/location]]
 - [ ] Traffic API integration (Google Maps — **separate from Google Sign-In**, needs its own Maps API key, see [[architecture/google-integration]])
 - [ ] Scheduling (7am morning, 9pm evening) — currently manual trigger only
 - [ ] Error handling per live API (fail gracefully) — applies once each API actually exists
@@ -109,7 +109,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ```
 ⏳ 7am: Briefing generated automatically (manual trigger works today)
 ⏳ 9pm: Evening briefing generated automatically (manual trigger works today)
-⏳ All data from live APIs (tasks live today; calendar/email code-complete pending Google sign-in; weather code-complete pending OPENWEATHERMAP_API_KEY + WEATHER_LOCATION; commute/health/news still say "not connected")
+⏳ All data from live APIs (tasks live today; calendar/email code-complete pending Google sign-in; weather code-complete pending OPENWEATHERMAP_API_KEY + a location set on /console; commute/health/news still say "not connected")
 ⏳ Failures logged to Discord #warnings
 ⏳ Obsidian staging has briefing record
 ✅ Briefing templates + Q&A engine fully working end-to-end, tasks real, honest gaps elsewhere
@@ -354,6 +354,9 @@ Work on these in parallel, integrate incrementally:
 - [ ] Location-aware departure nudges
   - Track location, suggest when to leave
   - Integrate with Discord notifications
+  - Natural extension of [[architecture/location|the location store]] — swap its
+    single static value for a per-session/per-device one instead of adding a
+    separate system
 - [ ] Nightly wind-down briefing (evening recap)
 - [ ] Auto-draft email replies (review before send)
 - [ ] Proactive calendar updates (detect changes, update automatically)
