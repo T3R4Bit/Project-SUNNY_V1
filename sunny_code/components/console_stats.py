@@ -490,6 +490,7 @@ def create_console_router() -> APIRouter:
                     <button class="chip" data-cmd="show my tasks" data-send="1">&#10003; Tasks</button>
                     <button class="chip" data-cmd="add " data-send="0">&#65291; Add task</button>
                     <button class="chip" data-cmd="setup" data-send="1">&#128295; Setup</button>
+                    <button class="chip" data-cmd="/help" data-send="1">&#10067; Help</button>
                 </div>
 
                 <div class="messages" id="messages"></div>

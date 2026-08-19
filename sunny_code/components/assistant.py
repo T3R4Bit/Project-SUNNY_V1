@@ -64,7 +64,7 @@ SETUP
 
 Type "help" any time to see this again."""
 
-_HELP_TRIGGERS = ("", "help", "commands", "info", "what can you do", "what can i ask")
+_HELP_TRIGGERS = ("", "help", "/help", "commands", "info", "what can you do", "what can i ask")
 _CANCEL_WORDS = ("cancel", "nevermind", "never mind", "stop", "skip", "forget it")
 _BRIEFING_KEYWORDS = ("morning", "morning briefing", "evening", "evening briefing")
 _SETUP_BARE = ("setup", "set up", "connect", "setup steps", "connect steps")
