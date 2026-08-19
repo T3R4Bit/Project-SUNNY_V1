@@ -10,6 +10,16 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
+# Color scheme - modern dark with bright cyan/green
+COLORS = {
+    'bg': '#0a0e27',
+    'primary': '#00d4ff',
+    'secondary': '#00ff88',
+    'border': '#00d4ff',
+    'warning': '#ffb81c',
+    'critical': '#ff4757',
+}
+
 
 def get_tailscale_ip():
     """Get current Tailscale IPv4 address."""
@@ -31,7 +41,6 @@ def create_console_router() -> APIRouter:
         """Serve console-style dashboard."""
         tailscale_ip = get_tailscale_ip()
         tailscale_url = f"http://{tailscale_ip}:5000" if tailscale_ip else "http://127.0.0.1:5000"
-        localhost_url = "http://127.0.0.1:5000"
 
         html = f"""
 <!DOCTYPE html>
@@ -41,104 +50,108 @@ def create_console_router() -> APIRouter:
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SUNNY Console</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 
-        body {
+        body {{
             font-family: 'Courier New', monospace;
-            background: #000;
-            color: #0f0;
+            background: {COLORS['bg']};
+            color: {COLORS['text']};
             padding: 20px;
             min-height: 100vh;
-        }
+        }}
 
-        .console {
-            background: #000;
-            border: 2px solid #0f0;
+        .console {{
+            background: {COLORS['bg']};
+            border: 2px solid {COLORS['border']};
             padding: 15px;
             font-size: 13px;
             line-height: 1.6;
             max-width: 1000px;
             margin: 0 auto;
-        }
+        }}
 
-        .header {
-            border-bottom: 1px solid #0f0;
+        .header {{
+            border-bottom: 2px solid {COLORS['border']};
             margin-bottom: 15px;
             padding-bottom: 10px;
-        }
+        }}
 
-        .title {
+        .title {{
             font-weight: bold;
-            color: #0f0;
-        }
+            color: {COLORS['primary']};
+            white-space: pre;
+            font-size: 11px;
+        }}
 
-        .status {
+        .status {{
             margin-bottom: 20px;
-        }
+        }}
 
-        .stat-line {
+        .stat-line {{
             margin: 8px 0;
-        }
+        }}
 
-        .label {
+        .label {{
             display: inline-block;
             width: 180px;
-            color: #0f0;
-        }
+            color: {COLORS['primary']};
+            font-weight: bold;
+        }}
 
-        .value {
-            color: #0f0;
-        }
+        .value {{
+            color: {COLORS['secondary']};
+        }}
 
-        .bar {
+        .bar {{
             display: inline-block;
             width: 100px;
             height: 12px;
-            background: #111;
-            border: 1px solid #0f0;
+            background: #1a2540;
+            border: 1px solid {COLORS['border']};
             margin: 0 5px;
             vertical-align: middle;
-        }
+        }}
 
-        .fill {
+        .fill {{
             height: 100%;
-            background: #0f0;
+            background: {COLORS['secondary']};
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 9px;
-            color: #000;
-        }
+            color: {COLORS['bg']};
+        }}
 
-        .warning { color: #ff0; }
-        .critical { color: #f00; }
+        .fill.warning {{ background: {COLORS['warning']}; }}
+        .fill.critical {{ background: {COLORS['critical']}; }}
 
-        .divider {
-            border-top: 1px solid #0f0;
+        .divider {{
+            border-top: 1px solid {COLORS['border']};
             margin: 15px 0;
-        }
+        }}
 
-        .nav {
+        .nav {{
             margin-bottom: 20px;
-        }
+        }}
 
-        .nav a {
-            color: #0f0;
+        .nav a {{
+            color: {COLORS['primary']};
             text-decoration: none;
             margin-right: 20px;
-        }
+        }}
 
-        .nav a:hover {
+        .nav a:hover {{
             text-decoration: underline;
-        }
+            color: {COLORS['secondary']};
+        }}
 
-        .timestamp {
-            color: #0f0;
+        .timestamp {{
+            color: {COLORS['secondary']};
             font-size: 11px;
             margin-top: 20px;
-            border-top: 1px solid #0f0;
+            border-top: 1px solid {COLORS['border']};
             padding-top: 10px;
-        }
+        }}
     </style>
 </head>
 <body>
@@ -150,24 +163,25 @@ def create_console_router() -> APIRouter:
         </div>
 
         <div class="header">
-            <pre class="title" style="margin: 0 0 10px 0; font-size: 11px; line-height: 1.2;">
-  ____  ____  ____  ____
- | oo || oo || oo || oo |
- |____|____|____|____|
-  \_____/ \_____/ \_____/
-   SUNNY   SUNNY   SUNNY
-            </pre>
-            <span class="title">[PROJECT SUNNY SYSTEM MONITOR]</span>
+            <div class="title">
+   [•][•]
+    \\_/
+   ·███·
+  ·█████·
+   ·███·
+
+[PROJECT SUNNY SYSTEM MONITOR]
+            </div>
         </div>
 
         <div class="status">
             <div class="stat-line">
                 <span class="label">HOSTNAME:</span>
-                <span class="value" id="hostname">-</span>
+                <span class="value" id="hostname">connecting...</span>
             </div>
             <div class="stat-line">
                 <span class="label">TAILSCALE IP:</span>
-                <span class="value" id="tailscale-ip">{tailscale_ip or 'N/A'}</span>
+                <span class="value" id="tailscale-ip">connecting...</span>
             </div>
             <div class="stat-line">
                 <span class="label">STATUS:</span>
@@ -175,7 +189,7 @@ def create_console_router() -> APIRouter:
             </div>
             <div class="stat-line">
                 <span class="label">NETWORK:</span>
-                <span class="value"><a href="{tailscale_url}/chatbot" style="color: #0f0; text-decoration: none;">{tailscale_url}/chatbot</a></span>
+                <span class="value"><a href="{tailscale_url}/chatbot" style="color: {COLORS['primary']}; text-decoration: none;">{tailscale_url}/chatbot</a></span>
             </div>
         </div>
 
@@ -216,14 +230,6 @@ def create_console_router() -> APIRouter:
             </div>
         </div>
 
-        <div class="divider"></div>
-
-        <div class="status" id="processes">
-            <div class="stat-line">
-                <span class="label">TOP PROCESSES:</span>
-            </div>
-        </div>
-
         <div class="timestamp">
             Last updated: <span id="timestamp">-</span>
         </div>
@@ -235,76 +241,91 @@ def create_console_router() -> APIRouter:
         async function updateStats() {{
             try {{
                 const response = await fetch('/console/api/stats');
+
+                if (!response.ok) {{
+                    throw new Error('HTTP ' + response.status);
+                }}
+
                 const data = await response.json();
 
-                // Basic info
-                document.getElementById('hostname').textContent = data.hostname;
+                if (data.error) {{
+                    console.error('API error:', data.error);
+                    return;
+                }}
+
+                // Hostname
+                if (data.hostname) {{
+                    document.getElementById('hostname').textContent = data.hostname;
+                }}
+
+                // Tailscale IP
+                if (data.tailscale_ip) {{
+                    document.getElementById('tailscale-ip').textContent = data.tailscale_ip;
+                }} else {{
+                    document.getElementById('tailscale-ip').textContent = 'N/A';
+                }}
 
                 // CPU
-                const cpuPercent = data.cpu;
-                document.getElementById('cpu').textContent = cpuPercent.toFixed(1) + '%';
-                document.getElementById('cpu-bar').style.width = cpuPercent + '%';
-                document.getElementById('cpu-bar').classList.toggle('critical', cpuPercent > 90);
-                document.getElementById('cpu-bar').classList.toggle('warning', cpuPercent > 70);
+                if (typeof data.cpu === 'number') {{
+                    const cpu = data.cpu;
+                    document.getElementById('cpu').textContent = cpu.toFixed(1) + '%';
+                    const cpuBar = document.getElementById('cpu-bar');
+                    cpuBar.style.width = cpu + '%';
+                    cpuBar.className = 'fill' + (cpu > 90 ? ' critical' : cpu > 70 ? ' warning' : '');
+                }}
 
                 // RAM
-                const ramPercent = data.ram;
-                document.getElementById('ram').textContent = ramPercent.toFixed(1) + '%';
-                document.getElementById('ram-bar').style.width = ramPercent + '%';
-                document.getElementById('ram-bar').classList.toggle('critical', ramPercent > 90);
-                document.getElementById('ram-bar').classList.toggle('warning', ramPercent > 70);
+                if (typeof data.ram === 'number') {{
+                    const ram = data.ram;
+                    document.getElementById('ram').textContent = ram.toFixed(1) + '%';
+                    const ramBar = document.getElementById('ram-bar');
+                    ramBar.style.width = ram + '%';
+                    ramBar.className = 'fill' + (ram > 90 ? ' critical' : ram > 70 ? ' warning' : '');
+                }}
 
                 // Disk
-                const diskPercent = data.disk;
-                document.getElementById('disk').textContent = diskPercent.toFixed(1) + '%';
-                document.getElementById('disk-bar').style.width = diskPercent + '%';
-                document.getElementById('disk-bar').classList.toggle('critical', diskPercent > 90);
-                document.getElementById('disk-bar').classList.toggle('warning', diskPercent > 70);
+                if (typeof data.disk === 'number') {{
+                    const disk = data.disk;
+                    document.getElementById('disk').textContent = disk.toFixed(1) + '%';
+                    const diskBar = document.getElementById('disk-bar');
+                    diskBar.style.width = disk + '%';
+                    diskBar.className = 'fill' + (disk > 90 ? ' critical' : disk > 70 ? ' warning' : '');
+                }}
 
-                // Temp
+                // Temperature
                 if (data.temp) {{
-                    const tempClass = data.temp > 80 ? 'critical' : data.temp > 60 ? 'warning' : '';
-                    document.getElementById('temp').innerHTML =
-                        '<span class="' + tempClass + '">' + data.temp.toFixed(1) + '°C</span>';
+                    document.getElementById('temp').textContent = data.temp.toFixed(1) + ' C';
                 }} else {{
                     document.getElementById('temp').textContent = 'N/A';
                 }}
 
                 // Network
-                if (lastNetStats) {{
-                    const rxSpeed = ((data.net_rx - lastNetStats.rx) / 1024 / 1024).toFixed(2);
-                    const txSpeed = ((data.net_tx - lastNetStats.tx) / 1024 / 1024).toFixed(2);
-                    document.getElementById('net-rx').textContent = rxSpeed + ' MB/s';
-                    document.getElementById('net-tx').textContent = txSpeed + ' MB/s';
-                }} else {{
-                    document.getElementById('net-rx').textContent = 'Measuring...';
-                    document.getElementById('net-tx').textContent = 'Measuring...';
+                if (typeof data.net_rx === 'number' && typeof data.net_tx === 'number') {{
+                    if (lastNetStats) {{
+                        const rxSpeed = ((data.net_rx - lastNetStats.rx) / 1024 / 1024).toFixed(2);
+                        const txSpeed = ((data.net_tx - lastNetStats.tx) / 1024 / 1024).toFixed(2);
+                        document.getElementById('net-rx').textContent = rxSpeed + ' MB/s';
+                        document.getElementById('net-tx').textContent = txSpeed + ' MB/s';
+                    }} else {{
+                        document.getElementById('net-rx').textContent = 'Measuring...';
+                        document.getElementById('net-tx').textContent = 'Measuring...';
+                    }}
+                    lastNetStats = {{ rx: data.net_rx, tx: data.net_tx }};
                 }}
-                lastNetStats = {{ rx: data.net_rx, tx: data.net_tx }};
-
-                // Top processes
-                const procDiv = document.getElementById('processes');
-                procDiv.innerHTML = '<div class="stat-line"><span class="label">TOP PROCESSES:</span></div>';
-                data.processes.slice(0, 5).forEach(p => {{
-                    const line = document.createElement('div');
-                    line.className = 'stat-line';
-                    line.textContent = '  ' + p.name.padEnd(30) + p.cpu.toFixed(1).padStart(6) + '% CPU  ' +
-                                     p.ram.toFixed(1).padStart(6) + '% RAM';
-                    procDiv.appendChild(line);
-                }});
 
                 // Timestamp
-                document.getElementById('timestamp').textContent =
-                    new Date().toLocaleTimeString();
+                document.getElementById('timestamp').textContent = new Date().toLocaleTimeString();
 
             }} catch (error) {{
-                console.error('Error fetching stats:', error);
+                console.error('Stats error:', error);
             }}
         }}
 
-        // Update every 2 seconds
-        updateStats();
-        setInterval(updateStats, 2000);
+        // Initial load and refresh
+        window.addEventListener('load', () => {{
+            updateStats();
+            setInterval(updateStats, 2000);
+        }});
     </script>
 </body>
 </html>
@@ -322,29 +343,19 @@ def create_console_router() -> APIRouter:
             # Temperature (may not work on all systems)
             temp = None
             try:
-                temp = psutil.sensors_temperatures().get('coretemp', [{}])[0].current
-            except:
-                pass
+                temps = psutil.sensors_temperatures()
+                if 'coretemp' in temps:
+                    temp = temps['coretemp'][0].current
+                elif 'acpitz' in temps:
+                    temp = temps['acpitz'][0].current
+            except Exception as e:
+                logger.debug(f"Temp error: {e}")
 
             # Network stats
             net = psutil.net_io_counters()
 
-            # Top processes by CPU
-            processes = []
-            for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
-                try:
-                    processes.append({
-                        'name': proc.info['name'][:25],
-                        'cpu': proc.info['cpu_percent'] or 0,
-                        'ram': proc.info['memory_percent'] or 0,
-                    })
-                except psutil.NoSuchProcess:
-                    pass
-
-            processes.sort(key=lambda x: x['cpu'], reverse=True)
-
             return {
-                'hostname': __import__('socket').gethostname(),
+                'hostname': socket.gethostname(),
                 'tailscale_ip': get_tailscale_ip(),
                 'cpu': cpu,
                 'ram': ram,
@@ -352,10 +363,9 @@ def create_console_router() -> APIRouter:
                 'temp': temp,
                 'net_rx': net.bytes_recv,
                 'net_tx': net.bytes_sent,
-                'processes': processes[:10],
             }
         except Exception as e:
-            logger.error(f"Stats error: {e}")
-            return {'error': str(e)}
+            logger.error(f"Stats API error: {e}", exc_info=True)
+            return {'error': str(e)}, 500
 
     return router
