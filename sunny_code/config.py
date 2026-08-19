@@ -1,7 +1,12 @@
 """Configuration management using pydantic-settings."""
 
-from pydantic_settings import BaseSettings
+import logging
 from pathlib import Path
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -38,6 +43,21 @@ class Settings(BaseSettings):
     # Discord bot (tasks channel)
     discord_bot_token: str = ""
     discord_tasks_channel_id: int = 0
+
+    @field_validator("discord_tasks_channel_id", mode="before")
+    @classmethod
+    def _coerce_channel_id(cls, v):
+        """A blank value or a leftover '...' placeholder from .env.example
+        means "not set," same as omitting the line entirely — not a crash.
+        Settings() is built from a hand-edited .env (an external boundary),
+        so this is real input validation, not a hypothetical."""
+        if v in (None, ""):
+            return 0
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            logger.warning(f"DISCORD_TASKS_CHANNEL_ID={v!r} isn't a valid integer — treating it as unset")
+            return 0
 
     # Spending caps
     daily_spend_cap: float = 20.0  # USD per day
