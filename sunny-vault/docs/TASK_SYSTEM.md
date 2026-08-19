@@ -12,7 +12,7 @@ Tasks are one of three sibling subsystems that share the same routing entry poin
 | Command parser (natural phrasing, no LLM) | ✅ Built (`sunny_code/components/tasks_parser.py`) |
 | Task engine (command execution, dashboard formatting) | ✅ Built (`sunny_code/components/tasks_engine.py`) |
 | REST API | ✅ Built (`sunny_code/components/tasks_api.py`) |
-| Web chatbot interface (`/chatbot`) | ✅ Built — working fallback interface |
+| Console chat interface (`/console`) | ✅ Built — working fallback interface |
 | **Discord bot** | ✅ Built (`sunny_code/components/discord_bot.py`), ⏳ **not yet connected** — see [[architecture/discord-bot.md]] Setup |
 | Device/source tracking (which interface created a record) | ✅ Built (`sunny_code/components/device.py`) — see Device Tracking below |
 | Lists (groceries, packing, etc.) | ✅ Built, separate subsystem — see [[architecture/lists.md]] |
@@ -25,7 +25,7 @@ Current focus: connect the Discord bot to a real server (bot token + channel ID 
 
 - **Categories**: Free-form — School, Motorsports, General, and Project Ideas are just the shipped defaults, not a fixed list. Typing `--tag Cooking` on a task that's never had that category before creates it on the spot, no setup step.
 - **Storage**: SQLite database (`tasks.db`)
-- **Interface today**: Web chatbot at `/chatbot`, sending commands to a REST API
+- **Interface today**: Console chat at `/console`, sending commands to a REST API
 - **Interface planned**: Discord bot + live dashboard embed (primary, once built)
 - **Logic**: Deterministic, no LLM calls
 
@@ -46,9 +46,9 @@ Task {
 }
 ```
 
-## How It Works Today (Web Chatbot)
+## How It Works Today (Console Chat)
 
-Open `/chatbot` (or `/`, which redirects there) and just talk to it naturally — "add buy milk to my tasks", "show my tasks", "mark a1b2c3d4 as done". No command prefix required. Type **"help"** (or "commands"/"info", or just hit enter with nothing typed) any time for a capability summary. The chatbot sends every message to one shared endpoint (`sunny_code/components/assistant.py`'s `handle_message()`, also used by the Discord bot — identical behavior on both interfaces):
+Open `/console` (or `/`, or the old `/chatbot`, both of which redirect there) and just talk to it naturally — "add buy milk to my tasks", "show my tasks", "mark a1b2c3d4 as done". No command prefix required. Type **"help"** (or "commands"/"info", or just hit enter with nothing typed) any time for a capability summary. The chat sends every message to one shared endpoint (`sunny_code/components/assistant.py`'s `handle_message()`, also used by the Discord bot — identical behavior on both interfaces):
 
 ```
 POST /api/assistant/message?text=<message>

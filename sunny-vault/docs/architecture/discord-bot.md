@@ -8,7 +8,7 @@ tags: [discord, bot, tasks, lists, alarms, reminders, component]
 
 # Discord Bot — Tasks Channel
 
-The intended **primary** interface for Tasks (see [[../TASK_SYSTEM.md]]), [[lists.md|Lists]], and [[alarms-reminders.md|Alarms/Reminders]] — one bot, one dedicated channel, all three subsystems. Reads commands as plain messages, replies in-channel, keeps a pinned task dashboard up to date, and posts a ping whenever an alarm/reminder comes due. The web chatbot (`/chatbot`) is the fallback whenever the bot is offline.
+The intended **primary** interface for Tasks (see [[../TASK_SYSTEM.md]]), [[lists.md|Lists]], and [[alarms-reminders.md|Alarms/Reminders]] — one bot, one dedicated channel, all three subsystems. Reads commands as plain messages, replies in-channel, keeps a pinned task dashboard up to date, and posts a ping whenever an alarm/reminder comes due. The console chat (`/console`) is the fallback whenever the bot is offline.
 
 ## Status
 
@@ -16,7 +16,7 @@ The intended **primary** interface for Tasks (see [[../TASK_SYSTEM.md]]), [[list
 
 ## How It Works
 
-- Uses the exact same routing as the web chatbot (`sunny_code.components.assistant.handle_message`) — natural phrasing, no `!` prefix needed, `help` works, everything behaves identically to `/chatbot`, and covers all three subsystems (Tasks/Lists/Alarms-Reminders) through one message handler.
+- Uses the exact same routing as the console chat (`sunny_code.components.assistant.handle_message`) — natural phrasing, no `!` prefix needed, `help` works, everything behaves identically to `/console`, and covers all three subsystems (Tasks/Lists/Alarms-Reminders) through one message handler.
 - **Scoped to one channel.** Messages anywhere else in the server are ignored entirely.
 - Every message in that channel gets a reply. Task-mutating commands (add/update/delete) also trigger an immediate dashboard refresh; everything else just replies.
 - Long responses (>1900 characters) are split into multiple messages at line boundaries — Discord's hard limit is 2000.
