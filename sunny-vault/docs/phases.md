@@ -70,13 +70,13 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ---
 
-## Phase 2: Briefing Engine (TASKS + CALENDAR + EMAIL LIVE, REST PENDING)
+## Phase 2: Briefing Engine (TASKS + CALENDAR + EMAIL + WEATHER LIVE, REST PENDING)
 
 **Timeline**: Week 3-4  
 **Dependencies**: Phase 0-1 complete  
 **Deliverable**: Working morning and evening briefings
 
-**Current status**: The engine itself is built and working — hardcoded morning and evening templates, slot-filling text generation, and a Q&A system covering weather, calendar, email, tasks, commute, health, motorsports, news, and tomorrow. Tasks are real, queried live from `tasks.db`. Calendar and email are code-complete via Google Sign-In (OAuth) — see [[architecture/google-integration]] — but need a one-time Google Cloud OAuth client + sign-in (external setup, not code) before they go live. Weather, commute, health, motorsports, and news still have no real API behind them, so instead of showing mock data as if it were live, they say so explicitly (e.g. "Not connected — needs OPENWEATHERMAP_API_KEY") — see [[architecture/briefing-engine.md]]. Every time that happens (or a task command fails), it's logged to [[../log/requests.md|sunny-vault/log/requests.md]], so real usage tells us which integration to build next.
+**Current status**: The engine itself is built and working — hardcoded morning and evening templates, slot-filling text generation, and a Q&A system covering weather, calendar, email, tasks, commute, health, motorsports, news, and tomorrow. Tasks are real, queried live from `tasks.db`. Calendar and email are code-complete via Google Sign-In (OAuth) — see [[architecture/google-integration]] — but need a one-time Google Cloud OAuth client + sign-in (external setup, not code) before they go live. Weather is code-complete via OpenWeatherMap — needs `OPENWEATHERMAP_API_KEY` **and** `WEATHER_LOCATION` in `.env` (a key alone isn't enough — see `sunny_code/components/weather.py`). Commute, health, motorsports, and news still have no real API behind them, so instead of showing mock data as if it were live, they say so explicitly (e.g. "Not connected — needs OPENWEATHERMAP_API_KEY and WEATHER_LOCATION in .env") — see [[architecture/briefing-engine.md]]. Every time that happens (or a task command fails), it's logged to [[../log/requests.md|sunny-vault/log/requests.md]], so real usage tells us which integration to build next.
 
 ### Briefing Integration Tasks
 
@@ -88,7 +88,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 - [x] Google Sign-In (OAuth) — one connect flow powering both Calendar and Gmail below; code complete, needs a Google Cloud OAuth client + one-time sign-in to go live — see [[architecture/google-integration]]
 - [x] Calendar API integration (Google Calendar, via Google Sign-In)
 - [x] Email header parsing + urgency detection (Gmail, via Google Sign-In — unread/important counts + subject lines)
-- [ ] Weather API integration (OpenWeatherMap or similar)
+- [x] Weather API integration (OpenWeatherMap) — code complete, needs `OPENWEATHERMAP_API_KEY` + `WEATHER_LOCATION` in `.env` to go live
 - [ ] Traffic API integration (Google Maps — **separate from Google Sign-In**, needs its own Maps API key, see [[architecture/google-integration]])
 - [ ] Scheduling (7am morning, 9pm evening) — currently manual trigger only
 - [ ] Error handling per live API (fail gracefully) — applies once each API actually exists
@@ -109,7 +109,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ```
 ⏳ 7am: Briefing generated automatically (manual trigger works today)
 ⏳ 9pm: Evening briefing generated automatically (manual trigger works today)
-⏳ All data from live APIs (tasks live today; calendar/email code-complete pending Google sign-in; weather/commute/health/news still say "not connected")
+⏳ All data from live APIs (tasks live today; calendar/email code-complete pending Google sign-in; weather code-complete pending OPENWEATHERMAP_API_KEY + WEATHER_LOCATION; commute/health/news still say "not connected")
 ⏳ Failures logged to Discord #warnings
 ⏳ Obsidian staging has briefing record
 ✅ Briefing templates + Q&A engine fully working end-to-end, tasks real, honest gaps elsewhere
@@ -366,7 +366,7 @@ Work on these in parallel, integrate incrementally:
 |-----------|--------|--------|
 | Phase 0: Foundations | This week | 🔄 Mostly complete — systemd autostart remaining |
 | Phase 1: Networking | Week 2 | 🔄 Mostly complete — phone verification + ACLs remaining |
-| Phase 2: Briefing | Week 3-4 | 🔄 Templates/Q&A + Calendar/Gmail code-complete (needs Google sign-in) — weather/commute/health/news remaining |
+| Phase 2: Briefing | Week 3-4 | 🔄 Templates/Q&A + Calendar/Gmail/Weather code-complete (needs sign-in/keys) — commute/health/news remaining |
 | Phase 3: Clock Hardware | Week 5-6 | ⏳ Upcoming |
 | Phase 4: Wake Word | Week 7-8 | ⏳ Upcoming |
 | Phase 5: Phone | Week 8-9 | ⏳ Upcoming |

@@ -9,7 +9,7 @@ from typing import Optional
 
 from sunny_code.components import google_auth
 from sunny_code.components.data_sources import is_configured
-from sunny_code.config import get_settings
+from sunny_code.config import get_settings, looks_configured
 
 _ALIASES = {
     "weather": "weather",
@@ -41,15 +41,18 @@ _ALIASES = {
 
 
 def _weather_guide() -> str:
-    settings = get_settings()
-    status = "✅ Connected" if settings.openweathermap_api_key else "⚠️  Not connected"
+    status = "✅ Connected" if is_configured("weather") else "⚠️  Not connected"
     return f"""🌤️  WEATHER SETUP (OpenWeatherMap)
 Status: {status}
 
 1. Go to openweathermap.org/api and create a free account.
 2. Under "My API keys", copy your default key (or generate a new one).
-3. Add to .env:  OPENWEATHERMAP_API_KEY=<your key>
-4. Restart Sunny — weather sections go live automatically, no code changes needed."""
+3. Add to .env:
+   OPENWEATHERMAP_API_KEY=<your key>
+   WEATHER_LOCATION=<City,State,CountryCode, e.g. Detroit,MI,US>
+4. Restart Sunny — weather sections go live automatically, no code changes needed.
+
+Needs both values — a key alone can't tell OpenWeatherMap where you are."""
 
 
 def _google_guide() -> str:
@@ -82,7 +85,7 @@ or Maps/traffic. Full details: sunny-vault/docs/architecture/google-integration.
 
 def _discord_guide() -> str:
     settings = get_settings()
-    if settings.discord_bot_token and settings.discord_tasks_channel_id:
+    if looks_configured(settings.discord_bot_token) and settings.discord_tasks_channel_id:
         status = "✅ Connected"
     else:
         status = "⚠️  Not connected"
@@ -151,7 +154,7 @@ def _overview_status(key: str) -> str:
         return "✅ connected" if google_auth.is_connected() else "⚠️  needs sign-in"
     if key == "discord":
         settings = get_settings()
-        return "✅ connected" if (settings.discord_bot_token and settings.discord_tasks_channel_id) else "⚠️  not connected"
+        return "✅ connected" if (looks_configured(settings.discord_bot_token) and settings.discord_tasks_channel_id) else "⚠️  not connected"
     if key in ("commute", "health", "news", "motorsports"):
         return "⚠️  not built yet"
     source = "weather" if key == "weather" else key

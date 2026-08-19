@@ -1,9 +1,12 @@
 """Briefing engine with hardcoded templates, real task data, and honest Q&A support.
 
-Tasks are real (queried straight from tasks.db). Weather, calendar, email, commute,
-health, news, and motorsports have no live API wired up yet, so sections/questions
-about them say so explicitly instead of pretending mock data is real — and every
-time that happens, it gets logged to sunny-vault/log/requests.md.
+Tasks are real (queried straight from tasks.db). Weather, calendar, and email
+are real once their respective setup is done (OPENWEATHERMAP_API_KEY +
+WEATHER_LOCATION for weather; Google Sign-In for calendar/email). Commute,
+health, news, and motorsports have no live API wired up yet. Sections/
+questions about anything not yet real say so explicitly instead of
+pretending mock data is real — and every time that happens, it gets logged
+to sunny-vault/log/requests.md.
 """
 
 import logging
@@ -14,7 +17,7 @@ from sunny_code.config import get_settings
 from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.data_sources import is_configured, missing_requirement
 from sunny_code.components.request_log import log_unfulfilled
-from sunny_code.components import google_calendar, google_gmail
+from sunny_code.components import google_calendar, google_gmail, weather
 
 
 logger = logging.getLogger(__name__)
@@ -93,6 +96,21 @@ class BriefingTemplates:
         return "\n   ".join(lines)
 
     @staticmethod
+    def _weather_text(tomorrow: bool = False, unconfigured: Optional[List[str]] = None) -> str:
+        """Real conditions via OpenWeatherMap if connected, else the standard 'not connected' note."""
+        if not is_configured("weather"):
+            if unconfigured is not None:
+                unconfigured.append("weather")
+            return BriefingTemplates._note("weather")
+        data = weather.get_tomorrow() if tomorrow else weather.get_current()
+        if data is None:
+            return "⚠️  Weather temporarily unavailable — check logs"
+        line = f"{data['temp']}°F, {data['condition']}"
+        if data.get("rain_chance") is not None:
+            line += f", {data['rain_chance']}% chance of rain"
+        return line
+
+    @staticmethod
     def morning_briefing(tasks_db: TaskDB) -> str:
         """Morning briefing: real tasks, honest gaps everywhere else."""
         now = datetime.now()
@@ -107,7 +125,7 @@ class BriefingTemplates:
                 return n
             return ""
 
-        weather_note = note("weather")
+        weather_note = BriefingTemplates._weather_text(False, unconfigured)
         calendar_note = BriefingTemplates._calendar_text(0, unconfigured)
         email_note = BriefingTemplates._email_text(unconfigured)
         commute_note = note("commute")
@@ -180,7 +198,7 @@ Have a productive day! ☀️
             return ""
 
         calendar_note = BriefingTemplates._calendar_text(1, unconfigured)  # tomorrow preview
-        weather_note = note("weather")
+        weather_note = BriefingTemplates._weather_text(True, unconfigured)  # tomorrow's forecast
         health_note = note("health")
 
         open_tasks = tasks_db.get_open_tasks()
@@ -237,7 +255,9 @@ Sleep well and rest up for tomorrow! 🌙
 
         # Weather questions
         if any(w in question_lower for w in ["weather", "forecast", "temperature", "rain", "sunny"]):
-            return unconfigured_reply("weather")
+            if not is_configured("weather"):
+                return unconfigured_reply("weather")
+            return f"\n{_TOPIC_LABELS['weather']}\n\n{BriefingTemplates._weather_text()}\n"
 
         # Calendar/Schedule questions
         elif any(s in question_lower for s in ["calendar", "schedule", "event", "meeting", "appointment", "when"]):

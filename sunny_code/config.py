@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # APIs
     claude_api_key: str = ""
     openweathermap_api_key: str = ""
+    # OpenWeatherMap needs a place, not just a key — "City,State,CountryCode",
+    # e.g. "Detroit,MI,US" (state code only applies to US cities).
+    weather_location: str = ""
 
     # Google Sign-In (OAuth 2.0) — powers Calendar + Gmail. See
     # sunny-vault/docs/architecture/google-integration.md for the Google
