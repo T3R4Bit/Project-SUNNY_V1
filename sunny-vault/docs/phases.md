@@ -29,33 +29,17 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 - [x] Logging from the start
 - [x] Set up local dashboard skeleton — now functional, not just skeleton: FastAPI app bound to `0.0.0.0:5000`, chatbot UI at `/chatbot` (`/` redirects there), system console at `/console`, sunny.db + tasks.db via SQLite
 - [x] Set up Obsidian vault structure (inbox/staging/archive/log/state)
-- [ ] Skip Featured Server Snaps at install (avoid snapd entirely rather than purging later)
-- [ ] Set BIOS to restore power state on AC loss
+
+- [x] Set BIOS to restore power state on AC loss
+- [x] Secrets via env vars + config file — `.env` (gitignored, `chmod 600` on every `run.sh` start), loaded via `sunny_code/config.py`; startup logs + Discord post what's still missing (`sunny_code/components/key_status.py`)
 - [ ] Set up Sunny as a systemd unit with Restart=always
 - [ ] Disable unattended-upgrades auto-reboot, or pin to a window
-- [x] Secrets via env vars + config file — `.env` (gitignored, `chmod 600` on every `run.sh` start), loaded via `sunny_code/config.py`; startup logs + Discord post what's still missing (`sunny_code/components/key_status.py`)
+- [ ] Skip Featured Server Snaps at install (avoid snapd entirely rather than purging later)
 
-### Deliverables When Complete
-
-```
-✅ Lenovo running Ubuntu Server 26.04 LTS
-⏳ BIOS configured for auto-boot on power restore
-✅ Python env auto-managed by run.sh (no manual venv)
-⏳ Sunny process starts on boot via systemd (works via ./run.sh, not yet a service)
-✅ Structured logging to logs/ folder
-✅ Obsidian vault ready (inbox/staging/archive/log/state folders + docs, still empty of runtime content since nothing writes to it yet)
-✅ Dashboard accessible at http://100.117.41.53:5000 — functional: chatbot UI (at /chatbot, / redirects there) + live system console
-```
-
-**Next Step**: Finish systemd autostart, then Phase 1 cleanup items
 
 ---
 
-## Phase 1: Networking (COMPLETE except future hardware)
-
-**Timeline**: Week 2  
-**Dependencies**: Phase 0 complete  
-**Deliverable**: All devices securely connected via Tailscale mesh
+## Phase 1: Networking
 
 ### Networking Tasks
 

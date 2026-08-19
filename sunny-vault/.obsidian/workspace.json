@@ -11,10 +11,14 @@
             "id": "1d01bc107c8fadf5",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "type": "markdown",
+              "state": {
+                "file": "docs/phases.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "phases"
             }
           }
         ]
@@ -187,8 +191,8 @@
   },
   "active": "1d01bc107c8fadf5",
   "lastOpenFiles": [
-    "docs/architecture/llm-integration.md",
     "docs/BACKLOG.md",
+    "docs/architecture/llm-integration.md",
     "docs/DESIGN.md.tmp.19380.55544512c767",
     "docs/phases.md.tmp.19380.679e79e89483",
     "docs/phases.md.tmp.19380.9eea799ab5dc",
