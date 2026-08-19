@@ -263,6 +263,10 @@ http://100.117.41.53:5000
 http://sunshine-m700:5000
 ```
 
+### Getting `git pull` Working on the Lenovo
+
+The Lenovo has its own SSH keypair (`~/.ssh/id_ed25519`), but its public key isn't registered anywhere on GitHub yet, so `git pull`/`git fetch` there fail with `Permission denied (publickey)`. To fix it: copy `cat ~/.ssh/id_ed25519.pub` from the Lenovo, then on GitHub go to this repo → **Settings → Deploy keys → Add deploy key**, paste it in (read-only is enough for pulling), and `git pull` will work directly from then on. Until that's done, deploys land by copying the current tracked working tree over SSH instead (`git ls-files | tar -czf - -T - | ssh sunny-lenovo "cd ~/Project-SUNNY && tar -xzf -"` from a machine that already has GitHub push access) — same effect as a pull, just doesn't need the Lenovo to authenticate to GitHub itself.
+
 ## Environment Variables
 
 Optional `.env` file for customization:
