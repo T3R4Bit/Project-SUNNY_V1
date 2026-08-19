@@ -15,11 +15,12 @@ Daily morning and evening briefings delivered via voice. A fixed-format script w
 | Section | Status |
 |---------|--------|
 | Tasks | ✅ Real — queried live from `tasks.db` |
+| Calendar | 🔧 Code complete — needs Google sign-in connected (see [[google-integration]]) |
+| Email | 🔧 Code complete — needs Google sign-in connected (see [[google-integration]]) |
 | Weather | ⚠️ Not connected — needs `OPENWEATHERMAP_API_KEY` |
-| Calendar | ⚠️ Not connected — needs `GOOGLE_CALENDAR_API_KEY` |
-| Email, Commute, Health, News, Motorsports | ⚠️ Not connected — no integration built yet |
+| Commute, Health, News, Motorsports | ⚠️ Not connected — no integration built yet, and **not covered by Google sign-in** (see [[google-integration]] for why) |
 
-**The engine never fakes an answer for an unconnected source.** Instead of showing mock data as if it were real, each section/question says explicitly what's missing (e.g. "Not connected — needs OPENWEATHERMAP_API_KEY in .env"), and every time that happens it's logged to [[../../log/requests.md|sunny-vault/log/requests.md]] — see "Data Source Honesty & Request Logging" below.
+**The engine never fakes an answer for an unconnected source.** Instead of showing mock data as if it were real, each section/question says explicitly what's missing (e.g. "Not connected — needs OPENWEATHERMAP_API_KEY in .env"), and every time that happens it's logged to [[../../log/requests.md|sunny-vault/log/requests.md]] — see "Data Source Honesty & Request Logging" below. Calendar/email failures that happen *after* connecting (an expired grant, a live Google API error) get a distinct "temporarily unavailable — check logs" message instead, since that's a different problem than "nobody's built this yet."
 
 ## Concept
 
@@ -96,10 +97,10 @@ Sleep well!
 | Data | Source | Status |
 |------|--------|--------|
 | Tasks (open/due) | SQLite (`tasks.db`) | ✅ Live today |
-| Calendar events | Notion/Google Calendar API | ⚠️ Not connected |
+| Calendar events | Google Calendar API (OAuth, read-only) | 🔧 Code complete — needs sign-in, see [[google-integration]] |
+| Email (unread/important) | Gmail API (OAuth, read-only) | 🔧 Code complete — needs sign-in, see [[google-integration]] |
 | Weather | Weather API (OpenWeatherMap, etc.) | ⚠️ Not connected |
-| Email (urgent/action) | Email API (header parsing) | ⚠️ Not connected |
-| Commute/traffic | Google Maps/traffic API | ⚠️ Not connected |
+| Commute/traffic | Google Maps/traffic API — **separate API key, not part of Google sign-in** | ⚠️ Not connected |
 | Location | Tailscale or location API | ⚠️ Not connected |
 | Yesterday's incomplete | Obsidian vault or database | ⚠️ Not connected |
 
@@ -113,6 +114,8 @@ if is_configured("weather"):
 else:
     return "⚠️  Not connected — needs OPENWEATHERMAP_API_KEY in .env"
 ```
+
+For calendar/email, "configured" means Google sign-in is connected (`google_auth.is_connected()`), not just an env var — see [[google-integration]] for the OAuth flow and what it does and doesn't request access to.
 
 Every time a briefing section or a Q&A question hits an unconnected source — or a task command fails to parse or validate — it's appended to `sunny-vault/log/requests.md` (`sunny_code/components/request_log.py`):
 
@@ -258,7 +261,7 @@ The [[dashboard]] shows:
 - [[email-processing]] — Email summary
 - [[llm-integration]] — Optional email triage
 - [[networking]] — API access
-- Calendar API — Event data
+- [[google-integration]] — Google sign-in, Calendar + Gmail API access
 - Weather API — Forecast data
 - Traffic API — Commute data
 
@@ -267,10 +270,10 @@ The [[dashboard]] shows:
 - [x] Template structure (hardcoded text)
 - [x] Task summary query — live against `tasks.db`
 - [x] Honest "not connected" messaging for unconfigured sources + logging to `sunny-vault/log/requests.md`
-- [ ] Calendar API integration
+- [x] Calendar API integration — Google Calendar via OAuth, code complete (see [[google-integration]]), needs a Google Cloud OAuth client + one-time sign-in to go live
+- [x] Email header parsing — Gmail unread/important counts + subject lines via OAuth, same caveat as above
 - [ ] Weather API integration
-- [ ] Traffic API integration
-- [ ] Email header parsing
+- [ ] Traffic API integration — separate from Google sign-in, needs its own Maps API key (see [[google-integration]])
 - [ ] Text-to-speech integration
 - [ ] Scheduler (7am, 9pm jobs)
 - [ ] Error handling for each API (once APIs exist — today's "not connected" state isn't a failure case, it's the default)

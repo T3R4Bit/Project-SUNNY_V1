@@ -21,6 +21,7 @@ __pycache__/
 .env
 .env.local
 .env.*.local
+google_token.json
 
 # Database
 *.db

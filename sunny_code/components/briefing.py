@@ -14,6 +14,7 @@ from sunny_code.config import get_settings
 from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.data_sources import is_configured, missing_requirement
 from sunny_code.components.request_log import log_unfulfilled
+from sunny_code.components import google_calendar, google_gmail
 
 
 logger = logging.getLogger(__name__)
@@ -63,6 +64,35 @@ class BriefingTemplates:
         return f"⚠️  Not connected — {missing_requirement(source)}"
 
     @staticmethod
+    def _calendar_text(day_offset: int = 0, unconfigured: Optional[List[str]] = None) -> str:
+        """Real events via Google Calendar if connected, else the standard 'not connected' note."""
+        if not is_configured("calendar"):
+            if unconfigured is not None:
+                unconfigured.append("calendar")
+            return BriefingTemplates._note("calendar")
+        events = google_calendar.get_events(day_offset)
+        if events is None:
+            return "⚠️  Google Calendar temporarily unavailable — check logs"
+        if not events:
+            return "No events scheduled"
+        return BriefingTemplates.format_time_list(events)
+
+    @staticmethod
+    def _email_text(unconfigured: Optional[List[str]] = None) -> str:
+        """Real unread/urgent summary via Gmail if connected, else the standard 'not connected' note."""
+        if not is_configured("email"):
+            if unconfigured is not None:
+                unconfigured.append("email")
+            return BriefingTemplates._note("email")
+        summary = google_gmail.get_summary()
+        if summary is None:
+            return "⚠️  Gmail temporarily unavailable — check logs"
+        lines = [f"{summary['unread_count']} unread ({summary['urgent_count']} marked important)"]
+        for s in summary["top_subjects"][:3]:
+            lines.append(f"      • {s['subject'] or '(no subject)'} — {s['from']}")
+        return "\n   ".join(lines)
+
+    @staticmethod
     def morning_briefing(tasks_db: TaskDB) -> str:
         """Morning briefing: real tasks, honest gaps everywhere else."""
         now = datetime.now()
@@ -78,8 +108,8 @@ class BriefingTemplates:
             return ""
 
         weather_note = note("weather")
-        calendar_note = note("calendar")
-        email_note = note("email")
+        calendar_note = BriefingTemplates._calendar_text(0, unconfigured)
+        email_note = BriefingTemplates._email_text(unconfigured)
         commute_note = note("commute")
         health_note = note("health")
         news_note = note("news")
@@ -149,7 +179,7 @@ Have a productive day! ☀️
                 return n
             return ""
 
-        calendar_note = note("calendar")
+        calendar_note = BriefingTemplates._calendar_text(1, unconfigured)  # tomorrow preview
         weather_note = note("weather")
         health_note = note("health")
 
@@ -211,11 +241,15 @@ Sleep well and rest up for tomorrow! 🌙
 
         # Calendar/Schedule questions
         elif any(s in question_lower for s in ["calendar", "schedule", "event", "meeting", "appointment", "when"]):
-            return unconfigured_reply("calendar")
+            if not is_configured("calendar"):
+                return unconfigured_reply("calendar")
+            return f"\n{_TOPIC_LABELS['calendar']}\n\n{BriefingTemplates._calendar_text()}\n"
 
         # Email questions
         elif any(e in question_lower for e in ["email", "mail", "inbox", "message"]):
-            return unconfigured_reply("email")
+            if not is_configured("email"):
+                return unconfigured_reply("email")
+            return f"\n{_TOPIC_LABELS['email']}\n\n{BriefingTemplates._email_text()}\n"
 
         # Task questions — real data
         elif any(t in question_lower for t in ["task", "todo", "checklist", "assignment"]):
@@ -251,7 +285,9 @@ Total: {len(open_tasks) + len(in_progress)} tasks
 
         # Tomorrow questions
         elif "tomorrow" in question_lower:
-            return unconfigured_reply("calendar", label="📅 TOMORROW'S PREVIEW")
+            if not is_configured("calendar"):
+                return unconfigured_reply("calendar", label="📅 TOMORROW'S PREVIEW")
+            return f"\n📅 TOMORROW'S PREVIEW\n\n{BriefingTemplates._calendar_text(1)}\n"
 
         # Default response — genuinely don't understand the question
         else:

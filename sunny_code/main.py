@@ -22,6 +22,7 @@ from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.chatbot_ui import create_chatbot_router
 from sunny_code.components.console_stats import create_console_router
 from sunny_code.components.discord_bot import create_discord_bot
+from sunny_code.components.google_routes import create_google_auth_router
 from sunny_code.components.key_status import startup_summary
 
 
@@ -96,6 +97,10 @@ class SunnyCore:
         # Console stats dashboard
         console_router = create_console_router()
         app.include_router(console_router)
+
+        # Google Sign-In (OAuth) — /auth/google/login, /callback, /status, /disconnect
+        google_router = create_google_auth_router()
+        app.include_router(google_router)
 
         return app
 

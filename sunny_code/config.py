@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     logs_dir: Path = project_root / "logs"
     db_path: Path = project_root / "sunny.db"
     config_dir: Path = project_root / "config"
+    google_token_path: Path = project_root / "google_token.json"
 
     # Network
     tailscale_ip: str = "100.117.41.53"  # Lenovo brain
@@ -26,7 +27,13 @@ class Settings(BaseSettings):
     # APIs
     claude_api_key: str = ""
     openweathermap_api_key: str = ""
-    google_calendar_api_key: str = ""
+
+    # Google Sign-In (OAuth 2.0) — powers Calendar + Gmail. See
+    # sunny-vault/docs/architecture/google-integration.md for the Google
+    # Cloud Console setup steps required before this works.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_oauth_redirect_uri: str = "http://127.0.0.1:5000/auth/google/callback"
 
     # Discord bot (tasks channel)
     discord_bot_token: str = ""

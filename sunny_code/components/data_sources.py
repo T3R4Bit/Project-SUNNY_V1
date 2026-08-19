@@ -1,18 +1,21 @@
 """Registry of which briefing data sources are backed by a real API vs. not yet connected.
 
-Weather/calendar check actual env-configured API keys. Email/commute/health/news/
-motorsports have no integration built yet, so they're always unconfigured. Tasks
-are always real — backed directly by tasks.db, no external API needed.
+Weather checks an env-configured API key. Calendar/email check whether Google
+Sign-In is connected (sunny_code.components.google_auth) — see
+sunny-vault/docs/architecture/google-integration.md for what that does and
+doesn't cover. Commute/health/news/motorsports have no integration built yet
+(and commute/health aren't part of Google Sign-In even once other sources
+are wired up — see that doc). Tasks are always real — backed directly by
+tasks.db, no external API needed.
 """
 
-from typing import Optional
-
+from sunny_code.components import google_auth
 from sunny_code.config import get_settings
 
 _SOURCES = {
     "weather": "OPENWEATHERMAP_API_KEY",
-    "calendar": "GOOGLE_CALENDAR_API_KEY",
-    "email": None,
+    "calendar": "GOOGLE_SIGN_IN",
+    "email": "GOOGLE_SIGN_IN",
     "commute": None,
     "health": None,
     "news": None,
@@ -26,20 +29,21 @@ def is_configured(source: str) -> bool:
     if source == "tasks":
         return True
 
-    settings = get_settings()
-    env_var = _SOURCES.get(source)
-    if env_var is None:
+    requirement = _SOURCES.get(source)
+    if requirement is None:
         return False
-    if env_var == "OPENWEATHERMAP_API_KEY":
-        return bool(settings.openweathermap_api_key)
-    if env_var == "GOOGLE_CALENDAR_API_KEY":
-        return bool(settings.google_calendar_api_key)
+    if requirement == "GOOGLE_SIGN_IN":
+        return google_auth.is_connected()
+    if requirement == "OPENWEATHERMAP_API_KEY":
+        return bool(get_settings().openweathermap_api_key)
     return False
 
 
 def missing_requirement(source: str) -> str:
     """Human-readable description of what's needed to make a source real."""
-    env_var = _SOURCES.get(source)
-    if env_var:
-        return f"needs {env_var} in .env"
+    requirement = _SOURCES.get(source)
+    if requirement == "GOOGLE_SIGN_IN":
+        return "needs Google sign-in — connect at /auth/google/login"
+    if requirement:
+        return f"needs {requirement} in .env"
     return "no data source integration built yet"

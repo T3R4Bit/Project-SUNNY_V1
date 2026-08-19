@@ -331,6 +331,17 @@ def create_console_router() -> APIRouter:
             </div>
 
             <div>
+                <div class="section-label">GOOGLE</div>
+                <div class="card">
+                    <dl class="kv-grid">
+                        <dt>STATUS</dt><dd id="google-status">checking&hellip;</dd>
+                        <dt>ACCOUNT</dt><dd id="google-account">&mdash;</dd>
+                        <dt>ACTION</dt><dd id="google-action">&mdash;</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <div>
                 <div class="section-label">RESOURCES</div>
                 <div class="card">
                     <div class="metrics">
@@ -437,9 +448,42 @@ def create_console_router() -> APIRouter:
             }}
         }}
 
+        async function disconnectGoogle() {{
+            await fetch('/auth/google/disconnect', {{ method: 'POST' }});
+            updateGoogleStatus();
+        }}
+
+        async function updateGoogleStatus() {{
+            try {{
+                const response = await fetch('/auth/google/status');
+                const data = await response.json();
+
+                const statusEl = document.getElementById('google-status');
+                const accountEl = document.getElementById('google-account');
+                const actionEl = document.getElementById('google-action');
+
+                if (!data.client_configured) {{
+                    statusEl.textContent = 'NOT SET UP';
+                    accountEl.textContent = '—';
+                    actionEl.innerHTML = 'add GOOGLE_CLIENT_ID/SECRET to .env';
+                }} else if (data.connected) {{
+                    statusEl.textContent = 'CONNECTED';
+                    accountEl.textContent = data.email || 'unknown';
+                    actionEl.innerHTML = '<a href="#" onclick="disconnectGoogle(); return false;">Disconnect</a>';
+                }} else {{
+                    statusEl.textContent = 'NOT CONNECTED';
+                    accountEl.textContent = '—';
+                    actionEl.innerHTML = '<a href="/auth/google/login">Connect Google Account</a>';
+                }}
+            }} catch (error) {{
+                console.error('Google status error:', error);
+            }}
+        }}
+
         window.addEventListener('load', () => {{
             updateStats();
             setInterval(updateStats, 2000);
+            updateGoogleStatus();
         }});
     </script>
 </body>
