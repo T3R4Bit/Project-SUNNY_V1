@@ -42,6 +42,14 @@ def create_console_router() -> APIRouter:
         tailscale_ip = get_tailscale_ip()
         tailscale_url = f"http://{tailscale_ip}:5000" if tailscale_ip else "http://127.0.0.1:5000"
 
+        # Color values for modern dark theme
+        bg = '#0a0e27'
+        primary = '#00d4ff'
+        secondary = '#00ff88'
+        border = '#00d4ff'
+        warning = '#ffb81c'
+        critical = '#ff4757'
+
         html = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -54,15 +62,15 @@ def create_console_router() -> APIRouter:
 
         body {{
             font-family: 'Courier New', monospace;
-            background: {COLORS['bg']};
-            color: {COLORS['text']};
+            background: {bg};
+            color: {primary};
             padding: 20px;
             min-height: 100vh;
         }}
 
         .console {{
-            background: {COLORS['bg']};
-            border: 2px solid {COLORS['border']};
+            background: {bg};
+            border: 2px solid {border};
             padding: 15px;
             font-size: 13px;
             line-height: 1.6;
@@ -71,14 +79,14 @@ def create_console_router() -> APIRouter:
         }}
 
         .header {{
-            border-bottom: 2px solid {COLORS['border']};
+            border-bottom: 2px solid {border};
             margin-bottom: 15px;
             padding-bottom: 10px;
         }}
 
         .title {{
             font-weight: bold;
-            color: {COLORS['primary']};
+            color: {primary};
             white-space: pre;
             font-size: 11px;
         }}
@@ -94,12 +102,12 @@ def create_console_router() -> APIRouter:
         .label {{
             display: inline-block;
             width: 180px;
-            color: {COLORS['primary']};
+            color: {primary};
             font-weight: bold;
         }}
 
         .value {{
-            color: {COLORS['secondary']};
+            color: {secondary};
         }}
 
         .bar {{
@@ -107,26 +115,26 @@ def create_console_router() -> APIRouter:
             width: 100px;
             height: 12px;
             background: #1a2540;
-            border: 1px solid {COLORS['border']};
+            border: 1px solid {border};
             margin: 0 5px;
             vertical-align: middle;
         }}
 
         .fill {{
             height: 100%;
-            background: {COLORS['secondary']};
+            background: {secondary};
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 9px;
-            color: {COLORS['bg']};
+            color: {bg};
         }}
 
-        .fill.warning {{ background: {COLORS['warning']}; }}
-        .fill.critical {{ background: {COLORS['critical']}; }}
+        .fill.warning {{ background: {warning}; }}
+        .fill.critical {{ background: {critical}; }}
 
         .divider {{
-            border-top: 1px solid {COLORS['border']};
+            border-top: 1px solid {border};
             margin: 15px 0;
         }}
 
@@ -135,21 +143,21 @@ def create_console_router() -> APIRouter:
         }}
 
         .nav a {{
-            color: {COLORS['primary']};
+            color: {primary};
             text-decoration: none;
             margin-right: 20px;
         }}
 
         .nav a:hover {{
             text-decoration: underline;
-            color: {COLORS['secondary']};
+            color: {secondary};
         }}
 
         .timestamp {{
-            color: {COLORS['secondary']};
+            color: {secondary};
             font-size: 11px;
             margin-top: 20px;
-            border-top: 1px solid {COLORS['border']};
+            border-top: 1px solid {border};
             padding-top: 10px;
         }}
     </style>
@@ -189,7 +197,7 @@ def create_console_router() -> APIRouter:
             </div>
             <div class="stat-line">
                 <span class="label">NETWORK:</span>
-                <span class="value"><a href="{tailscale_url}/chatbot" style="color: {COLORS['primary']}; text-decoration: none;">{tailscale_url}/chatbot</a></span>
+                <span class="value"><a href="{tailscale_url}/chatbot" style="color: {primary}; text-decoration: none;">{tailscale_url}/chatbot</a></span>
             </div>
         </div>
 
