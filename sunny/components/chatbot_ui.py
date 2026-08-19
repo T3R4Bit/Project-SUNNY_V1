@@ -78,6 +78,28 @@ def create_chatbot_router() -> APIRouter:
             opacity: 0.8;
         }
 
+        .header .nav-link {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 11px;
+            color: #0a0e27;
+            text-decoration: none;
+            border: 1px solid #0a0e27;
+            padding: 4px 10px;
+            font-weight: bold;
+            opacity: 0.85;
+            transition: opacity 0.2s;
+        }
+
+        .header .nav-link:hover {
+            opacity: 1;
+        }
+
+        .header {
+            position: relative;
+        }
+
         .messages {
             flex: 1;
             overflow-y: auto;
@@ -219,6 +241,7 @@ def create_chatbot_router() -> APIRouter:
 <body>
     <div class="container">
         <div class="header">
+            <a class="nav-link" href="/console">STATUS</a>
             <h1>SUNNY</h1>
             <p>Chat with your AI assistant</p>
         </div>
