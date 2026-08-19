@@ -1,7 +1,7 @@
 """Task management engine — combines DB, parsing, and formatting."""
 
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
 from sunny.components.tasks_db import TaskDB
@@ -49,6 +49,35 @@ class TaskEngine:
             log_unfulfilled("task_command", f'"{command}" — {e}')
             return False, f"❌ Error: {str(e)}"
 
+    def _resolve_task_id(self, identifier: str) -> Tuple[Optional[str], Optional[str]]:
+        """Resolve a task ID or a title (natural-language commands don't require an
+        exact ID) to a real task ID. Returns (task_id, error_message)."""
+        identifier = identifier.strip().strip('"\'')
+
+        # Try as a literal ID first — this is what legacy !task commands always pass.
+        if self.db.get_task(identifier):
+            return identifier, None
+
+        # Fall back to matching by title (case-insensitive) for natural phrasing.
+        identifier_lower = identifier.lower()
+        all_tasks = self.db.get_all_tasks()
+
+        exact = [t for t in all_tasks if t["title"].lower() == identifier_lower]
+        if len(exact) == 1:
+            return exact[0]["id"], None
+        if len(exact) > 1:
+            options = ", ".join(f"`{t['id'][:8]}`" for t in exact)
+            return None, f'Multiple tasks titled "{identifier}" ({options}) — use the task ID instead'
+
+        partial = [t for t in all_tasks if identifier_lower in t["title"].lower()]
+        if len(partial) == 1:
+            return partial[0]["id"], None
+        if len(partial) > 1:
+            options = ", ".join(f'`{t["id"][:8]}` "{t["title"]}"' for t in partial[:5])
+            return None, f'Multiple tasks match "{identifier}": {options} — use the task ID instead'
+
+        return None, f'No task found matching "{identifier}"'
+
     async def _execute_add(self, data: Dict) -> Tuple[bool, str]:
         """Create a new task."""
         try:
@@ -76,7 +105,10 @@ Priority: {data.get('priority', 3)}/5"""
     async def _execute_update(self, data: Dict) -> Tuple[bool, str]:
         """Update a task field."""
         try:
-            task_id = data["task_id"]
+            task_id, error = self._resolve_task_id(data["task_id"])
+            if error:
+                return False, f"❌ {error}"
+
             field = data["field"]
             value = data["value"]
 
@@ -104,9 +136,11 @@ Priority: {data.get('priority', 3)}/5"""
 
     async def _execute_delete(self, data: Dict) -> Tuple[bool, str]:
         """Delete a task."""
-        task_id = data["task_id"]
-        task = self.db.get_task(task_id)
+        task_id, error = self._resolve_task_id(data["task_id"])
+        if error:
+            return False, f"❌ {error}"
 
+        task = self.db.get_task(task_id)
         if not task:
             return False, f"❌ Task not found: `{task_id}`"
 

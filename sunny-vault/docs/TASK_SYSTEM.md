@@ -79,6 +79,7 @@ list tasks --tag School     # Trailing filters still work: --tag, --status, --pr
 
 ### Create Task
 ```
+add <title>
 add <title> to my tasks
 add task <title>
 create task <title>
@@ -96,12 +97,19 @@ remind me to learn Rust
 Tag defaults to `General` and priority defaults to `3` if omitted.
 
 ### Update Task
-Field updates (status, priority, tag, title, description, due date) still use the terser `!task <id> <field> <value>` form under the hood — there's no more-natural phrasing for these yet since it needs an exact task ID (get one from `show my tasks` first). "Done" has a natural shortcut:
+"Done" has a natural shortcut that takes an ID **or a title**:
 ```
-mark <id> as done
-complete <id>
-finish <id>
+mark <id-or-title> as done
+complete <id-or-title>
+finish <id-or-title>
 
+Examples:
+mark ff055559 as done
+mark make pizza as done
+complete make pizza
+```
+Other field updates (priority, tag, title, description, due date) still use the terser `!task <id> <field> <value>` form:
+```
 !task <id> priority <1-5>
 !task <id> tag <tag>
 !task <id> title <new title>
@@ -109,17 +117,34 @@ finish <id>
 !task <id> due <date>
 
 Examples:
-mark a1b2c3d4 as done
 !task a1b2c3d4 priority 5
 !task a1b2c3d4 tag "Project Ideas"
 ```
 
 ### Delete Task
+Takes an ID **or a title**:
 ```
-delete <id>
-remove <id>
-remove <id> from my tasks
+delete <id-or-title>
+remove <id-or-title>
+remove <id-or-title> from my tasks
+
+Examples:
+delete ff055559
+delete make pizza
 ```
+
+### Referencing a Task by Title
+
+`mark`/`complete`/`finish`/`delete`/`remove` all accept a title instead of the ID shown at creation. Resolution order in `TaskEngine._resolve_task_id()`:
+1. Exact ID match (what legacy `!task` commands and the ID shown at creation always are)
+2. Exact title match (case-insensitive)
+3. Substring title match, only if exactly one task matches
+
+If a title matches more than one task at the same step, it returns an error listing the matching IDs instead of guessing:
+```
+❌ Multiple tasks titled "clean the garage" (`7a4941c4`, `3cc214d3`) — use the task ID instead
+```
+No fuzzy matching or LLM involved — just case-insensitive string comparison against whatever's in `tasks.db`.
 
 ### Legacy `!task` / `!tasks` Syntax
 The old Discord-style syntax (`!task add "Title" --tag School`, `!tasks --tag School`, `!task <id> delete`) still works — the parser tries it first — but it's no longer required or shown in the UI. Existing scripts/tests that use it keep working unchanged.

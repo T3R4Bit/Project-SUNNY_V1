@@ -47,13 +47,15 @@ class TaskCommandParser:
         r'|^tasks?$',
         re.IGNORECASE,
     )
+    # Capture group is the raw identifier — a task ID or a title (possibly multi-word
+    # or quoted). TaskEngine resolves it: exact ID match first, then title match.
     NATURAL_DONE_PATTERN = re.compile(
-        r'^(?:mark|set)\s+(\w+)\s+(?:as\s+)?done$'
-        r'|^(?:complete|finish)\s+(\w+)$',
+        r'^(?:mark|set)\s+(.+?)\s+(?:as\s+)?done$'
+        r'|^(?:complete|finish)\s+(.+)$',
         re.IGNORECASE,
     )
     NATURAL_DELETE_PATTERN = re.compile(
-        r'^(?:delete|remove)\s+(\w+)(?:\s+from\s+(?:my\s+)?tasks?)?$',
+        r'^(?:delete|remove)\s+(.+?)(?:\s+from\s+(?:my\s+)?tasks?)?$',
         re.IGNORECASE,
     )
 
