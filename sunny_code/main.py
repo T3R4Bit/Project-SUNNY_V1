@@ -30,6 +30,13 @@ class SunnyCore:
     def __init__(self):
         self.settings = get_settings()
         self.logger = setup_logging()
+        # One TaskEngine/BriefingEngine shared by the web chatbot, REST API, and
+        # Discord bot, so a task change from any interface is visible everywhere
+        # immediately (e.g. an instant Discord dashboard refresh) instead of
+        # waiting on a timer — see TaskEngine.on_change.
+        tasks_db = TaskDB(self.settings.project_root / "tasks.db")
+        self.tasks_engine = TaskEngine(tasks_db)
+        self.briefing_engine = BriefingEngine()
         self.app = self._create_app()
         self.discord_bot = self._create_discord_bot()
 
@@ -40,11 +47,8 @@ class SunnyCore:
             self.logger.info("Discord bot not configured (no token/channel) — skipping")
             return None
 
-        tasks_db = TaskDB(self.settings.project_root / "tasks.db")
-        tasks_engine = TaskEngine(tasks_db)
-        briefing_engine = BriefingEngine()
         return create_discord_bot(
-            tasks_engine, briefing_engine, self.settings.discord_tasks_channel_id
+            self.tasks_engine, self.briefing_engine, self.settings.discord_tasks_channel_id
         )
 
     def _create_app(self) -> FastAPI:
@@ -68,11 +72,11 @@ class SunnyCore:
         app.include_router(briefing_router, prefix="/api")
 
         # Task endpoints
-        tasks_router = create_tasks_router()
+        tasks_router = create_tasks_router(self.tasks_engine)
         app.include_router(tasks_router, prefix="/api")
 
         # Chatbot UI
-        chatbot_router = create_chatbot_router()
+        chatbot_router = create_chatbot_router(self.tasks_engine, self.briefing_engine)
         app.include_router(chatbot_router)
 
         # Console stats dashboard

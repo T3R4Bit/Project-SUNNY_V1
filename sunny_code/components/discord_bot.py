@@ -16,7 +16,6 @@ from sunny_code.components.assistant import handle_message
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.key_status import missing_api_keys, startup_summary
 from sunny_code.components.tasks_engine import TaskEngine
-from sunny_code.components.tasks_parser import TaskCommandParser
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +95,11 @@ def create_discord_bot(
             logger.warning("Missing permission to pin the dashboard message — sent unpinned")
         state["dashboard_message_id"] = new_message.id
 
+    # Any successful add/update/delete anywhere — web chatbot, REST API, or a
+    # message in this very channel — goes through this same tasks_engine, so
+    # wiring the refresh here covers every interface, not just Discord-originated ones.
+    tasks_engine.on_change = refresh_dashboard
+
     @tasks.loop(minutes=5)
     async def refresh_loop():
         await refresh_dashboard()
@@ -128,11 +132,8 @@ def create_discord_bot(
         response = await handle_message(message.content, tasks_engine, briefing_engine)
         for chunk in _chunk_message(response):
             await message.channel.send(chunk)
-
-        # Only refresh the dashboard for commands that actually changed something
-        cmd_type, _, _ = TaskCommandParser.parse_command(message.content.strip())
-        if cmd_type in ("add", "update", "delete"):
-            await refresh_dashboard()
+        # Dashboard refresh (if this was a mutating command) happens automatically
+        # via tasks_engine.on_change — no need to check/trigger it here too.
 
     @client.event
     async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):

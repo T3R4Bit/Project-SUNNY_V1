@@ -2,23 +2,22 @@
 
 import logging
 from fastapi import APIRouter, Query
-from pathlib import Path
 
-from sunny_code.config import get_settings
-from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.tasks_engine import TaskEngine
 
 logger = logging.getLogger(__name__)
 
 
-def create_tasks_router() -> APIRouter:
-    """Create task management API routes."""
-    router = APIRouter(prefix="/tasks")
+def create_tasks_router(tasks_engine: TaskEngine) -> APIRouter:
+    """Create task management API routes.
 
-    # Initialize database and engine
-    settings = get_settings()
-    db = TaskDB(settings.project_root / "tasks.db")
-    engine = TaskEngine(db)
+    Takes a shared TaskEngine (same instance the web chatbot and Discord bot use)
+    so a mutation through this REST API triggers the same on_change effects
+    (e.g. an instant Discord dashboard refresh) as any other interface.
+    """
+    router = APIRouter(prefix="/tasks")
+    engine = tasks_engine
+    db = engine.db
 
     @router.post("/command")
     async def execute_command(cmd: str = Query(..., description='Task command, e.g. "add buy milk to my tasks" or "show my tasks"')):

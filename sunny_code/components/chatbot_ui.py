@@ -7,22 +7,18 @@ import asyncio
 
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.tasks_engine import TaskEngine
-from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.assistant import handle_message
-from sunny_code.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 
-def create_chatbot_router() -> APIRouter:
-    """Create chatbot UI routes."""
-    router = APIRouter(prefix="")
+def create_chatbot_router(tasks_engine: TaskEngine, briefing_engine: BriefingEngine) -> APIRouter:
+    """Create chatbot UI routes.
 
-    # Initialize engines
-    settings = get_settings()
-    tasks_db = TaskDB(settings.project_root / "tasks.db")
-    tasks_engine = TaskEngine(tasks_db)
-    briefing_engine = BriefingEngine()
+    Takes shared engine instances (same ones the REST API and Discord bot use) so
+    a task change made here triggers the same on_change effects everywhere else.
+    """
+    router = APIRouter(prefix="")
 
     @router.get("/")
     async def root():

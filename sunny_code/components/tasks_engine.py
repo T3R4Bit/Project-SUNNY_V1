@@ -18,6 +18,10 @@ class TaskEngine:
     def __init__(self, db: TaskDB):
         self.db = db
         self.parser = TaskCommandParser()
+        # Optional async callable, invoked after a successful add/update/delete —
+        # lets other interfaces (e.g. the Discord bot's dashboard) react to a change
+        # regardless of which interface made it. Not set = no-op.
+        self.on_change = None
 
     async def execute_command(self, command: str) -> Tuple[bool, str]:
         """Execute a task command and return (success, message)."""
@@ -43,6 +47,11 @@ class TaskEngine:
             success, message = result
             if not success:
                 log_unfulfilled("task_command", f'"{command}" — {message}')
+            elif cmd_type in ("add", "update", "delete") and self.on_change:
+                try:
+                    await self.on_change()
+                except Exception as e:
+                    logger.error(f"on_change callback failed: {e}")
             return result
 
         except Exception as e:
