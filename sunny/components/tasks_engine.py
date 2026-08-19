@@ -1,6 +1,7 @@
 """Task management engine — combines DB, parsing, and formatting."""
 
 import logging
+import re
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
@@ -49,16 +50,10 @@ class TaskEngine:
             log_unfulfilled("task_command", f'"{command}" — {e}')
             return False, f"❌ Error: {str(e)}"
 
-    def _resolve_task_id(self, identifier: str) -> Tuple[Optional[str], Optional[str]]:
-        """Resolve a task ID or a title (natural-language commands don't require an
-        exact ID) to a real task ID. Returns (task_id, error_message)."""
-        identifier = identifier.strip().strip('"\'')
-
-        # Try as a literal ID first — this is what legacy !task commands always pass.
-        if self.db.get_task(identifier):
-            return identifier, None
-
-        # Fall back to matching by title (case-insensitive) for natural phrasing.
+    def _match_by_title(self, identifier: str) -> Optional[Tuple[Optional[str], Optional[str]]]:
+        """Try to resolve an identifier against task titles. Returns (task_id, None) on
+        a clean match, (None, error) if it's ambiguous, or plain None if nothing matched
+        at all (so the caller can retry with a different identifier)."""
         identifier_lower = identifier.lower()
         all_tasks = self.db.get_all_tasks()
 
@@ -75,6 +70,29 @@ class TaskEngine:
         if len(partial) > 1:
             options = ", ".join(f'`{t["id"][:8]}` "{t["title"]}"' for t in partial[:5])
             return None, f'Multiple tasks match "{identifier}": {options} — use the task ID instead'
+
+        return None
+
+    def _resolve_task_id(self, identifier: str) -> Tuple[Optional[str], Optional[str]]:
+        """Resolve a task ID or a title (natural-language commands don't require an
+        exact ID) to a real task ID. Returns (task_id, error_message)."""
+        identifier = identifier.strip().strip('"\'')
+
+        # Try as a literal ID first — this is what legacy !task commands always pass.
+        if self.db.get_task(identifier):
+            return identifier, None
+
+        result = self._match_by_title(identifier)
+        if result is not None:
+            return result
+
+        # Retry with a leading "task"/"the task"/"my task" filler word stripped —
+        # handles phrasing like "finish task make pizza" meaning the task "make pizza".
+        filler_stripped = re.sub(r'^(?:the\s+|my\s+)?task\s+', '', identifier, flags=re.IGNORECASE).strip()
+        if filler_stripped and filler_stripped != identifier:
+            result = self._match_by_title(filler_stripped)
+            if result is not None:
+                return result
 
         return None, f'No task found matching "{identifier}"'
 

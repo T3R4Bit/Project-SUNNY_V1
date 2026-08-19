@@ -13,6 +13,27 @@ from sunny.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+HELP_TEXT = """🌞 Here's what I can do — no LLM, plain pattern matching:
+
+TASKS (real data, backed by tasks.db)
+  add <title> to my tasks       — create a task
+  show my tasks                 — list open tasks
+  mark <id-or-title> as done    — complete a task
+  delete <id-or-title>          — remove a task
+  Examples: "add buy milk to my tasks", "mark buy milk as done"
+
+BRIEFINGS
+  morning / evening             — full briefing
+
+QUESTIONS
+  Ask about tasks and I'll answer for real.
+  Weather, calendar, email, commute, health, motorsports, and news
+  aren't connected to a real API yet, so I'll say so instead of
+  making something up — every one of those gets logged to
+  sunny-vault/log/requests.md.
+
+Type "help" any time to see this again."""
+
 
 def create_chatbot_router() -> APIRouter:
     """Create chatbot UI routes."""
@@ -35,7 +56,10 @@ def create_chatbot_router() -> APIRouter:
         to the task engine, morning/evening keywords trigger a briefing, everything else
         goes to the briefing Q&A engine."""
         stripped = text.strip()
-        lowered = stripped.lower()
+        lowered = stripped.lower().strip("? ")
+
+        if lowered in ("", "help", "commands", "info", "what can you do", "what can i ask"):
+            return {"response": HELP_TEXT}
 
         cmd_type, _, _ = TaskCommandParser.parse_command(stripped)
         if cmd_type != "unknown":

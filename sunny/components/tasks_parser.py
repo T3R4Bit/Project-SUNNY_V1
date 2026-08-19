@@ -37,6 +37,7 @@ class TaskCommandParser:
         re.compile(r'^add\s+(.+?)\s+to\s+(?:my\s+)?tasks?$', re.IGNORECASE),
         re.compile(r'^add\s+task[:\s]+(.+)$', re.IGNORECASE),
         re.compile(r'^(?:create|new)\s+task[:\s]+(.+)$', re.IGNORECASE),
+        re.compile(r'^make\s+(?:a\s+|me\s+a\s+)?task[:\s]*(.*)$', re.IGNORECASE),
         re.compile(r'^remind\s+me\s+to\s+(.+)$', re.IGNORECASE),
         re.compile(r'^add\s+(.+)$', re.IGNORECASE),  # bare "add X" catch-all
     ]
