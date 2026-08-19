@@ -5,9 +5,9 @@ import re
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
-from sunny.components.tasks_db import TaskDB
-from sunny.components.tasks_parser import TaskCommandParser
-from sunny.components.request_log import log_unfulfilled
+from sunny_code.components.tasks_db import TaskDB
+from sunny_code.components.tasks_parser import TaskCommandParser
+from sunny_code.components.request_log import log_unfulfilled
 
 logger = logging.getLogger(__name__)
 

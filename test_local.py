@@ -21,7 +21,7 @@ async def test_sunny():
             sys.executable,
             "-m",
             "uvicorn",
-            "sunny.main:app",
+            "sunny_code.main:app",
             "--host",
             "127.0.0.1",
             "--port",

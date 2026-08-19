@@ -118,7 +118,7 @@ Every run after the first reuses the existing `venv/` and just reinstalls/update
 ./run.sh dev
 
 # Now you can run Python directly
-python -c "import sunny; print('OK')"
+python -c "import sunny_code; print('OK')"
 exit  # Exit dev mode
 ```
 
@@ -277,7 +277,7 @@ All API keys (Claude, OpenWeatherMap, Google Calendar, Discord bot token) live i
 - **Never committed** — `.env`, `.env.local`, and `.env.*.local` are all in `.gitignore`. Only `.env.example` (no real values) is tracked.
 - **File permissions** — `run.sh` runs `chmod 600 .env` automatically on every start, so only the owning user can read it.
 - **Never paste a real key into chat, a commit, or an issue** — edit `.env` directly on the machine instead. If a key ever does leak, rotate it at the provider immediately (regenerating invalidates the old one).
-- **What's still missing** — Sunny logs a summary at startup of which tracked keys aren't set yet (`sunny/components/key_status.py`), and if the Discord bot is connected it posts the same summary to the tasks channel once per run. Nothing crashes without a key; the affected feature just says "not connected" instead of faking data — see `sunny-vault/log/requests.md` for what's actually being asked for.
+- **What's still missing** — Sunny logs a summary at startup of which tracked keys aren't set yet (`sunny_code/components/key_status.py`), and if the Discord bot is connected it posts the same summary to the tasks channel once per run. Nothing crashes without a key; the affected feature just says "not connected" instead of faking data — see `sunny-vault/log/requests.md` for what's actually being asked for.
 
 ## Project Structure
 
@@ -287,7 +287,7 @@ Project-SUNNY/
 ├── requirements.txt        # Python dependencies
 ├── .env                    # Your local secrets (gitignored, chmod 600)
 ├── .env.example            # Template — no real values
-├── sunny/
+├── sunny_code/
 │   ├── __init__.py
 │   ├── config.py          # Configuration management
 │   ├── logging_config.py  # Logging setup

@@ -7,7 +7,7 @@ are always real — backed directly by tasks.db, no external API needed.
 
 from typing import Optional
 
-from sunny.config import get_settings
+from sunny_code.config import get_settings
 
 _SOURCES = {
     "weather": "OPENWEATHERMAP_API_KEY",

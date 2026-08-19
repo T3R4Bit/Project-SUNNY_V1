@@ -1,6 +1,6 @@
 """Discord bot — task commands and a live-updating dashboard in a dedicated channel.
 
-Uses the exact same routing as the web chatbot (sunny.components.assistant.handle_message),
+Uses the exact same routing as the web chatbot (sunny_code.components.assistant.handle_message),
 so behavior is identical across interfaces. Scoped to one channel (DISCORD_TASKS_CHANNEL_ID) —
 messages elsewhere are ignored.
 
@@ -12,11 +12,11 @@ import logging
 import discord
 from discord.ext import tasks
 
-from sunny.components.assistant import handle_message
-from sunny.components.briefing import BriefingEngine
-from sunny.components.key_status import missing_api_keys, startup_summary
-from sunny.components.tasks_engine import TaskEngine
-from sunny.components.tasks_parser import TaskCommandParser
+from sunny_code.components.assistant import handle_message
+from sunny_code.components.briefing import BriefingEngine
+from sunny_code.components.key_status import missing_api_keys, startup_summary
+from sunny_code.components.tasks_engine import TaskEngine
+from sunny_code.components.tasks_parser import TaskCommandParser
 
 logger = logging.getLogger(__name__)
 

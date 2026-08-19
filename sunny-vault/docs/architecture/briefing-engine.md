@@ -105,7 +105,7 @@ Sleep well!
 
 ## Data Source Honesty & Request Logging
 
-The engine checks whether each source is actually wired up (`sunny/components/data_sources.py`) before answering with it:
+The engine checks whether each source is actually wired up (`sunny_code/components/data_sources.py`) before answering with it:
 
 ```python
 if is_configured("weather"):
@@ -114,7 +114,7 @@ else:
     return "⚠️  Not connected — needs OPENWEATHERMAP_API_KEY in .env"
 ```
 
-Every time a briefing section or a Q&A question hits an unconnected source — or a task command fails to parse or validate — it's appended to `sunny-vault/log/requests.md` (`sunny/components/request_log.py`):
+Every time a briefing section or a Q&A question hits an unconnected source — or a task command fails to parse or validate — it's appended to `sunny-vault/log/requests.md` (`sunny_code/components/request_log.py`):
 
 ```
 **2026-08-19T07:00:00Z** [MORNING_BRIEFING] sections without a real data source: weather, calendar, email, commute, health, news, motorsports

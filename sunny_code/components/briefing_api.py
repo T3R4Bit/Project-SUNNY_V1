@@ -2,7 +2,7 @@
 
 import logging
 from fastapi import APIRouter, Query
-from sunny.components.briefing import BriefingEngine
+from sunny_code.components.briefing import BriefingEngine
 
 logger = logging.getLogger(__name__)
 

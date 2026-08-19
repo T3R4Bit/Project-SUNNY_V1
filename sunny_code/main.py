@@ -7,18 +7,18 @@ from pathlib import Path
 from fastapi import FastAPI
 from uvicorn import Server, Config
 
-from sunny.config import get_settings
-from sunny.logging_config import setup_logging
-from sunny.components.dashboard import create_dashboard_app
-from sunny.components.briefing import BriefingEngine
-from sunny.components.briefing_api import create_briefing_router
-from sunny.components.tasks_db import TaskDB
-from sunny.components.tasks_engine import TaskEngine
-from sunny.components.tasks_api import create_tasks_router
-from sunny.components.chatbot_ui import create_chatbot_router
-from sunny.components.console_stats import create_console_router
-from sunny.components.discord_bot import create_discord_bot
-from sunny.components.key_status import startup_summary
+from sunny_code.config import get_settings
+from sunny_code.logging_config import setup_logging
+from sunny_code.components.dashboard import create_dashboard_app
+from sunny_code.components.briefing import BriefingEngine
+from sunny_code.components.briefing_api import create_briefing_router
+from sunny_code.components.tasks_db import TaskDB
+from sunny_code.components.tasks_engine import TaskEngine
+from sunny_code.components.tasks_api import create_tasks_router
+from sunny_code.components.chatbot_ui import create_chatbot_router
+from sunny_code.components.console_stats import create_console_router
+from sunny_code.components.discord_bot import create_discord_bot
+from sunny_code.components.key_status import startup_summary
 
 
 logger = logging.getLogger(__name__)

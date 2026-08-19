@@ -33,7 +33,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 - [ ] Set BIOS to restore power state on AC loss
 - [ ] Set up Sunny as a systemd unit with Restart=always
 - [ ] Disable unattended-upgrades auto-reboot, or pin to a window
-- [x] Secrets via env vars + config file — `.env` (gitignored, `chmod 600` on every `run.sh` start), loaded via `sunny/config.py`; startup logs + Discord post what's still missing (`sunny/components/key_status.py`)
+- [x] Secrets via env vars + config file — `.env` (gitignored, `chmod 600` on every `run.sh` start), loaded via `sunny_code/config.py`; startup logs + Discord post what's still missing (`sunny_code/components/key_status.py`)
 
 ### Deliverables When Complete
 

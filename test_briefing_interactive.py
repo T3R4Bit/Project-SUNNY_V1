@@ -3,7 +3,7 @@
 
 import asyncio
 import sys
-from sunny.components.briefing import BriefingEngine
+from sunny_code.components.briefing import BriefingEngine
 
 
 async def main():

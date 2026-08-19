@@ -10,10 +10,10 @@ import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from sunny.config import get_settings
-from sunny.components.tasks_db import TaskDB
-from sunny.components.data_sources import is_configured, missing_requirement
-from sunny.components.request_log import log_unfulfilled
+from sunny_code.config import get_settings
+from sunny_code.components.tasks_db import TaskDB
+from sunny_code.components.data_sources import is_configured, missing_requirement
+from sunny_code.components.request_log import log_unfulfilled
 
 
 logger = logging.getLogger(__name__)

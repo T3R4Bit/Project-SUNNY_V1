@@ -5,7 +5,7 @@ import logging.handlers
 import json
 from pathlib import Path
 from datetime import datetime
-from sunny.config import get_settings
+from sunny_code.config import get_settings
 
 
 class JSONFormatter(logging.Formatter):

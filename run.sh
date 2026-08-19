@@ -92,7 +92,7 @@ case "$COMMAND" in
         echo -e "${GREEN}Chatbot UI: http://100.117.41.53:5000/chatbot${NC}"
         echo -e "${CYAN}Press Ctrl+C to stop${NC}"
         echo ""
-        python -m uvicorn sunny.main:app --reload --host 0.0.0.0 --port 5000
+        python -m uvicorn sunny_code.main:app --reload --host 0.0.0.0 --port 5000
         ;;
 
     "chatbot")
@@ -101,7 +101,7 @@ case "$COMMAND" in
         echo -e "${GREEN}Network/Tailscale: http://100.117.41.53:5000/chatbot${NC}"
         echo -e "${CYAN}Press Ctrl+C to stop${NC}"
         echo ""
-        python -m uvicorn sunny.main:app --host 0.0.0.0 --port 5000
+        python -m uvicorn sunny_code.main:app --host 0.0.0.0 --port 5000
         ;;
 
     "cli")

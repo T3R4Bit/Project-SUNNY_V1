@@ -8,9 +8,9 @@ import requests
 import sys
 from pathlib import Path
 
-from sunny.config import get_settings
-from sunny.components.tasks_db import TaskDB
-from sunny.components.tasks_engine import TaskEngine
+from sunny_code.config import get_settings
+from sunny_code.components.tasks_db import TaskDB
+from sunny_code.components.tasks_engine import TaskEngine
 
 
 async def test_task_database():
@@ -117,7 +117,7 @@ async def test_command_parser():
     print("🧪 COMMAND PARSER — PARSING TESTS")
     print("=" * 70)
 
-    from sunny.components.tasks_parser import TaskCommandParser
+    from sunny_code.components.tasks_parser import TaskCommandParser
 
     parser = TaskCommandParser()
 
@@ -249,7 +249,7 @@ async def test_http_api():
 
     print("\n1️⃣  Starting FastAPI server...")
     proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "sunny.main:app", "--host", "127.0.0.1", "--port", "5002", "--log-level", "warning"],
+        [sys.executable, "-m", "uvicorn", "sunny_code.main:app", "--host", "127.0.0.1", "--port", "5002", "--log-level", "warning"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )

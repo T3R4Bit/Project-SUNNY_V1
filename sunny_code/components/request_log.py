@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime, timezone
 
-from sunny.config import get_settings
+from sunny_code.config import get_settings
 
 logger = logging.getLogger(__name__)
 

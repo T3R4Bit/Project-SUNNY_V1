@@ -1,14 +1,14 @@
 """Startup summary of which API keys are configured vs still missing.
 
 Nothing crashes without a key — the affected feature just says "not connected"
-(see sunny.components.data_sources). This module is purely for visibility: a
+(see sunny_code.components.data_sources). This module is purely for visibility: a
 clear one-time summary of what's set up and what isn't, logged at startup and
 posted to Discord when the bot connects.
 """
 
 from typing import List, Tuple
 
-from sunny.config import get_settings
+from sunny_code.config import get_settings
 
 # (label, settings attribute, env var name)
 _TRACKED_KEYS = [

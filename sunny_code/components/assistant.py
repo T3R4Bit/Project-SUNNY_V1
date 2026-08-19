@@ -5,9 +5,9 @@ Routing order: help trigger -> task command (natural phrasing or legacy !task)
 -> morning/evening briefing -> briefing Q&A fallback.
 """
 
-from sunny.components.briefing import BriefingEngine
-from sunny.components.tasks_engine import TaskEngine
-from sunny.components.tasks_parser import TaskCommandParser
+from sunny_code.components.briefing import BriefingEngine
+from sunny_code.components.tasks_engine import TaskEngine
+from sunny_code.components.tasks_parser import TaskCommandParser
 
 HELP_TEXT = """🌞 Here's what I can do — no LLM, plain pattern matching:
 

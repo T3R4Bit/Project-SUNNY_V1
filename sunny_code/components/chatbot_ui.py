@@ -5,11 +5,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 import logging
 import asyncio
 
-from sunny.components.briefing import BriefingEngine
-from sunny.components.tasks_engine import TaskEngine
-from sunny.components.tasks_db import TaskDB
-from sunny.components.assistant import handle_message
-from sunny.config import get_settings
+from sunny_code.components.briefing import BriefingEngine
+from sunny_code.components.tasks_engine import TaskEngine
+from sunny_code.components.tasks_db import TaskDB
+from sunny_code.components.assistant import handle_message
+from sunny_code.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def create_chatbot_router() -> APIRouter:
 
     @router.post("/api/assistant/message")
     async def assistant_message(text: str = Query(..., description="Free-text message from the chatbot")):
-        """Single entry point for the chatbot — routing lives in sunny.components.assistant
+        """Single entry point for the chatbot — routing lives in sunny_code.components.assistant
         so the web chatbot and the Discord bot behave identically."""
         response = await handle_message(text, tasks_engine, briefing_engine)
         return {"response": response}

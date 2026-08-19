@@ -23,4 +23,4 @@ Items worth doing but not blocking the current phase. Pull items into [[phases.m
 
 **Why this matters**: as more services get added (voice, telephony, wake word), starting/stopping them all by hand won't scale, and some services (e.g. telephony) may need to be disabled temporarily without killing the whole process.
 
-**Touches**: [[dashboard]] (toggle UI), `sunny/main.py` (orchestration/entrypoint), `sunny/config.py` (per-service config), systemd unit file (new)
+**Touches**: [[dashboard]] (toggle UI), `sunny_code/main.py` (orchestration/entrypoint), `sunny_code/config.py` (per-service config), systemd unit file (new)

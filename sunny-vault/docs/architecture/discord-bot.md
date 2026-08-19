@@ -12,11 +12,11 @@ The intended **primary** interface for the task system (see [[../TASK_SYSTEM.md]
 
 ## Status
 
-✅ Built (`sunny/components/discord_bot.py`) — code is complete and unit-verified, but **not yet connected to a real Discord server**, since that requires a bot token and channel ID only you can create. See Setup below.
+✅ Built (`sunny_code/components/discord_bot.py`) — code is complete and unit-verified, but **not yet connected to a real Discord server**, since that requires a bot token and channel ID only you can create. See Setup below.
 
 ## How It Works
 
-- Uses the exact same routing as the web chatbot (`sunny.components.assistant.handle_message`) — natural phrasing, no `!` prefix needed, `help` works, everything behaves identically to `/chatbot`.
+- Uses the exact same routing as the web chatbot (`sunny_code.components.assistant.handle_message`) — natural phrasing, no `!` prefix needed, `help` works, everything behaves identically to `/chatbot`.
 - **Scoped to one channel.** Messages anywhere else in the server are ignored entirely.
 - Every message in that channel gets a reply. Task-mutating commands (add/update/delete) also trigger an immediate dashboard refresh; everything else just replies.
 - Long responses (>1900 characters) are split into multiple messages at line boundaries — Discord's hard limit is 2000.
@@ -31,7 +31,7 @@ The intended **primary** interface for the task system (see [[../TASK_SYSTEM.md]
 
 ## Setup
 
-The bot ships built but disconnected — `sunny/main.py` checks for `DISCORD_BOT_TOKEN` and `DISCORD_TASKS_CHANNEL_ID` in `.env` at startup, and skips starting the bot entirely if either is missing (logs "Discord bot not configured — skipping", web chatbot keeps working as normal). Nothing crashes either way.
+The bot ships built but disconnected — `sunny_code/main.py` checks for `DISCORD_BOT_TOKEN` and `DISCORD_TASKS_CHANNEL_ID` in `.env` at startup, and skips starting the bot entirely if either is missing (logs "Discord bot not configured — skipping", web chatbot keeps working as normal). Nothing crashes either way.
 
 ### 1. Create the Discord application
 

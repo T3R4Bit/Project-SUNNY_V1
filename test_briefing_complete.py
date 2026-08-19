@@ -15,7 +15,7 @@ async def test_cli_briefings():
     print("🧪 BRIEFING ENGINE — CLI TESTS")
     print("=" * 70)
 
-    from sunny.components.briefing import BriefingEngine
+    from sunny_code.components.briefing import BriefingEngine
 
     engine = BriefingEngine()
 
@@ -66,7 +66,7 @@ async def test_http_briefings():
     # Start server
     print("\n1️⃣  Starting FastAPI server...")
     proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "sunny.main:app", "--host", "127.0.0.1", "--port", "5001", "--log-level", "warning"],
+        [sys.executable, "-m", "uvicorn", "sunny_code.main:app", "--host", "127.0.0.1", "--port", "5001", "--log-level", "warning"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )

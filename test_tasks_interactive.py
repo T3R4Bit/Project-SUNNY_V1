@@ -5,9 +5,9 @@ import asyncio
 import sys
 from pathlib import Path
 
-from sunny.config import get_settings
-from sunny.components.tasks_db import TaskDB
-from sunny.components.tasks_engine import TaskEngine
+from sunny_code.config import get_settings
+from sunny_code.components.tasks_db import TaskDB
+from sunny_code.components.tasks_engine import TaskEngine
 
 
 async def main():

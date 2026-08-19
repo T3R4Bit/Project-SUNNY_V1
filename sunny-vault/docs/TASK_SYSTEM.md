@@ -6,12 +6,12 @@ Task management with hardcoded logic (no LLM required). **Discord is the intende
 
 | Piece | Status |
 |-------|--------|
-| SQLite storage + CRUD | ✅ Built (`sunny/components/tasks_db.py`) |
-| Command parser (natural phrasing, no LLM) | ✅ Built (`sunny/components/tasks_parser.py`) |
-| Task engine (command execution, dashboard formatting) | ✅ Built (`sunny/components/tasks_engine.py`) |
-| REST API | ✅ Built (`sunny/components/tasks_api.py`) |
+| SQLite storage + CRUD | ✅ Built (`sunny_code/components/tasks_db.py`) |
+| Command parser (natural phrasing, no LLM) | ✅ Built (`sunny_code/components/tasks_parser.py`) |
+| Task engine (command execution, dashboard formatting) | ✅ Built (`sunny_code/components/tasks_engine.py`) |
+| REST API | ✅ Built (`sunny_code/components/tasks_api.py`) |
 | Web chatbot interface (`/chatbot`) | ✅ Built — working fallback interface |
-| **Discord bot** | ✅ Built (`sunny/components/discord_bot.py`), ⏳ **not yet connected** — see [[architecture/discord-bot.md]] Setup |
+| **Discord bot** | ✅ Built (`sunny_code/components/discord_bot.py`), ⏳ **not yet connected** — see [[architecture/discord-bot.md]] Setup |
 | Obsidian staging integration | ⏳ Not built — nothing writes to `staging/` yet |
 
 Current focus: connect the Discord bot to a real server (bot token + channel ID in `.env`) — see [[architecture/discord-bot.md]].
@@ -180,7 +180,7 @@ The bot posts a pinned message in the configured tasks channel showing the same 
 ✅ DONE (7) | ⏳ IN PROGRESS (2) | 📌 DUE THIS WEEK (3)
 ```
 
-Refreshes automatically every 5 minutes, plus an on-demand 🔄 reaction to update instantly — both built and working in `sunny/components/discord_bot.py`. See [[architecture/discord-bot.md]] for setup steps to connect it to a real server, and [[../phases.md]] "Discord Activity Log" for the broader (not yet built) multi-channel activity-log idea this is scoped out of.
+Refreshes automatically every 5 minutes, plus an on-demand 🔄 reaction to update instantly — both built and working in `sunny_code/components/discord_bot.py`. See [[architecture/discord-bot.md]] for setup steps to connect it to a real server, and [[../phases.md]] "Discord Activity Log" for the broader (not yet built) multi-channel activity-log idea this is scoped out of.
 
 When it ships, the web chatbot stays available as the fallback interface for whenever the Discord bot is down or unreachable.
 
@@ -292,7 +292,7 @@ Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging c
 - [x] REST API + web chatbot interface
 - [x] Title-based resolution for mark/complete/finish/delete (with filler-word handling)
 - [x] `help`/`commands`/`info` response in the chatbot
-- [x] Discord bot code (`sunny/components/discord_bot.py`) + config fields (token/channel env vars)
+- [x] Discord bot code (`sunny_code/components/discord_bot.py`) + config fields (token/channel env vars)
 - [x] Discord dashboard builder (reuses `format_dashboard()`)
 - [x] 5-minute refresh loop
 - [x] 🔄 reaction for on-demand refresh
