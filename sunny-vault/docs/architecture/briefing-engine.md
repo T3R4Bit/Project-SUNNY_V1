@@ -117,7 +117,7 @@ else:
 Every time a briefing section or a Q&A question hits an unconnected source — or a task command fails to parse or validate — it's appended to `sunny-vault/log/requests.md` (`sunny_code/components/request_log.py`):
 
 ```
-**2026-08-19T07:00:00Z** [MORNING_BRIEFING] sections without a real data source: weather, calendar, email, commute, health, news, motorsports
+**2026-08-19T07:00:00Z** [MORNING_BRIEFING] sections without a real data source: weather, calendar, email, commute, health, news
 **2026-08-19T09:14:02Z** [QA_QUESTION] "What's the weather?" — needs OPENWEATHERMAP_API_KEY in .env
 **2026-08-19T09:15:40Z** [TASK_COMMAND] "mark xyz as done" — Invalid update command format
 ```

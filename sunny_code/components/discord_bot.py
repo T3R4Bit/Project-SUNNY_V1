@@ -129,7 +129,8 @@ def create_discord_bot(
         if message.channel.id != tasks_channel_id:
             return
 
-        response = await handle_message(message.content, tasks_engine, briefing_engine)
+        session_id = f"discord:{message.channel.id}:{message.author.id}"
+        response = await handle_message(message.content, tasks_engine, briefing_engine, session_id=session_id)
         for chunk in _chunk_message(response):
             await message.channel.send(chunk)
         # Dashboard refresh (if this was a mutating command) happens automatically

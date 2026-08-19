@@ -304,6 +304,7 @@ Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging c
 - [x] No task IDs in chat/Discord text — every response references tasks by title
 - [x] Free-form categories — no fixed tag list, `tasks.db` auto-migrates off the old CHECK constraint on startup
 - [x] Dashboard groups by whatever categories actually exist (known ones first, custom ones alphabetically after)
+- [x] Conversational follow-up — "make a new task" with no title asks "what should I call it?" instead of erroring, then creates it from the next reply (per-session state in `sunny_code/components/assistant.py`, 5-minute expiry, "cancel" to back out)
 - [x] Discord bot code (`sunny_code/components/discord_bot.py`) + config fields (token/channel env vars)
 - [x] Discord dashboard builder (reuses `format_dashboard()`)
 - [x] 5-minute refresh loop

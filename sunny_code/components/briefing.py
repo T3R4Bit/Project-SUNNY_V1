@@ -83,7 +83,6 @@ class BriefingTemplates:
         commute_note = note("commute")
         health_note = note("health")
         news_note = note("news")
-        motorsports_note = note("motorsports")
 
         open_tasks = tasks_db.get_open_tasks()
         in_progress = tasks_db.get_in_progress_tasks()
@@ -119,9 +118,6 @@ Good morning, Keaton! Here's your day at a glance.
 
 📰 HEADLINES
    {news_note}
-
-🏁 MOTORSPORTS
-   {motorsports_note}
 
 🎯 YOUR DAY AHEAD
    1. Focus on: {top['title'] if top else 'nothing on your task list right now'}

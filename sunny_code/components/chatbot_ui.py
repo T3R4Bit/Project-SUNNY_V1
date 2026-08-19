@@ -26,10 +26,13 @@ def create_chatbot_router(tasks_engine: TaskEngine, briefing_engine: BriefingEng
         return RedirectResponse(url="/chatbot")
 
     @router.post("/api/assistant/message")
-    async def assistant_message(text: str = Query(..., description="Free-text message from the chatbot")):
+    async def assistant_message(
+        text: str = Query(..., description="Free-text message from the chatbot"),
+        session: str = Query("web-default", description="Per-browser session ID, for follow-up questions"),
+    ):
         """Single entry point for the chatbot — routing lives in sunny_code.components.assistant
         so the web chatbot and the Discord bot behave identically."""
-        response = await handle_message(text, tasks_engine, briefing_engine)
+        response = await handle_message(text, tasks_engine, briefing_engine, session_id=f"web:{session}")
         return {"response": response}
 
     @router.get("/chatbot")
@@ -464,7 +467,23 @@ def create_chatbot_router(tasks_engine: TaskEngine, briefing_engine: BriefingEng
         const clearBtn = document.getElementById('clearBtn');
 
         const STORAGE_KEY = 'sunny-chat-history';
+        const SESSION_KEY = 'sunny-chat-session';
         const MAX_HISTORY = 200;
+
+        function getSessionId() {
+            let id = localStorage.getItem(SESSION_KEY);
+            if (!id) {
+                id = 'sess-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+                try {
+                    localStorage.setItem(SESSION_KEY, id);
+                } catch (e) {
+                    // localStorage unavailable — id just won't persist across reloads
+                }
+            }
+            return id;
+        }
+
+        const sessionId = getSessionId();
 
         function loadHistory() {
             try {
@@ -538,6 +557,7 @@ def create_chatbot_router(tasks_engine: TaskEngine, briefing_engine: BriefingEng
             try {
                 const url = new URL('/api/assistant/message', window.location.origin);
                 url.searchParams.append('text', text);
+                url.searchParams.append('session', sessionId);
 
                 const response = await fetch(url, { method: 'POST' });
                 const data = await response.json();

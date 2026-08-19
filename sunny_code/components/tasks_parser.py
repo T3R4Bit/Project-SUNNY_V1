@@ -35,9 +35,10 @@ class TaskCommandParser:
     NATURAL_ADD_TRIGGERS = [
         re.compile(r'^add\s+(.+?)\s+to\s+(?:my\s+)?(?:task\s+)?list$', re.IGNORECASE),
         re.compile(r'^add\s+(.+?)\s+to\s+(?:my\s+)?tasks?$', re.IGNORECASE),
-        re.compile(r'^add\s+task[:\s]+(.+)$', re.IGNORECASE),
-        re.compile(r'^(?:create|new)\s+task[:\s]+(.+)$', re.IGNORECASE),
-        re.compile(r'^make\s+(?:a\s+|me\s+a\s+)?task[:\s]*(.*)$', re.IGNORECASE),
+        # "add/create/make/new (a/an/me a) (new) task [title]" — title is optional
+        # (`.*` not `.+`), so a bare "make a new task" is a valid empty-title
+        # match too, which is what lets the assistant ask a follow-up for it.
+        re.compile(r'^(?:add|create|make|new)\s+(?:a\s+|an\s+|me\s+a\s+)?(?:new\s+)?task[:\s]*(.*)$', re.IGNORECASE),
         re.compile(r'^remind\s+me\s+to\s+(.+)$', re.IGNORECASE),
         re.compile(r'^add\s+(.+)$', re.IGNORECASE),  # bare "add X" catch-all
     ]
