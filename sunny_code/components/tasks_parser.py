@@ -182,9 +182,9 @@ class TaskCommandParser:
                 return False, {"error": "Status must be: open, in_progress, or done"}
             result["value"] = value
         elif field == "tag":
-            if value not in {"School", "Motorsports", "General", "Project Ideas"}:
-                return False, {"error": f"Invalid tag: {value}"}
-            result["value"] = value
+            if not value.strip():
+                return False, {"error": "Category cannot be empty"}
+            result["value"] = value.strip()
         elif field == "due":
             if not re.match(r"^\d{4}-\d{2}-\d{2}$", value):
                 return False, {"error": "Date format: YYYY-MM-DD"}

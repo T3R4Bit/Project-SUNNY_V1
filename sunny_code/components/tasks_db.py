@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 class TaskDB:
     """SQLite database for task storage."""
 
-    VALID_TAGS = {"School", "Motorsports", "General", "Project Ideas"}
+    # Categories are free-form (any non-empty string) — these are just the
+    # originally-shipped defaults, not an enforced list.
+    DEFAULT_TAGS = {"School", "Motorsports", "General", "Project Ideas"}
     VALID_STATUSES = {"open", "in_progress", "done"}
     VALID_PRIORITIES = {1, 2, 3, 4, 5}
 
@@ -33,7 +35,7 @@ class TaskDB:
                     id TEXT PRIMARY KEY,
                     title TEXT NOT NULL,
                     description TEXT,
-                    tag TEXT NOT NULL CHECK(tag IN ('School', 'Motorsports', 'General', 'Project Ideas')),
+                    tag TEXT NOT NULL,
                     status TEXT NOT NULL CHECK(status IN ('open', 'in_progress', 'done')) DEFAULT 'open',
                     priority INTEGER CHECK(priority BETWEEN 1 AND 5) DEFAULT 3,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -42,6 +44,38 @@ class TaskDB:
                 )
                 """
             )
+
+            # Older databases have a CHECK(tag IN (...)) constraint from when
+            # categories were a fixed list. SQLite can't ALTER a CHECK away, so
+            # rebuild the table without it. Safe to run every startup — no-op
+            # once migrated, and a no-op on fresh installs (no constraint to find).
+            cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
+            row = cursor.fetchone()
+            if row and row[0] and "CHECK(tag IN" in row[0]:
+                logger.info("Migrating tasks table: removing fixed-category constraint")
+                cursor.execute("ALTER TABLE tasks RENAME TO tasks_old")
+                cursor.execute(
+                    """
+                    CREATE TABLE tasks (
+                        id TEXT PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        description TEXT,
+                        tag TEXT NOT NULL,
+                        status TEXT NOT NULL CHECK(status IN ('open', 'in_progress', 'done')) DEFAULT 'open',
+                        priority INTEGER CHECK(priority BETWEEN 1 AND 5) DEFAULT 3,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        due_date DATETIME
+                    )
+                    """
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO tasks (id, title, description, tag, status, priority, created_at, updated_at, due_date)
+                    SELECT id, title, description, tag, status, priority, created_at, updated_at, due_date FROM tasks_old
+                    """
+                )
+                cursor.execute("DROP TABLE tasks_old")
 
             # Indexes for faster queries
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_tag ON tasks(tag)")
@@ -62,13 +96,14 @@ class TaskDB:
     ) -> str:
         """Create a new task. Returns task ID."""
         # Validate inputs
-        if tag not in self.VALID_TAGS:
-            raise ValueError(f"Invalid tag. Must be one of: {self.VALID_TAGS}")
+        if not tag or not tag.strip():
+            raise ValueError("Category cannot be empty")
         if priority not in self.VALID_PRIORITIES:
             raise ValueError(f"Priority must be 1-5, got {priority}")
         if not title or not title.strip():
             raise ValueError("Title cannot be empty")
 
+        tag = tag.strip()
         task_id = str(uuid.uuid4())[:8]
         now = datetime.utcnow().isoformat()
 
@@ -175,12 +210,15 @@ class TaskDB:
             raise ValueError(f"Invalid keys: {keys - valid_keys}")
 
         # Validate values
-        if "tag" in kwargs and kwargs["tag"] not in self.VALID_TAGS:
-            raise ValueError(f"Invalid tag: {kwargs['tag']}")
+        if "tag" in kwargs and (not kwargs["tag"] or not kwargs["tag"].strip()):
+            raise ValueError("Category cannot be empty")
         if "status" in kwargs and kwargs["status"] not in self.VALID_STATUSES:
             raise ValueError(f"Invalid status: {kwargs['status']}")
         if "priority" in kwargs and kwargs["priority"] not in self.VALID_PRIORITIES:
             raise ValueError(f"Invalid priority: {kwargs['priority']}")
+
+        if "tag" in kwargs:
+            kwargs["tag"] = kwargs["tag"].strip()
 
         if not kwargs:
             return False

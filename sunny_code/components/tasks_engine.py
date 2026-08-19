@@ -70,15 +70,14 @@ class TaskEngine:
         if len(exact) == 1:
             return exact[0]["id"], None
         if len(exact) > 1:
-            options = ", ".join(f"`{t['id'][:8]}`" for t in exact)
-            return None, f'Multiple tasks titled "{identifier}" ({options}) — use the task ID instead'
+            return None, f'You have {len(exact)} tasks titled "{identifier}" — rename one so they\'re not identical, then try again'
 
         partial = [t for t in all_tasks if identifier_lower in t["title"].lower()]
         if len(partial) == 1:
             return partial[0]["id"], None
         if len(partial) > 1:
-            options = ", ".join(f'`{t["id"][:8]}` "{t["title"]}"' for t in partial[:5])
-            return None, f'Multiple tasks match "{identifier}": {options} — use the task ID instead'
+            titles = ", ".join(f'"{t["title"]}"' for t in partial[:5])
+            return None, f'That matches multiple tasks: {titles} — try the exact title'
 
         return None
 
@@ -116,9 +115,8 @@ class TaskEngine:
                 due_date=data.get("due_date"),
             )
 
-            message = f"""✅ Task created: `{task_id}`
-Title: {data['title']}
-Tag: {data.get('tag', 'General')}
+            message = f"""✅ Task created: {data['title']}
+Category: {data.get('tag', 'General')}
 Priority: {data.get('priority', 3)}/5"""
 
             if data.get("due_date"):
@@ -154,9 +152,12 @@ Priority: {data.get('priority', 3)}/5"""
             success = self.db.update_task(task_id, **{db_field: value})
 
             if not success:
-                return False, f"❌ Task not found: `{task_id}`"
+                return False, "❌ Task not found"
 
-            return True, f"✅ Updated `{task_id}` {field} → {value}"
+            task = self.db.get_task(task_id)
+            title = task["title"] if task else value
+            field_label = "category" if field == "tag" else field
+            return True, f'✅ Updated "{title}" — {field_label} → {value}'
 
         except ValueError as e:
             return False, f"❌ {str(e)}"
@@ -169,10 +170,10 @@ Priority: {data.get('priority', 3)}/5"""
 
         task = self.db.get_task(task_id)
         if not task:
-            return False, f"❌ Task not found: `{task_id}`"
+            return False, "❌ Task not found"
 
         self.db.delete_task(task_id)
-        return True, f"✅ Deleted task `{task_id}`: {task['title']}"
+        return True, f'✅ Deleted "{task["title"]}"'
 
     async def _execute_list(self, data: Dict) -> Tuple[bool, str]:
         """List tasks with optional filtering."""
@@ -207,12 +208,12 @@ Priority: {data.get('priority', 3)}/5"""
                 "done": "✓",
             }.get(task["status"], "•")
 
-            line = f"{status_icon} [{priority_indicator}] {task['title']}"
+            line = f"{status_icon} [{priority_indicator}] {task['title']} ({task['tag']})"
 
             if task["due_date"]:
                 line += f" (due {task['due_date']})"
 
-            message += f"`{task['id'][:6]}` {line}\n"
+            message += f"{line}\n"
 
         stats = self.db.get_stats()
         message += f"\n━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -220,35 +221,38 @@ Priority: {data.get('priority', 3)}/5"""
 
         return True, message
 
+    # Known categories get a nice icon; anything else (any custom category the
+    # user makes up) falls back to a generic tag icon — no fixed category list.
+    _CATEGORY_ICONS = {"School": "🎓", "Motorsports": "🏍️ ", "General": "📝", "Project Ideas": "💡"}
+
     def format_dashboard(self) -> str:
         """Format complete task dashboard for Discord embed."""
         dashboard = "📋 YOUR TASKS\n"
         dashboard += "━" * 50 + "\n\n"
 
-        # Open tasks by tag
+        # Open tasks grouped by whatever categories actually exist right now —
+        # known ones first (stable, familiar order), then custom ones alphabetically.
         all_open = self.db.get_open_tasks()
-        tags_dict = {}
-
+        tags_dict: Dict[str, List[Dict]] = {}
         for task in all_open:
-            tag = task["tag"]
-            if tag not in tags_dict:
-                tags_dict[tag] = []
-            tags_dict[tag].append(task)
+            tags_dict.setdefault(task["tag"], []).append(task)
 
-        for tag in ["School", "Motorsports", "General", "Project Ideas"]:
-            if tag in tags_dict:
-                tasks = tags_dict[tag]
-                tag_emoji = {"School": "🎓", "Motorsports": "🏍️ ", "General": "📝", "Project Ideas": "💡"}.get(tag, "•")
-                dashboard += f"{tag_emoji} {tag} ({len(tasks)})\n"
+        known_order = [t for t in self._CATEGORY_ICONS if t in tags_dict]
+        custom_order = sorted(t for t in tags_dict if t not in self._CATEGORY_ICONS)
 
-                for task in tasks[:3]:  # Show top 3
-                    priority_bar = "▰" * task["priority"] + "▱" * (5 - task["priority"])
-                    due_str = f" (due {task['due_date']})" if task["due_date"] else ""
-                    dashboard += f"  [{priority_bar}] {task['title']}{due_str}\n"
+        for tag in known_order + custom_order:
+            tasks = tags_dict[tag]
+            emoji = self._CATEGORY_ICONS.get(tag, "🏷️")
+            dashboard += f"{emoji} {tag} ({len(tasks)})\n"
 
-                if len(tasks) > 3:
-                    dashboard += f"  ... and {len(tasks) - 3} more\n"
-                dashboard += "\n"
+            for task in tasks[:3]:  # Show top 3
+                priority_bar = "▰" * task["priority"] + "▱" * (5 - task["priority"])
+                due_str = f" (due {task['due_date']})" if task["due_date"] else ""
+                dashboard += f"  [{priority_bar}] {task['title']}{due_str}\n"
+
+            if len(tasks) > 3:
+                dashboard += f"  ... and {len(tasks) - 3} more\n"
+            dashboard += "\n"
 
         # Stats
         stats = self.db.get_stats()

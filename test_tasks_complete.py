@@ -220,7 +220,7 @@ async def test_task_engine():
     if not success:
         print(f"   ⚠️  List returned: success={success}, msg={msg[:100]}")
     else:
-        print(f"   ✓ Listed tasks ({msg.count('`')} task IDs)")
+        print(f"   ✓ Listed tasks ({msg.count(chr(10))} lines)")
 
     # Extract task ID and test update
     print("\n3️⃣  Testing ENGINE UPDATE...")

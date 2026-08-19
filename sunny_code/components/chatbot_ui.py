@@ -168,6 +168,35 @@ def create_chatbot_router(tasks_engine: TaskEngine, briefing_engine: BriefingEng
             box-shadow: 0 0 12px rgba(0, 212, 255, 0.3);
         }
 
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .icon-btn {
+            flex-shrink: 0;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--dim);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .icon-btn:hover {
+            color: var(--pink);
+            border-color: var(--pink);
+            background: rgba(255, 77, 126, 0.1);
+        }
+
         .chips {
             display: flex;
             gap: 8px;
@@ -399,7 +428,10 @@ def create_chatbot_router(tasks_engine: TaskEngine, briefing_engine: BriefingEng
                     <p><span class="status-dot"></span>Online</p>
                 </div>
             </div>
-            <a class="nav-link" href="/console">CONSOLE</a>
+            <div class="header-actions">
+                <button class="icon-btn" id="clearBtn" title="Clear chat history" aria-label="Clear chat history">&#128465;&#65039;</button>
+                <a class="nav-link" href="/console">CONSOLE</a>
+            </div>
         </div>
 
         <div class="chips" id="chips">
@@ -429,6 +461,29 @@ def create_chatbot_router(tasks_engine: TaskEngine, briefing_engine: BriefingEng
         const input = document.getElementById('input');
         const sendBtn = document.getElementById('sendBtn');
         const chips = document.getElementById('chips');
+        const clearBtn = document.getElementById('clearBtn');
+
+        const STORAGE_KEY = 'sunny-chat-history';
+        const MAX_HISTORY = 200;
+
+        function loadHistory() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                return raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function saveHistory() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(history.slice(-MAX_HISTORY)));
+            } catch (e) {
+                // localStorage full or unavailable — chat still works, just won't persist
+            }
+        }
+
+        let history = loadHistory();
 
         function autoGrow() {
             input.style.height = 'auto';
@@ -501,7 +556,7 @@ def create_chatbot_router(tasks_engine: TaskEngine, briefing_engine: BriefingEng
             }
         }
 
-        function addMessage(text, sender) {
+        function renderMessage(text, sender, time) {
             const msg = document.createElement('div');
             msg.className = 'message ' + sender;
             const avatar = sender === 'user' ? '&#128100;' : '&#9728;&#65039;';
@@ -509,10 +564,17 @@ def create_chatbot_router(tasks_engine: TaskEngine, briefing_engine: BriefingEng
                 '<div class="avatar">' + avatar + '</div>' +
                 '<div class="bubble-wrap">' +
                     '<div class="bubble">' + escapeHtml(text) + '</div>' +
-                    '<div class="meta">' + timestamp() + '</div>' +
+                    '<div class="meta">' + time + '</div>' +
                 '</div>';
             messagesDiv.appendChild(msg);
+        }
+
+        function addMessage(text, sender) {
+            const time = timestamp();
+            renderMessage(text, sender, time);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            history.push({ text, sender, time });
+            saveHistory();
         }
 
         function escapeHtml(text) {
@@ -521,8 +583,21 @@ def create_chatbot_router(tasks_engine: TaskEngine, briefing_engine: BriefingEng
             return div.innerHTML;
         }
 
+        clearBtn.addEventListener('click', () => {
+            if (!confirm('Clear chat history? This only clears it on this device.')) return;
+            history = [];
+            saveHistory();
+            messagesDiv.innerHTML = '';
+            addMessage('Chat cleared. Try a shortcut below or ask me anything.', 'bot');
+        });
+
         window.addEventListener('load', () => {
-            addMessage('Welcome to Project SUNNY. Try a shortcut below or ask me anything.', 'bot');
+            if (history.length > 0) {
+                history.forEach((m) => renderMessage(m.text, m.sender, m.time));
+                messagesDiv.scrollTop = messagesDiv.scrollHeight;
+            } else {
+                addMessage('Welcome to Project SUNNY. Try a shortcut below or ask me anything.', 'bot');
+            }
             input.focus();
         });
     </script>

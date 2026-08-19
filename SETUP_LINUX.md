@@ -141,10 +141,12 @@ exit  # Exit dev mode
 - Mock data built-in (no API keys needed for testing)
 
 ### ✅ Task Management
-- Create: `add Title to my tasks` (append `--tag School --priority 5` etc. for precision)
-- Update: `mark abc123 as done` (or by title: `mark Title as done`)
-- Delete: `delete abc123` (or by title)
-- Filter: By tag, status, priority, due date
+- Create: `add Title to my tasks` (append `--tag Category --priority 5` etc. for precision)
+- Update: `mark Title as done`
+- Delete: `delete Title`
+- Categories are free-form — any `--tag` value works, no fixed list to pick from
+- No task IDs shown anywhere — everything's referenced by title
+- Filter: By category, status, priority, due date
 - Dashboard: View all tasks organized by category
 - No command prefix required — plain natural phrasing, deterministic regex parsing, no LLM
 

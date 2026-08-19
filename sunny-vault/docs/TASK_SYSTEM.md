@@ -18,7 +18,7 @@ Current focus: connect the Discord bot to a real server (bot token + channel ID 
 
 ## Overview
 
-- **Tags**: School, Motorsports, General, Project Ideas
+- **Categories**: Free-form — School, Motorsports, General, and Project Ideas are just the shipped defaults, not a fixed list. Typing `--tag Cooking` on a task that's never had that category before creates it on the spot, no setup step.
 - **Storage**: SQLite database (`tasks.db`)
 - **Interface today**: Web chatbot at `/chatbot`, sending commands to a REST API
 - **Interface planned**: Discord bot + live dashboard embed (primary, once built)
@@ -28,10 +28,11 @@ Current focus: connect the Discord bot to a real server (bot token + channel ID 
 
 ```python
 Task {
-  id: str                    # short UUID, first 8 hex chars (e.g. "a1b2c3d4")
+  id: str                    # short UUID, first 8 hex chars — internal only, never
+                              # shown in chat/Discord text; reference tasks by title instead
   title: str
   description: str           # optional
-  tag: str                   # School | Motorsports | General | Project Ideas
+  tag: str                   # any non-empty string — free-form category, not an enum
   status: str                # open | in_progress | done
   priority: int              # 1-5 (1=low, 5=critical)
   created_at: datetime
@@ -93,9 +94,10 @@ add <title> to my tasks --tag <tag> --priority <1-5> --due <date> --describe "<t
 Examples:
 add finish physics homework to my tasks --tag School --priority 4 --due 2026-08-20
 add engine rebuild plan to my tasks --tag Motorsports --priority 3
+add walk the dog to my tasks --tag Pets --priority 2
 remind me to learn Rust
 ```
-Tag defaults to `General` and priority defaults to `3` if omitted.
+Category defaults to `General` and priority defaults to `3` if omitted. Any category name works — `--tag Pets` on a task with no prior "Pets" task just creates that category, no registration step.
 
 ### Update Task
 "Done" has a natural shortcut that takes an ID **or a title**:
@@ -136,15 +138,15 @@ delete make pizza
 
 ### Referencing a Task by Title
 
-`mark`/`complete`/`finish`/`delete`/`remove` all accept a title instead of the ID shown at creation — including filler phrasing like "finish task make pizza" (the leading "task"/"the task" gets stripped before lookup). Resolution order in `TaskEngine._resolve_task_id()`:
-1. Exact ID match (what legacy `!task` commands and the ID shown at creation always are)
+`mark`/`complete`/`finish`/`delete`/`remove` all accept a title — no ID needed, and none is ever shown in chat/Discord text (see Response Format below). Filler phrasing like "finish task make pizza" also works (the leading "task"/"the task" gets stripped before lookup). Resolution order in `TaskEngine._resolve_task_id()`:
+1. Exact ID match (only reachable via the legacy `!task <id> ...` syntax, since the ID is never surfaced to type back)
 2. Exact title match (case-insensitive)
 3. Substring title match, only if exactly one task matches
 4. If nothing matched and the identifier starts with "task"/"the task"/"my task", strip that prefix and retry steps 2-3 once
 
-If a title matches more than one task at the same step, it returns an error listing the matching IDs instead of guessing:
+If a title matches more than one task at the same step, it says so instead of guessing — and asks you to make the titles distinct rather than falling back to an ID:
 ```
-❌ Multiple tasks titled "clean the garage" (`7a4941c4`, `3cc214d3`) — use the task ID instead
+❌ You have 2 tasks titled "clean the garage" — rename one so they're not identical, then try again
 ```
 No fuzzy matching or LLM involved — just case-insensitive string comparison against whatever's in `tasks.db`.
 
@@ -193,7 +195,7 @@ CREATE TABLE tasks (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT,
-  tag TEXT NOT NULL CHECK(tag IN ('School', 'Motorsports', 'General', 'Project Ideas')),
+  tag TEXT NOT NULL,          -- free-form category, any non-empty string
   status TEXT NOT NULL CHECK(status IN ('open', 'in_progress', 'done')) DEFAULT 'open',
   priority INTEGER CHECK(priority BETWEEN 1 AND 5) DEFAULT 3,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -207,7 +209,7 @@ CREATE INDEX idx_priority ON tasks(priority);
 CREATE INDEX idx_due_date ON tasks(due_date);
 ```
 
-This is the actual schema created by `TaskDB._init_db()`.
+This is the actual schema created by `TaskDB._init_db()`. `tag` used to be `CHECK(tag IN (...))` against a fixed 4-category list — `_init_db()` detects and migrates any existing database still on that schema automatically on startup (rebuilds the table without the constraint, copies all rows over, no data loss). Categories are unrestricted now; the 4 originals are just defaults with dedicated icons (`TaskEngine._CATEGORY_ICONS`) — anything else gets a generic 🏷️ in the dashboard.
 
 ## Command Parsing (No LLM)
 
@@ -248,13 +250,20 @@ DESCRIPTION_PATTERN = r'--describe\s+(["\']?)(.+?)\1(?:\s--|$)'
 
 ## Response Format
 
+No IDs shown anywhere — every response references tasks by title. The ID still exists (it's the DB primary key, needed internally for updates/deletes), but the chat/Discord text never surfaces it. See "Referencing a Task by Title" above for how ambiguous titles are handled without one.
+
 ### Success
 ```
-✅ Task created: `a1b2c3d4`
-Title: Finish physics homework
-Tag: School
+✅ Task created: Finish physics homework
+Category: School
 Priority: 4/5
 Due: 2026-08-20
+```
+```
+✅ Updated "Finish physics homework" — status → done
+```
+```
+✅ Deleted "Finish physics homework"
 ```
 
 ### Error
@@ -292,6 +301,9 @@ Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging c
 - [x] REST API + web chatbot interface
 - [x] Title-based resolution for mark/complete/finish/delete (with filler-word handling)
 - [x] `help`/`commands`/`info` response in the chatbot
+- [x] No task IDs in chat/Discord text — every response references tasks by title
+- [x] Free-form categories — no fixed tag list, `tasks.db` auto-migrates off the old CHECK constraint on startup
+- [x] Dashboard groups by whatever categories actually exist (known ones first, custom ones alphabetically after)
 - [x] Discord bot code (`sunny_code/components/discord_bot.py`) + config fields (token/channel env vars)
 - [x] Discord dashboard builder (reuses `format_dashboard()`)
 - [x] 5-minute refresh loop
