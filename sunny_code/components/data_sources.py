@@ -54,7 +54,7 @@ def missing_requirement(source: str) -> str:
         if not looks_configured(settings.openweathermap_api_key):
             missing.append("OPENWEATHERMAP_API_KEY in .env")
         if not location_store.get_location():
-            missing.append("a location — set it on /console")
+            missing.append("a location — open /console and enter it in the LOCATION card (right sidebar)")
         return f"needs {' and '.join(missing)}"
     if requirement:
         return f"needs {requirement} in .env"
