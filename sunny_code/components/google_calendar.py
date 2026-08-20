@@ -52,9 +52,18 @@ def get_events(day_offset: int = 0) -> Optional[List[Dict]]:
     if service is None:
         return None
 
-    day = datetime.now().date() + timedelta(days=day_offset)
-    time_min = datetime.combine(day, datetime.min.time()).isoformat() + "Z"
-    time_max = datetime.combine(day, datetime.max.time()).isoformat() + "Z"
+    # datetime.now() is naive local time; .astimezone() attaches the system's
+    # actual local UTC offset. Building the day boundary from that and calling
+    # .isoformat() (no "Z" appended) produces a correct offset-aware
+    # timestamp — appending a literal "Z" here would mislabel local midnight
+    # as UTC midnight, a real bug: on this server (EDT, UTC-4) that silently
+    # shifted the query window by 4 hours, so events near the start/end of
+    # the day could fall outside it and never show up.
+    now_local = datetime.now().astimezone()
+    day = (now_local + timedelta(days=day_offset)).date()
+    tz = now_local.tzinfo
+    time_min = datetime.combine(day, datetime.min.time(), tzinfo=tz).isoformat()
+    time_max = datetime.combine(day, datetime.max.time(), tzinfo=tz).isoformat()
 
     try:
         result = (
