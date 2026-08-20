@@ -12,6 +12,10 @@ from sunny_code.components.data_sources import is_configured
 from sunny_code.config import get_settings, looks_configured
 
 _ALIASES = {
+    "claude": "claude",
+    "llm": "claude",
+    "anthropic": "claude",
+    "ai": "claude",
     "weather": "weather",
     "openweathermap": "weather",
     "openweather": "weather",
@@ -38,6 +42,27 @@ _ALIASES = {
     "tasks": "tasks",
     "task": "tasks",
 }
+
+
+def _claude_guide() -> str:
+    settings = get_settings()
+    status = "✅ Connected" if looks_configured(settings.claude_api_key) else "⚠️  Not connected"
+    return f"""🧠 CLAUDE (LLM) SETUP
+Status: {status}
+
+No feature calls this yet — it's the safety-rail infrastructure only (spend
+caps, usage logging) that has to exist before any LLM feature is turned on.
+See sunny-vault/docs/architecture/llm-readiness.md for what's built and
+what's still gated on this.
+
+1. Go to console.anthropic.com and create an account/API key.
+2. Add to .env:  CLAUDE_API_KEY=<your key>  — then restart Sunny.
+3. Optional — adjust spend caps in .env (defaults: $20/day, $100/month):
+   DAILY_SPEND_CAP=20.0
+   MONTHLY_SPEND_CAP=100.0
+
+Spend so far today/this month: GET /api/dashboard/spend/today and
+/api/dashboard/spend/month once a key is set."""
 
 
 def _weather_guide() -> str:
@@ -132,6 +157,7 @@ Status: ✅ Always connected — stored directly in the vault (sunny-vault/state
 
 
 _GUIDES = {
+    "claude": _claude_guide,
     "weather": _weather_guide,
     "google": _google_guide,
     "discord": _discord_guide,
@@ -142,9 +168,10 @@ _GUIDES = {
     "tasks": _tasks_guide,
 }
 
-_OVERVIEW_ORDER = ["tasks", "weather", "google", "discord", "commute", "health", "news", "motorsports"]
+_OVERVIEW_ORDER = ["tasks", "weather", "google", "discord", "claude", "commute", "health", "news", "motorsports"]
 _OVERVIEW_LABELS = {
     "tasks": "Tasks",
+    "claude": "Claude (LLM, infra-only)",
     "weather": "Weather",
     "google": "Calendar + Email (Google)",
     "discord": "Discord bot",
@@ -165,6 +192,9 @@ def _overview_status(key: str) -> str:
         return "✅ connected" if (looks_configured(settings.discord_bot_token) and settings.discord_tasks_channel_id) else "⚠️  not connected"
     if key in ("commute", "health", "news", "motorsports"):
         return "⚠️  not built yet"
+    if key == "claude":
+        settings = get_settings()
+        return "✅ connected" if looks_configured(settings.claude_api_key) else "⚠️  not connected"
     source = "weather" if key == "weather" else key
     return "✅ connected" if is_configured(source) else "⚠️  not connected"
 

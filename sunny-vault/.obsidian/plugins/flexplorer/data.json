@@ -54,6 +54,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "llm-readiness.md",
         "vault-storage.md",
         "location.md",
         "google-integration.md",
@@ -208,6 +209,10 @@
       "isHidden": false
     },
     "docs/architecture/vault-storage.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/llm-readiness.md": {
       "isPinned": false,
       "isHidden": false
     }

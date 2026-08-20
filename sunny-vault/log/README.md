@@ -78,6 +78,13 @@ Logs are kept indefinitely. No pruning. This is your permanent audit trail.
 
 **Storage estimate**: ~10-50KB per day depending on activity. At 1GB for 20 years of storage, not a significant constraint.
 
+## Other Log Files
+
+Two flat, single-file logs also live directly in `log/` — simpler append-only files, not the nested per-day design above (that design is for the Discord activity mirror, not yet built as described; these two predate/sit alongside it):
+
+- `requests.md` — requests Sunny couldn't fulfill with real data (`request_log.py`)
+- `llm-usage.md` — timestamped prompt/response record of every real LLM call (`llm_client.log_llm_call()`, see [[../docs/architecture/llm-readiness]]). Doesn't exist yet as a file — created on first real LLM call, since no feature makes one yet.
+
 ## Discord Bot Sync
 
 The Sunny Discord bot posts every action, which is then mirrored here for local backup. This is not a source of truth — Discord is the live channel, this vault is the backup.

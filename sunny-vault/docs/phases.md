@@ -321,22 +321,26 @@ A single command-channel bot is built — see [[architecture/discord-bot.md]], [
 **Also built, not in the original plan**: server administration — `create/delete channel <name>`, `create/delete role <name>`, `give/remove <@user>` a role, `list channels`/`list roles`. See [[architecture/discord-bot.md]] for the full command list and the two safety guardrails.
 
 ### Priority Scheduler
-- [ ] Queue system for concurrent requests
+- [ ] Queue system for concurrent requests — `llm_client.py` has a lightweight `asyncio.Semaphore(1)` stand-in (caps in-flight LLM calls at 1), not a real priority queue
 - [ ] Foreground (user interaction) preempts background
 - [ ] Example: Phone call stops briefing playback
 - [ ] Dashboard: Show active tasks + queue depth
 
+Still fully unbuilt as a real scheduler — no concrete concurrent-caller scenario exists yet (would need [[phone]]/[[clock]] hardware). See [[architecture/llm-readiness]].
+
 ### Token Circuit Breaker
-- [ ] Track LLM usage in real-time
-- [ ] Alert if burning tokens too fast
-- [ ] Pause execution, ask user to continue/halt
-- [ ] Hard cap at provider level (Anthropic: $20/mo)
+- [x] Track LLM usage in real-time — `token_tracker.py`, tested (`record_usage`/`get_today_usage`, per-model breakdown, live in `sunny.db`)
+- [ ] Alert if burning tokens too fast — only a cumulative cap exists, not a burn-rate/velocity alert
+- [x] Pause execution — `llm_client.ask_claude()` refuses (returns `None`) once `check_budget()` fails, automatically, every call. **Not built**: interactively asking the user to continue/halt — it just pauses silently until the cap window rolls over
+- [ ] Hard cap at provider level (Anthropic: $20/mo) — external, user action at console.anthropic.com; the in-app cap above is self-tracked, not authoritative billing
+
+Full breakdown: [[architecture/llm-readiness]].
 
 ### Spending Caps
-- [ ] Set hard limits on Anthropic account ($20/mo)
-- [ ] Set hard limits on Twilio account ($10/mo)
-- [ ] Monitor daily spend on dashboard
-- [ ] Alert in Discord if approaching limits
+- [ ] Set hard limits on Anthropic account ($20/mo) — external, user action
+- [ ] Set hard limits on Twilio account ($10/mo) — no Twilio integration exists yet, unrelated to this pass
+- [x] Monitor daily spend on dashboard — `GET /api/dashboard/spend/today` and `/spend/month`, tested
+- [ ] Alert in Discord if approaching limits — not built, logs only today
 
 ### TrueNAS Integration
 - [ ] Media update logging to Discord

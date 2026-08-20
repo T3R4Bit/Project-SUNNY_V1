@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import APIRouter
 
+from sunny_code.components import token_tracker
 from sunny_code.config import get_settings
 
 
@@ -171,13 +172,28 @@ class DashboardAPI:
 
         @self.router.get("/spend/today")
         async def spend_today():
-            """Get today's token spending."""
+            """Get today's actual LLM token spending, tracked by token_tracker.py."""
+            settings = get_settings()
+            usage = token_tracker.get_today_usage()
             return {
-                "date": datetime.now().date().isoformat(),
-                "tokens": 0,
-                "cost": 0.0,
-                "cap": 20.0,
-                "remaining": 20.0,
+                "date": usage["date"],
+                "tokens": usage["total_tokens"],
+                "cost": usage["cost"],
+                "cap": settings.daily_spend_cap,
+                "remaining": max(0.0, settings.daily_spend_cap - usage["cost"]),
+                "by_model": usage["by_model"],
+            }
+
+        @self.router.get("/spend/month")
+        async def spend_month():
+            """Get this month's cumulative LLM spend against the monthly cap."""
+            settings = get_settings()
+            cost = token_tracker.get_month_cost()
+            return {
+                "month": datetime.now().date().isoformat()[:7],
+                "cost": cost,
+                "cap": settings.monthly_spend_cap,
+                "remaining": max(0.0, settings.monthly_spend_cap - cost),
             }
 
         @self.router.get("/status")

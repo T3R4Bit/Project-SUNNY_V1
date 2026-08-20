@@ -191,17 +191,18 @@
   },
   "active": "1d01bc107c8fadf5",
   "lastOpenFiles": [
-    "docs/phases.md.tmp.18212.dac10da46537",
-    "docs/DESIGN.md.tmp.18212.41c9ad1c1b7e",
-    "docs/architecture/alarms-reminders.md.tmp.18212.8fff3298ac53",
-    "docs/architecture/alarms-reminders.md.tmp.18212.310460eb23e4",
-    "docs/architecture/alarms-reminders.md.tmp.18212.a91af06c6e21",
-    "docs/architecture/lists.md.tmp.18212.eb7de0f68a58",
-    "docs/architecture/lists.md.tmp.18212.bb35c1299560",
-    "docs/architecture/lists.md.tmp.18212.5c7613f0a87a",
-    "docs/architecture/lists.md.tmp.18212.609290f60cb4",
-    "docs/architecture/lists.md.tmp.18212.8a3e04cf7ecd",
-    "docs/TASK_SYSTEM.md.tmp.18212.a3d73efb6244",
+    "log/README.md.tmp.18212.0b3a9ce04166",
+    "docs/phases.md.tmp.18212.fa3182b17b6c",
+    "docs/BACKLOG.md.tmp.18212.0c3265b2758b",
+    "docs/BACKLOG.md.tmp.18212.efa1caef78b2",
+    "docs/BACKLOG.md.tmp.18212.271d17bd5fc8",
+    "docs/BACKLOG.md.tmp.18212.10aa4b3a0509",
+    "docs/architecture/llm-readiness.md",
+    "docs/architecture/llm-readiness.md.tmp.18212.85bc2384e267",
+    "docs/architecture/llm-integration.md.tmp.18212.e1e02a46924b",
+    "docs/architecture/llm-integration.md.tmp.18212.7528877de37b",
+    "docs/architecture/llm-integration.md.tmp.18212.bb6b7f475d04",
+    "docs/architecture/llm-integration.md.tmp.18212.a371ab383070",
     "docs/architecture/vault-storage.md",
     "state/tasks/concurrency-chat-task-3-2.md",
     "state/tasks/concurrency-chat-task-2-2.md",
@@ -225,7 +226,6 @@
     "state/tasks/terminal-test-task-2.md",
     "state/tasks/terminal-test-task.md",
     "state/alarms-reminders.md",
-    "docs/phases.md",
-    "docs/architecture/google-integration.md"
+    "docs/phases.md"
   ]
 }

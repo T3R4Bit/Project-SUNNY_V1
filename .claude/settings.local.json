@@ -10,5 +10,6 @@
       "Bash(rm -f /d/Project-SUNNY/test_device_*.db)",
       "Bash(venv/Scripts/python.exe -m pytest test_tasks_complete.py test_briefing_complete.py -q)"
     ]
-  }
+  },
+  "onComplete": "powershell -c (New-Object Media.SoundPlayer 'C:\\Windows\\Media\\Windows Logon.wav').PlaySync()"
 }
