@@ -7,7 +7,6 @@ from a task. "To-Do" is the default list name when none is specified.
 
 import sqlite3
 import uuid
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 import logging

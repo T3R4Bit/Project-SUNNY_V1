@@ -7,7 +7,6 @@ import subprocess
 import socket
 from fastapi import APIRouter
 from fastapi.responses import HTMLResponse
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 

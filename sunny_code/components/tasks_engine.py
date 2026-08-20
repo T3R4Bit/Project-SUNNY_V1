@@ -3,7 +3,6 @@
 import logging
 import re
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
 
 from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.tasks_parser import TaskCommandParser
@@ -111,7 +110,7 @@ class TaskEngine:
     async def _execute_add(self, data: Dict, source: str = None) -> Tuple[bool, str]:
         """Create a new task."""
         try:
-            task_id = self.db.create_task(
+            self.db.create_task(
                 title=data["title"],
                 tag=data.get("tag", "General"),
                 priority=data.get("priority", 3),
@@ -221,7 +220,7 @@ Priority: {data.get('priority', 3)}/5"""
             message += f"{line}\n"
 
         stats = self.db.get_stats()
-        message += f"\n━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        message += "\n━━━━━━━━━━━━━━━━━━━━━━━━\n"
         message += f"Open: {stats['open']} | In Progress: {stats['in_progress']} | Done: {stats['done']}"
 
         return True, message

@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/phases.md",
+                "file": "docs/BACKLOG.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "phases"
+              "title": "BACKLOG"
             }
           }
         ]
@@ -43,7 +43,7 @@
                 "sortOrder": "alphabetical",
                 "autoReveal": false,
                 "showSearch": true,
-                "searchQuery": "."
+                "searchQuery": ""
               },
               "icon": "lucide-folder-closed",
               "title": "Files"
@@ -189,8 +189,9 @@
       "omnisearch:Omnisearch": false
     }
   },
-  "active": "dacfba6f1bae3d84",
+  "active": "1d01bc107c8fadf5",
   "lastOpenFiles": [
+    "docs/phases.md",
     "docs/architecture/discord-bot.md.tmp.18212.4bd4fcc5f9d5",
     "docs/architecture/discord-bot.md.tmp.18212.1cb7708ebf95",
     "docs/TASK_SYSTEM.md.tmp.18212.f65923c230dd",
@@ -201,7 +202,6 @@
     "docs/QUICKSTART.md.tmp.29432.93a6b688d674",
     "docs/QUICKSTART.md.tmp.29432.80adfa8adade",
     "docs/README.md.tmp.29432.2a5dff80166b",
-    "docs/README.md.tmp.29432.f3feb3a5da86",
     "docs/architecture/google-integration.md",
     "docs/BACKLOG.md",
     "docs/architecture/llm-integration.md",
@@ -211,7 +211,6 @@
     "docs/architecture/dashboard.md",
     "docs/architecture/Mind-Map.md",
     "docs/TASK_SYSTEM.md",
-    "docs/phases.md",
     "docs/system-state.md",
     "docs/OBSIDIAN_SYNC_SETUP.md",
     "docs/DESIGN.md",

@@ -27,6 +27,7 @@
     "component": 66,
     "compute": 11,
     "config": 12,
+    "console": 78,
     "dashboard": 41,
     "deferred": 62,
     "deliverables": 37,
@@ -35,6 +36,7 @@
     "discord": 67,
     "esp32": 14,
     "feature": 15,
+    "general": 76,
     "getting-started": 56,
     "gmail": 73,
     "google": 74,
@@ -44,6 +46,7 @@
     "later": 63,
     "lists": 68,
     "llm": 19,
+    "location": 79,
     "logging": 20,
     "mesh": 47,
     "metrics": 42,
@@ -63,6 +66,7 @@
     "scheduler": 27,
     "scheduling": 70,
     "security": 51,
+    "server-admin": 77,
     "setup": 58,
     "specifications": 53,
     "state": 29,
@@ -76,7 +80,8 @@
     "ui": 44,
     "vision": 60,
     "voice": 35,
-    "warnings": 36
+    "warnings": 36,
+    "weather": 80
   },
   "tagColors": {},
   "_version": 4

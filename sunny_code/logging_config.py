@@ -3,7 +3,6 @@
 import logging
 import logging.handlers
 import json
-from pathlib import Path
 from datetime import datetime
 from sunny_code.config import get_settings
 

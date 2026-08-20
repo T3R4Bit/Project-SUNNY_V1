@@ -4,7 +4,7 @@ regex formats only: "7am", "7:00 AM", "6:30pm tomorrow", "on 2026-08-25 at 3pm",
 """
 
 import re
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Optional
 
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]

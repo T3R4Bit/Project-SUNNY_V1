@@ -8,7 +8,6 @@ Two input styles are understood, both fully deterministic (regex only):
 """
 
 import re
-from datetime import datetime
 from typing import Dict, Optional, Tuple
 import logging
 

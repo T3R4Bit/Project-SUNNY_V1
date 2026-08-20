@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from pathlib import Path
 
 from fastapi import FastAPI
 from uvicorn import Server, Config
