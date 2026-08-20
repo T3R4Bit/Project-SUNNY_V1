@@ -87,11 +87,11 @@ See [[design-principles]] for core philosophy:
 
 See [[../phases.md]] for the authoritative, detailed phase breakdown and checklists — this section is just a summary and can drift, so treat phases.md as the source of truth.
 
-**Phase 0 (Foundations)**: Mostly complete — Ubuntu Server 26.04 LTS (headless) installed and running, briefing engine + task system + chatbot UI + system console all built. Systemd autostart is the main remaining piece.
+**Phase 0 (Foundations)**: Mostly complete — Ubuntu Server 26.04 LTS (headless) installed and running under a systemd unit (autostart, `Restart=always`), briefing engine + task system + chatbot UI + system console + Discord bot (connected and live) all built.
 
-**Phase 1 (Networking)**: Mostly complete — Lenovo, TrueNAS, phone, and workstation all joined to the Tailscale mesh. Phone-specific verification and ACLs still outstanding.
+**Phase 1 (Networking)**: Mostly complete — Lenovo, TrueNAS, phone, and workstation all joined to the Tailscale mesh, now also serving HTTPS (Tailscale-issued cert) alongside plain HTTP. Phone-specific verification and ACLs still outstanding.
 
-**Phase 2 (Briefing Engine)**: Templates and Q&A engine fully built, running on mock data. Real API integration (calendar, weather, traffic, email) not started.
+**Phase 2 (Briefing Engine)**: Templates and Q&A engine fully built. Tasks and weather are live; Calendar/Gmail are wired via Google Sign-In (client configured, sign-in not yet confirmed working end-to-end); traffic/commute not started.
 
 **Phase 3+ (Clock hardware, voice I/O, phone, Discord bot)**: Not yet started.
 

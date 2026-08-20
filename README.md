@@ -71,7 +71,7 @@ Clock (ESP32-S3)        Brain (Lenovo Mini PC)      External APIs
 - ✓ Lists (groceries, packing, anything checkable) — see `sunny-vault/docs/architecture/lists.md`
 - ✓ Alarms & Reminders — time-based, ping Discord when due — see `sunny-vault/docs/architecture/alarms-reminders.md`
 - ✓ Device/source tracking (web/discord/api) on every task, list item, and alarm
-- ✓ Discord bot for tasks/lists/alarms/reminders (built, needs a bot token connected — see `sunny-vault/docs/architecture/discord-bot.md`)
+- ✓ Discord bot for tasks/lists/alarms/reminders (connected and live — see `sunny-vault/docs/architecture/discord-bot.md`)
 - ✓ Console over Tailscale (`/console`, `/` and `/chatbot` redirect there) — chat plus live system stats (CPU, RAM, disk, network, temp) and Google sign-in status in one page
 - ✓ Comprehensive documentation
 

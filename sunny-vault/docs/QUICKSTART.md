@@ -40,17 +40,17 @@ No manual Python environment setup required — `run.sh` creates and manages its
 - Morning briefing (9 sections)
 - Evening briefing (7 sections)
 - Q&A engine (ask anything)
-- Tasks are queried live from `tasks.db`; calendar/weather/email/commute/health/news say "not connected" honestly instead of faking data — no live APIs wired up for those yet
+- Tasks are queried live from the Obsidian vault (`sunny-vault/state/tasks/`, plain markdown — not a database); weather and Calendar/Gmail are live once configured, commute/health/news still say "not connected" honestly instead of faking data
 
 ### Task Management
 - Create, update, delete tasks
 - Filter by tag, status, priority
 - Hardcoded commands (no LLM parsing)
-- Driven through the console chat/API today; a Discord bot is built and is the planned primary interface (needs a bot token connected) — see [[./TASK_SYSTEM.md]]
+- Driven through the console chat/API, or the Discord bot (connected and live as of 2026-08-20) — see [[./TASK_SYSTEM.md]]
 
 ### Lists & Alarms/Reminders
 - Named checkable lists (groceries, packing, anything) — see [[./architecture/lists.md]]
-- Time-based alarms and reminders that ping the Discord tasks channel when due — see [[./architecture/alarms-reminders.md]]
+- Time-based alarms and reminders that ping the Discord chat channel when due — see [[./architecture/alarms-reminders.md]]
 - Same natural-language, no-LLM philosophy as tasks; both route through the same console chat/Discord bot
 
 ---
@@ -102,8 +102,9 @@ Tell me about tomorrow           → Tomorrow preview
 
 ### Port 5000 already in use?
 ```bash
-# Edit run.sh and change --port 5000 to --port 5001
-nano run.sh
+# Add/edit API_PORT in .env (the "server"/"chatbot" commands read this,
+# they don't take a --port flag)
+echo "API_PORT=5001" >> .env
 ./run.sh
 # Now access at: http://127.0.0.1:5001
 ```

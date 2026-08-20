@@ -48,7 +48,7 @@ chmod +x run.sh
 See [[./QUICKSTART.md]] for full quick-start guide.
 
 ### Current Status
-Phase 0 (Foundations) mostly complete — briefing engine (real task data, honest "not connected" for everything else), task system, lists, and alarms/reminders (all SQLite + console-chat/Discord-driven), the combined console at `/console` (`/` and the old `/chatbot` redirect there) with chat, live system stats, and Google sign-in status, Discord bot (code complete, needs a bot token connected) all working. `run.sh` manages Python dependencies automatically (no manual venv setup). Systemd autostart is the main piece still outstanding.
+Phase 0 (Foundations) mostly complete — briefing engine (real task data, honest "not connected" for everything else), task system and lists (Obsidian vault, markdown), alarms/reminders (SQLite, unaffected by the vault-storage move), console-chat/Discord-driven, the combined console at `/console` (`/` and the old `/chatbot` redirect there) with chat, live system stats, and Google sign-in status, Discord bot connected and live, all working. `run.sh` manages Python dependencies automatically (no manual venv setup). Systemd autostart is done (`Restart=always`, see `SETUP_LINUX.md`).
 
 ### Documentation
 - [[./QUICKSTART.md]] — Get started in 30 seconds

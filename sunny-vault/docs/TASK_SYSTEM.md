@@ -1,6 +1,6 @@
 # Task Management System
 
-Task management with hardcoded logic (no LLM required). **Discord is the intended primary interface** — a live bot dashboard you view and command from a `#tasks` channel. The code is built (see [[architecture/discord-bot.md]]) but not yet connected to a real Discord server — that last step needs a bot token and channel ID only you can create. The web chatbot is fully working today and remains the fallback for whenever the Discord bot is down.
+Task management with hardcoded logic (no LLM required). **Discord is the intended primary interface** — connected to a live server as of 2026-08-20 (see [[architecture/discord-bot.md]]). Commands are read from a `#chat` channel; the pinned dashboard lives in its own separate, read-only channel. The web chatbot is fully working today and remains the fallback for whenever the Discord bot is down.
 
 Tasks are one of three sibling subsystems that share the same routing entry point, database-per-feature approach, and "no LLM, plain pattern matching" philosophy — see [[architecture/lists.md]] for named checkable lists (groceries, packing, etc.) and [[architecture/alarms-reminders.md]] for time-triggered alarms/reminders that ping Discord when due. They are **not** part of Tasks — a list item never has a priority, and a task is never "due at 7am" in the alarm sense. All three route through the same `sunny_code/components/assistant.py`.
 
@@ -13,7 +13,7 @@ Tasks are one of three sibling subsystems that share the same routing entry poin
 | Task engine (command execution, dashboard formatting) | ✅ Built (`sunny_code/components/tasks_engine.py`) |
 | REST API | ✅ Built (`sunny_code/components/tasks_api.py`) |
 | Console chat interface (`/console`) | ✅ Built — working fallback interface |
-| **Discord bot** | ✅ Built (`sunny_code/components/discord_bot.py`), ⏳ **not yet connected** — see [[architecture/discord-bot.md]] Setup |
+| **Discord bot** | ✅ Built and connected (`sunny_code/components/discord_bot.py`) — see [[architecture/discord-bot.md]] |
 | Device/source tracking (which interface created a record) | ✅ Built (`sunny_code/components/device.py`) — see Device Tracking below |
 | Lists (groceries, packing, etc.) | ✅ Built, separate subsystem — see [[architecture/lists.md]] |
 | Alarms & Reminders | ✅ Built, separate subsystem — see [[architecture/alarms-reminders.md]] |
@@ -165,7 +165,7 @@ If a title matches more than one task at the same step, it says so instead of gu
 ```
 ❌ You have 2 tasks titled "clean the garage" — rename one so they're not identical, then try again
 ```
-No fuzzy matching or LLM involved — just case-insensitive string comparison against whatever's in `tasks.db`.
+No fuzzy matching or LLM involved — just case-insensitive string comparison against whatever's in the vault (`sunny-vault/state/tasks/`).
 
 ### Legacy `!task` / `!tasks` Syntax
 The old Discord-style syntax (`!task add "Title" --tag School`, `!tasks --tag School`, `!task <id> delete`) still works — the parser tries it first — but it's no longer required or shown in the UI. Existing scripts/tests that use it keep working unchanged.
@@ -290,7 +290,7 @@ Due: 2026-08-20
 ## Integration Points
 
 ### With Briefing Engine
-The briefing engine already queries the task DB for its "Tasks" section (see [[briefing-engine]]) — this part is built and working, just running against whatever's actually in `tasks.db` rather than mock task data.
+The briefing engine already queries the vault for its "Tasks" section (see [[briefing-engine]]) — this part is built and working, just running against whatever's actually in `sunny-vault/state/tasks/` rather than mock task data.
 
 ### With Obsidian Staging (Still Not Built — Different From Vault Storage Above)
 Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging convention (see [[../staging]]) as a transient, Notion-export-bound summary. Nothing writes there yet. **Don't confuse this with `sunny-vault/state/tasks/`** (above) — that's tasks' live, permanent storage (built, in use today); `staging/` would be a separate, temporary copy for pushing to Notion, a different concept that's still just a plan.

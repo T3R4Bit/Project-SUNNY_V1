@@ -22,6 +22,7 @@ Items worth doing but not blocking the current phase. Pull items into [[phases.m
 - [ ] **Config for "start on Sunny launch" per service** — a settings file (e.g. `services.yaml` or a section in the existing config) marking each service as AutoStart-on-boot vs. manual-start-only, read at launch to decide what to bring up
 - [ ] Location optimization. every time I ask for something and it needs my location it always pings my current location with my phone. But at a 30minute interval unless deemed immediate
       OR, find a completely free way to ping the location of my phone
+      *(researched 2026-08-20: recommended [OwnTracks](https://owntracks.org/) — free, open-source, cross-platform, reports GPS to a self-hosted HTTP endpoint on an interval, no third-party cloud. Would need a small new webhook route + extending location_store.py. Not built yet — tradeoff is background-location battery cost, worth tuning the interval per this item's own 30-min/immediate framing.)*
 - [ ] Storm mode: Only on request weather is no longer being pulled by the API, It switches to an LLM
       on activation it asks for an "update interval" and updates me on the current weather every interval IE 10min then also any updates or changes to the weather
       also asks for how long storm mode should be active for before auto updates turn off

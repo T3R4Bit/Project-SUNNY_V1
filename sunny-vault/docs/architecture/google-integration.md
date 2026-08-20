@@ -14,12 +14,14 @@ One "Connect Google Account" button on [[dashboard|the console]] that authorizes
 
 | Piece | Status |
 |-------|--------|
-| OAuth flow (login/callback/token storage/refresh) | ✅ Built — `sunny_code/components/google_auth.py`, `google_routes.py` |
+| OAuth flow (login/callback/token storage/refresh) | ✅ Built and fixed — `sunny_code/components/google_auth.py`, `google_routes.py`. A real PKCE bug (`invalid_grant: Missing code verifier`) was found and fixed 2026-08-20 — see How It Works |
 | Calendar read | ✅ Built — `sunny_code/components/google_calendar.py`, wired into [[briefing-engine]] |
 | Gmail read | ✅ Built — `sunny_code/components/google_gmail.py`, wired into [[briefing-engine]] |
 | Console "Connect Google Account" card | ✅ Built — `/console` |
-| Google Cloud OAuth client (Client ID/Secret) | ⚠️ **You still need to create this** — see Setup below |
-| Actual sign-in | ⚠️ Not done until you click Connect on `/console` |
+| Styled callback screens (connected/denied/error) | ✅ Built 2026-08-20 — was a bare unstyled `<p>` tag before, see How It Works |
+| Google Cloud OAuth client (Client ID/Secret) | ✅ Created and configured in `.env` |
+| HTTPS support (Google requires it for a non-localhost redirect URI) | ✅ Built — see HTTPS below |
+| Actual sign-in | ⚠️ In progress — the PKCE bug blocked every attempt until it was fixed; not yet confirmed successful end-to-end |
 
 ## What This Covers
 
@@ -52,46 +54,81 @@ Scopes are requested narrowly on purpose — a wider ask both increases what a l
 2. **Enable APIs**: APIs & Services → Library → enable both **Google Calendar API** and **Gmail API**.
 3. **OAuth consent screen**: APIs & Services → OAuth consent screen.
    - User type: External.
-   - Add your own Google account as a **test user**.
    - Add the two scopes above (`calendar.readonly`, `gmail.readonly`).
-   - **Publishing status**: set to **In production**, not "Testing." Testing-mode refresh tokens expire after 7 days, which means Sunny would silently lose Calendar/Gmail access every week. Production mode without full verification still works fine for personal/single-user use — you'll just see an "unverified app" warning on the consent screen the first time you sign in, which is expected; click "Advanced" → "Go to Project SUNNY (unsafe)" to proceed. This is normal for a self-hosted personal tool and does not mean anything is actually wrong.
+   - **Branding**: app logo (`branding/sunny-logo-120.png`, 120×120), home page, privacy policy, and terms of service links — point these at Sunny's own self-hosted pages, not a third-party host (see Legal Pages below for why).
+   - **Publishing status: stay in Testing**, and add your own Google account under **Test users**. This is the opposite of what was originally planned here (see below) but is what actually works for a personal single-user app without extra hoops.
 4. **Create credentials**: APIs & Services → Credentials → Create Credentials → OAuth client ID.
    - Application type: **Web application**.
-   - Authorized redirect URI: `http://100.117.41.53:5000/auth/google/callback` (the Lenovo's Tailscale address — match `TAILSCALE_IP`/`API_PORT` in `.env`). Add `http://127.0.0.1:5000/auth/google/callback` too if you'll ever test from the machine running Sunny directly.
+   - Authorized redirect URI: `https://<tailscale-hostname>:5443/auth/google/callback` — **must be HTTPS and a real domain name**, not a raw IP (see HTTPS below for why, and for getting the hostname). `http://127.0.0.1:5000/auth/google/callback` also works if testing from the machine running Sunny directly — Google's redirect-URI policy explicitly exempts `localhost`/`127.0.0.1` from both the HTTPS and real-domain requirements.
 5. Copy the **Client ID** and **Client Secret** into `.env`:
    ```
    GOOGLE_CLIENT_ID=...
    GOOGLE_CLIENT_SECRET=...
-   GOOGLE_OAUTH_REDIRECT_URI=http://100.117.41.53:5000/auth/google/callback
+   GOOGLE_OAUTH_REDIRECT_URI=https://<tailscale-hostname>:5443/auth/google/callback
    ```
 6. Restart Sunny, open `/console`, and click **Connect Google Account** under the GOOGLE card. Approve the consent screen. The card should flip to `CONNECTED` with your email shown.
 
+### Testing vs. Production — what actually happened here
+
+The original plan (still visible in git history) was "set to In production, unverified-app warning is fine for personal use." That turned out to be wrong in practice: signing in returned `Error 403: access_denied` — Google enforces the Testing/test-users restriction as a hard block, not a warning, for an app that hasn't gone through publishing. The fix that actually worked: **stay in Testing, add yourself as a test user**.
+
+The real tradeoff of staying in Testing: refresh tokens expire every 7 days, so Sunny silently loses Calendar/Gmail access weekly until you reconnect. For a personal single-user tool, that's a reasonable cost to avoid Google's full verification process (which needs a publicly-internet-reachable home/privacy/terms — Tailscale-only hosting doesn't qualify, since Google's reviewers aren't on your tailnet; see Legal Pages below). If the weekly reconnect becomes annoying, formal verification is the way out, but it's a bigger step.
+
+### HTTPS
+
+Google rejects plain-`http://` and raw-IP redirect URIs outright (except for `localhost`/`127.0.0.1`) — the Tailscale IP that used to work here (`100.117.41.53`) no longer passes validation. Fixed with Tailscale's own certificate issuance rather than a third-party CA:
+
+1. One-time, your side: `sudo tailscale set --operator=$USER` (lets the app's user run `tailscale cert` without `sudo`), and enable **HTTPS Certificates** for the tailnet in the [Tailscale admin console](https://login.tailscale.com/admin/dns).
+2. `tailscale cert <hostname>.<tailnet>.ts.net` — issues a real Let's Encrypt cert, trusted by ordinary browsers with no `-k`/click-through needed. Find the hostname via `tailscale status --self --json` → `DNSName`.
+3. Cert/key land in `certs/` at the project root (gitignored — see `.gitignore`), referenced by `TLS_CERTFILE`/`TLS_KEYFILE` in `.env`.
+4. Sunny serves a second uvicorn server on `TLS_PORT` (default `5443`) alongside the existing plain-HTTP port — nothing on the HTTP side changes. See `sunny_code/main.py`'s `start()`.
+5. **Renewal**: a weekly cron job (`0 3 * * 0`) re-runs `tailscale cert` in place — Tailscale certs are short-lived (~90 days). The renewed cert only takes effect on the next service restart, though, since uvicorn reads it once at startup — not auto-reloaded.
+
+This required switching production's launch command from `uvicorn sunny_code.main:app` (uvicorn's bare CLI, which can only bind one port) to `python -m sunny_code.main` (runs `SunnyCore.start()`, which can launch multiple `Server` instances). See [[discord-bot]]'s "not yet connected" history for the related bug this same invocation-path issue caused for the Discord bot, fixed the same day.
+
+### Legal Pages
+
+Google's OAuth consent screen branding needs a home page, privacy policy, and terms of service. First attempt used Claude Artifacts — rejected by Google's verification with four issues at once: not registered to the app owner, behind a login page, purpose not explained, and an app-name mismatch. All stemmed from Artifacts requiring a claude.ai login and being hosted on a domain Google can't tie to the app owner.
+
+Fixed by self-hosting three static pages directly from Sunny: `sunny_code/components/legal_pages.py` serves `legal/home.html`, `legal/privacy.html`, `legal/terms.html` (project root) at `/legal/home`, `/legal/privacy`, `/legal/terms`. Written honestly for what this actually is — personal, single-user software, not a company — rather than generic SaaS boilerplate.
+
+**Caveat**: these are reachable at `https://<tailscale-hostname>:5443/legal/...`, which solves "not behind a claude.ai login" but is still only reachable *within the tailnet* — good enough to fill in the consent screen's URL fields for Testing-mode use, but very likely still insufficient for Google's formal verification reviewers, who aren't on your tailnet either. Public reachability (a real registered domain, or a tunnel like Cloudflare Tunnel for just these three pages) would be the next step if formal verification is ever pursued.
+
 ## How It Works
 
-- `GET /auth/google/login` — redirects to Google's consent screen (only reachable if `GOOGLE_CLIENT_ID`/`SECRET` are set).
-- `GET /auth/google/callback` — Google redirects back here with a `code`; it's exchanged for tokens, the account email is fetched, and both are written to `google_token.json` (project root, gitignored, `chmod 600`).
+- `GET /auth/google/login` — redirects to Google's consent screen (only reachable if `GOOGLE_CLIENT_ID`/`SECRET` are set). Renders a styled "not set up yet" page instead of a bare string if they're missing.
+- `GET /auth/google/callback` — Google redirects back here with a `code`; it's exchanged for tokens, the account email is fetched, and both are written to `google_token.json` (project root, gitignored, `chmod 600`). Every outcome (connected, denied, missing params, exchange failure) renders a real styled page — same visual identity as the self-hosted legal pages (see Legal Pages below) — not the bare `<p>` tag this used to be.
 - `GET /auth/google/status` — JSON status the console card polls: `client_configured`, `connected`, `email`, `scopes`.
 - `POST /auth/google/disconnect` — deletes the local token file (does not revoke access on Google's side — revoke via [myaccount.google.com/permissions](https://myaccount.google.com/permissions) if you want that too).
 - `google_auth.get_credentials()` is the one function every other module calls — it loads the stored token, refreshes it if the access token expired, and returns `None` if there's no token or the refresh token was revoked. Every caller (`google_calendar`, `google_gmail`) treats `None` exactly like "not connected," and any live API error is caught and also returns `None` — nothing here can crash a briefing.
 
+### The PKCE bug (fixed 2026-08-20)
+
+Every real sign-in attempt failed with `invalid_grant: Missing code verifier` until this was found. Root cause: `build_authorization_url()` and `handle_callback()` each built their own `google_auth_oauthlib.Flow` object — but `Flow.authorization_url()` is the only place that auto-generates a PKCE `code_verifier`, and it only lives on that specific Flow instance, discarded the moment the function returns. `handle_callback()` runs in an entirely separate HTTP request (the user goes to Google and back in between) with a fresh Flow that never had a verifier at all, so `fetch_token()` sent none — hence "**Missing**," not "mismatched."
+
+Fixed by capturing `flow.code_verifier` alongside the existing `_pending_state` right after `authorization_url()` generates it, and passing that exact value into the callback's `Flow.from_client_config(..., code_verifier=...)`. Both are single in-memory values (matching the existing single-user, single-pending-flow design) — cleared after use.
+
 ## Security Notes
 
 - `google_token.json` holds a long-lived refresh token — treated like `.env`: gitignored, `chmod 600` on write. Don't commit it, don't paste its contents anywhere.
-- CSRF protection on the OAuth callback is a single in-memory `state` value (`google_auth._pending_state`) — sufficient because Sunny is single-user and this flow is only reachable over Tailscale, not the open internet.
+- CSRF protection on the OAuth callback is a single in-memory `state` value (`google_auth._pending_state`), and the flow now also relies on a matching single in-memory `code_verifier` (`google_auth._pending_code_verifier`, added with the PKCE fix) — sufficient because Sunny is single-user and this flow is only reachable over Tailscale, not the open internet.
+- `certs/tailscale.key` (the TLS private key) is gitignored and `chmod 600`, same posture as `google_token.json` and `.env`.
 - Scopes are read-only. A leaked token can read your calendar and email headers; it cannot send mail, create events, or read message bodies.
 
 ## Files
 
-- `sunny_code/components/google_auth.py` — OAuth flow, token storage/refresh
-- `sunny_code/components/google_routes.py` — the four `/auth/google/*` routes
+- `sunny_code/components/google_auth.py` — OAuth flow, token storage/refresh, PKCE code_verifier handling
+- `sunny_code/components/google_routes.py` — the four `/auth/google/*` routes, styled callback pages
 - `sunny_code/components/google_calendar.py` — `get_events(day_offset)`
 - `sunny_code/components/google_gmail.py` — `get_summary()`
 - `sunny_code/components/data_sources.py` — `is_configured("calendar"|"email")` now checks `google_auth.is_connected()`
 - `sunny_code/components/briefing.py` — pulls real Calendar/Gmail data when connected, falls back to the standard "not connected" note otherwise
 - `sunny_code/components/console_stats.py` — GOOGLE status card on `/console`
+- `sunny_code/components/legal_pages.py` — serves `legal/home.html`, `legal/privacy.html`, `legal/terms.html` for the consent screen's branding links
+- `sunny_code/main.py` — `start()`'s dual-server (HTTP + HTTPS) launch, `TLS_CERTFILE`/`TLS_KEYFILE`/`TLS_PORT` in `sunny_code/config.py`
 
 ## Dependencies
 
 - [[briefing-engine]] — consumes Calendar + Email data
 - [[dashboard]] — hosts the Connect/Disconnect UI
-- [[networking]] — the callback URL must be reachable at wherever Sunny is bound (Tailscale IP)
+- [[networking]] — the callback URL must be reachable at wherever Sunny is bound; now the Tailscale MagicDNS hostname over HTTPS, not the bare Tailscale IP (see HTTPS above)

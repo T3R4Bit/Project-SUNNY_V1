@@ -268,6 +268,8 @@ Of the sixteen services, only Claude, Sonic, and Twilio cost money per use. The 
 - If usage crosses a defined threshold (total tokens for the task, or an unusually high burn rate), Sunny pauses execution immediately rather than continuing to spend
 - Sends a Discord message explaining what it was doing when it paused, and asks whether to continue or halt and save the current state for later
 
+**Status**: the core of this — real-time usage tracking and a hard spend-cap pause — is built (`sunny_code/components/token_tracker.py`, `llm_client.py`), ahead of any actual LLM feature existing to trigger it. The burn-rate detection and interactive Discord continue/halt prompt described above aren't built — today it's a cumulative daily/monthly cap that silently refuses further calls, not an interactive pause. See [[architecture/llm-readiness]] for the full built-vs-not breakdown.
+
 ---
 
 ## See Also

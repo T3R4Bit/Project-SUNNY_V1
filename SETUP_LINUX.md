@@ -136,7 +136,7 @@ exit  # Exit dev mode
 - Morning briefing (9 sections)
 - Evening briefing (7 sections)
 - Q&A engine for custom questions
-- Tasks queried live from `tasks.db`; no API key needed. Everything else (weather/calendar/email/commute/health/news) honestly says "not connected" instead of faking data — no mock data anywhere
+- Tasks queried live from the Obsidian vault (markdown, not a database); no API key needed. Everything else (weather/calendar/email/commute/health/news) honestly says "not connected" instead of faking data — no mock data anywhere
 
 ### ✅ Task Management
 - Create: `add Title to my tasks` (append `--tag Category --priority 5` etc. for precision)
@@ -159,10 +159,10 @@ exit  # Exit dev mode
 - Nothing "sounds" without hardware; the only real delivery today is a Discord ping when due — see `sunny-vault/docs/architecture/alarms-reminders.md`
 
 ### 🤖 Discord Bot (Optional)
-- Same task/list/alarm/reminder commands as the console chat, typed as plain messages in one dedicated channel
-- Pinned task dashboard, auto-refreshes every 5 minutes, 🔄 reaction for instant refresh
-- Separate 30-second loop posts a ping (`⏰`/`🔔`) whenever an alarm or reminder comes due
-- Not running unless `DISCORD_BOT_TOKEN` and `DISCORD_TASKS_CHANNEL_ID` are set in `.env` — the console works either way
+- Same task/list/alarm/reminder commands as the console chat, typed as plain messages in one dedicated chat channel
+- Pinned task dashboard in its own separate, read-only channel (falls back to the chat channel if not configured), auto-refreshes every 5 minutes, 🔄 reaction for instant refresh
+- Separate 30-second loop posts a ping (`⏰`/`🔔`) whenever an alarm or reminder comes due, in the chat channel
+- Not running unless `DISCORD_BOT_TOKEN` and `DISCORD_CHAT_CHANNEL_ID` are set in `.env` — the console works either way
 - Setup steps: `sunny-vault/docs/architecture/discord-bot.md`
 
 ### 📊 API Endpoints
@@ -292,7 +292,7 @@ All API keys (Claude, OpenWeatherMap, Google Calendar, Discord bot token) live i
 - **Never committed** — `.env`, `.env.local`, and `.env.*.local` are all in `.gitignore`. There's no separate `.env.example` in the repo either: the template lives inline in `run.sh`, which writes `.env` from it automatically on first run if the file's missing.
 - **File permissions** — `run.sh` runs `chmod 600 .env` automatically on every start, so only the owning user can read it.
 - **Never paste a real key into chat, a commit, or an issue** — edit `.env` directly on the machine instead. If a key ever does leak, rotate it at the provider immediately (regenerating invalidates the old one).
-- **What's still missing** — Sunny logs a summary at startup of which tracked keys aren't set yet (`sunny_code/components/key_status.py`), and if the Discord bot is connected it posts the same summary to the tasks channel once per run. Nothing crashes without a key; the affected feature just says "not connected" instead of faking data — see `sunny-vault/log/requests.md` for what's actually being asked for.
+- **What's still missing** — Sunny logs a summary at startup of which tracked keys aren't set yet (`sunny_code/components/key_status.py`), and if the Discord bot is connected it posts the same summary once per run — to `DISCORD_WARNINGS_CHANNEL_ID` if set, else the chat channel. Nothing crashes without a key; the affected feature just says "not connected" instead of faking data — see `sunny-vault/log/requests.md` for what's actually being asked for.
 
 ## Project Structure
 

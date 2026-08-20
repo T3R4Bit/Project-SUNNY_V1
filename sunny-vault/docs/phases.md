@@ -15,7 +15,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ## Phase 0: Foundations (MOSTLY COMPLETE)
 
 **Timeline**: This week  
-**Current Status**: Ubuntu Server 26.04 LTS installed and running on the Lenovo (sunshine-m700). Core app — briefing engine, task system, [[architecture/lists.md|lists]], [[architecture/alarms-reminders.md|alarms/reminders]], the combined console (chat + system status, one page at `/console`), Discord bot (code complete, token not yet connected) — all built and working over Tailscale. Systemd autostart is the main remaining piece.  
+**Current Status**: Ubuntu Server 26.04 LTS installed and running on the Lenovo (sunshine-m700) under a systemd unit (`Restart=always`, autostart on boot — see `SETUP_LINUX.md`). Core app — briefing engine, task system, [[architecture/lists.md|lists]], [[architecture/alarms-reminders.md|alarms/reminders]], the combined console (chat + system status, one page at `/console`), Discord bot (connected to a live server, split into a chat channel and a read-only dashboard channel — see [[architecture/discord-bot]]) — all built and working over Tailscale, now also over HTTPS (`TLS_CERTFILE`/`TLS_KEYFILE`, port 5443) for endpoints that need it, like the Google OAuth callback.  
 **Deliverable**: Sunny process running locally, basic logging, systemd autostart
 
 ### Setup Tasks
@@ -76,7 +76,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 **Dependencies**: Phase 0-1 complete  
 **Deliverable**: Working morning and evening briefings
 
-**Current status**: The engine itself is built and working — hardcoded morning and evening templates, slot-filling text generation, and a Q&A system covering weather, calendar, email, tasks, commute, health, motorsports, news, and tomorrow. Tasks are real, queried live from `tasks.db`. Calendar and email are code-complete via Google Sign-In (OAuth) — see [[architecture/google-integration]] — but need a one-time Google Cloud OAuth client + sign-in (external setup, not code) before they go live. Weather is code-complete via OpenWeatherMap — needs `OPENWEATHERMAP_API_KEY` **and** `WEATHER_LOCATION` in `.env` (a key alone isn't enough — see `sunny_code/components/weather.py`). Commute, health, motorsports, and news still have no real API behind them, so instead of showing mock data as if it were live, they say so explicitly (e.g. "Not connected — needs OPENWEATHERMAP_API_KEY and WEATHER_LOCATION in .env") — see [[architecture/briefing-engine.md]]. Every time that happens (or a task command fails), it's logged to [[../log/requests.md|sunny-vault/log/requests.md]], so real usage tells us which integration to build next.
+**Current status**: The engine itself is built and working — hardcoded morning and evening templates, slot-filling text generation, and a Q&A system covering weather, calendar, email, tasks, commute, health, motorsports, news, and tomorrow. Tasks are real, queried live from the vault (`sunny-vault/state/tasks/`, markdown — not a database, see [[architecture/vault-storage]]). Calendar and email are wired via Google Sign-In (OAuth) — see [[architecture/google-integration]] — client configured, HTTPS + a PKCE bug both had to be fixed before a sign-in could complete, not yet confirmed working end-to-end. Weather is code-complete via OpenWeatherMap — needs `OPENWEATHERMAP_API_KEY` **and** `WEATHER_LOCATION` in `.env` (a key alone isn't enough — see `sunny_code/components/weather.py`). Commute, health, motorsports, and news still have no real API behind them, so instead of showing mock data as if it were live, they say so explicitly (e.g. "Not connected — needs OPENWEATHERMAP_API_KEY and WEATHER_LOCATION in .env") — see [[architecture/briefing-engine.md]]. Every time that happens (or a task command fails), it's logged to [[../log/requests.md|sunny-vault/log/requests.md]], so real usage tells us which integration to build next.
 
 ### Briefing Integration Tasks
 
@@ -85,7 +85,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 - [x] Q&A engine for freeform questions (weather, calendar, tasks, commute, etc.)
 - [x] Task summary queries — live against SQLite via [[../TASK_SYSTEM.md|task system]] (no longer mock)
 - [x] Honest "not connected" messaging for every section without a real source + request logging to `sunny-vault/log/requests.md`
-- [x] Google Sign-In (OAuth) — one connect flow powering both Calendar and Gmail below; code complete, needs a Google Cloud OAuth client + one-time sign-in to go live — see [[architecture/google-integration]]
+- [x] Google Sign-In (OAuth) — one connect flow powering both Calendar and Gmail below. OAuth client configured, HTTPS + a PKCE bug both had to be fixed before a sign-in could complete — see [[architecture/google-integration]]
 - [x] Calendar API integration (Google Calendar, via Google Sign-In)
 - [x] Email header parsing + urgency detection (Gmail, via Google Sign-In — unread/important counts + subject lines)
 - [x] Weather API integration (OpenWeatherMap) — code complete, needs `OPENWEATHERMAP_API_KEY` in `.env` + a location set on `/console` (LOCATION card) to go live — see [[architecture/location]]
@@ -305,11 +305,11 @@ Work on these in parallel, integrate incrementally:
 
 ### Discord Activity Log
 
-A single command-channel bot is built — see [[architecture/discord-bot.md]], [[TASK_SYSTEM.md]], [[architecture/lists.md]], and [[architecture/alarms-reminders.md]]. It handles Tasks, Lists, Alarms/Reminders, and server administration (create/delete channels & roles — see below), all read from one `#tasks`-style command channel. Three of the eight originally-planned output channels are now built as optional destinations the bot *posts* to (still only reads commands from the one channel):
+A single command-channel bot is built and connected to a live server — see [[architecture/discord-bot.md]], [[TASK_SYSTEM.md]], [[architecture/lists.md]], and [[architecture/alarms-reminders.md]]. It handles Tasks, Lists, Alarms/Reminders, and server administration (create/delete channels & roles — see below), all read from one `#chat`-style command channel (`DISCORD_CHAT_CHANNEL_ID`). The pinned task dashboard now lives in its own separate, read-only channel (`DISCORD_TASKS_CHANNEL_ID`, optional, falls back to chat if unset) — added 2026-08-20 so a busy chat doesn't bury the dashboard. Three of the eight originally-planned output channels are now built as optional destinations the bot *posts* to (still only reads commands from the chat channel):
 
 - [x] `#task-updates` — Task changes (create/update/delete), from any interface
-- [x] `#warnings` — API errors, missing credentials (was already posted to the tasks channel; now optionally its own channel)
-- [x] `#direct-chat` — this **is** the existing command channel (`DISCORD_TASKS_CHANNEL_ID`), name it whatever you like
+- [x] `#warnings` (named `#errors` on the live server) — API errors, missing credentials; live and configured, posts here instead of the chat channel
+- [x] `#chat` — this **is** the existing command channel (`DISCORD_CHAT_CHANNEL_ID`), name it whatever you like
 - [x] `#briefings` — Briefing output, cross-posted whenever "morning"/"evening" is typed in the command channel
 - [ ] `#calendar-actions` — Calendar updates — **blocked**: Calendar is read-only Q&A today (see [[architecture/google-integration]]), nothing ever *takes an action* on it to log
 - [ ] `#email-actions` — Email processing — **blocked**: same reason, Gmail is read-only Q&A today
