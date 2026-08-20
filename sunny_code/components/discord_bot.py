@@ -146,12 +146,13 @@ def create_discord_bot(
     briefings_channel_id: int = 0,
     warnings_channel_id: int = 0,
     task_updates_channel_id: int = 0,
+    health_channel_id: int = 0,
 ) -> discord.Client:
     """Build (but don't start) the Discord client. chat_channel_id is the only
     channel commands are read from. dashboard_channel_id is where the pinned
     task dashboard lives — falls back to chat_channel_id if unset, so leaving
     it unconfigured reproduces the old single-channel behavior exactly. The
-    three remaining optional *_channel_id args are output-only destinations —
+    remaining optional *_channel_id args are output-only destinations —
     see sunny-vault/docs/architecture/discord-bot.md."""
     dashboard_channel_id = dashboard_channel_id or chat_channel_id
 
@@ -176,19 +177,19 @@ def create_discord_bot(
         for chunk in _chunk_message(text):
             await channel.send(chunk)
 
-    async def post_to_warnings(text: str):
+    async def post_to_health(text: str):
         """Exposed for callers outside this module (currently the weekly
-        health check, started from main.py) that want to post to #warnings
+        health check, started from main.py) that want to post the report
         without importing Discord internals. No-ops if the client isn't
         connected yet — the health-check loop and Discord's own reconnect are
         scheduled independently, with no ordering guarantee (a 4am fire right
         after a restart could beat Discord)."""
         if not client.is_ready():
-            logger.warning("post_to_warnings: Discord client not ready, skipping")
+            logger.warning("post_to_health: Discord client not ready, skipping")
             return
-        await _post_to(warnings_channel_id, text, fallback_channel_id=chat_channel_id)
+        await _post_to(health_channel_id, text, fallback_channel_id=chat_channel_id)
 
-    client.post_to_warnings = post_to_warnings
+    client.post_to_health = post_to_health
 
     async def refresh_dashboard(_change_message: str = None):
         """Post or edit the pinned dashboard message in the dashboard channel

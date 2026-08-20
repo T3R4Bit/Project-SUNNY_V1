@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     discord_briefings_channel_id: int = 0
     discord_warnings_channel_id: int = 0
     discord_task_updates_channel_id: int = 0
+    discord_health_channel_id: int = 0
 
     @field_validator(
         "discord_chat_channel_id",
@@ -79,6 +80,7 @@ class Settings(BaseSettings):
         "discord_briefings_channel_id",
         "discord_warnings_channel_id",
         "discord_task_updates_channel_id",
+        "discord_health_channel_id",
         mode="before",
     )
     @classmethod

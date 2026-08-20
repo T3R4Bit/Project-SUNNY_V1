@@ -101,6 +101,7 @@ class SunnyCore:
             briefings_channel_id=self.settings.discord_briefings_channel_id,
             warnings_channel_id=self.settings.discord_warnings_channel_id,
             task_updates_channel_id=self.settings.discord_task_updates_channel_id,
+            health_channel_id=self.settings.discord_health_channel_id,
         )
 
     def _create_health_check_loop(self):
@@ -122,7 +123,7 @@ class SunnyCore:
         async def health_check_loop():
             if datetime.now(tz).weekday() != 6:  # Monday=0 ... Sunday=6
                 return
-            post_fn = getattr(self.discord_bot, "post_to_warnings", None) if self.discord_bot else None
+            post_fn = getattr(self.discord_bot, "post_to_health", None) if self.discord_bot else None
             await run_weekly_health_check(post_fn=post_fn)
 
         return health_check_loop
