@@ -1,5 +1,5 @@
 """Discord bot — task/list/alarm/reminder commands, server administration
-(channels/roles), and a live-updating task dashboard, in one dedicated channel.
+(channels/roles), and a live-updating task dashboard.
 
 Task/list/alarm/briefing commands use the exact same routing as the web
 console and terminal chat (sunny_code.components.assistant.handle_message),
@@ -7,13 +7,18 @@ so behavior is identical across interfaces. Server-admin commands
 (create/delete channels and roles) are Discord-only and checked separately
 (see sunny_code.components.server_admin_parser) — they need a live
 discord.Guild, which only exists here, so they can't route through that
-shared, interface-agnostic handler. Scoped to one channel
-(DISCORD_TASKS_CHANNEL_ID) — messages elsewhere are ignored, including for
-server-admin commands.
+shared, interface-agnostic handler.
+
+Two distinct channel roles, deliberately separate (not the same channel):
+- DISCORD_CHAT_CHANNEL_ID (required) — the one channel commands are read
+  from, including server-admin commands. Messages elsewhere are ignored.
+- DISCORD_TASKS_CHANNEL_ID (optional, falls back to the chat channel) — a
+  read-only home for the pinned task dashboard. Nothing is ever read from
+  here; it's purely a display surface, so it stays uncluttered by chat.
 
 Also the only real delivery mechanism for alarms/reminders today: there's no
 clock/speaker hardware yet, so "sounding" an alarm means posting a message in
-this channel when it's due (see the scheduled-items loop below).
+the chat channel when it's due (see the scheduled-items loop below).
 
 Setup steps: see sunny-vault/docs/architecture/discord-bot.md
 """
@@ -70,7 +75,7 @@ def _find_role(guild: discord.Guild, name: str):
     return discord.utils.find(lambda r: r.name.lower() == name, guild.roles)
 
 
-async def _execute_server_admin(action: str, data: dict, guild: discord.Guild, tasks_channel_id: int) -> str:
+async def _execute_server_admin(action: str, data: dict, guild: discord.Guild, chat_channel_id: int) -> str:
     """Run one server-admin command against a live guild. Never raises —
     Discord API errors (missing permission, role-hierarchy limits, etc.)
     become a plain-text reply, same fail-quietly contract as the rest of
@@ -89,7 +94,7 @@ async def _execute_server_admin(action: str, data: dict, guild: discord.Guild, t
             channel = _find_channel(guild, data["name"])
             if channel is None:
                 return f"❌ No channel named \"{data['name']}\" found"
-            if channel.id == tasks_channel_id:
+            if channel.id == chat_channel_id:
                 return "⚠️  Can't delete the channel I'm listening in — that would strand me with no way to talk to you here."
             await channel.delete()
             return f"✅ Deleted channel #{channel.name}"
@@ -137,14 +142,20 @@ def create_discord_bot(
     briefing_engine: BriefingEngine,
     list_engine: ListEngine,
     scheduled_engine: ScheduledEngine,
-    tasks_channel_id: int,
+    chat_channel_id: int,
+    dashboard_channel_id: int = 0,
     briefings_channel_id: int = 0,
     warnings_channel_id: int = 0,
     task_updates_channel_id: int = 0,
 ) -> discord.Client:
-    """Build (but don't start) the Discord client. tasks_channel_id is the only
-    channel commands are read from; the three optional *_channel_id args are
-    output-only destinations — see sunny-vault/docs/architecture/discord-bot.md."""
+    """Build (but don't start) the Discord client. chat_channel_id is the only
+    channel commands are read from. dashboard_channel_id is where the pinned
+    task dashboard lives — falls back to chat_channel_id if unset, so leaving
+    it unconfigured reproduces the old single-channel behavior exactly. The
+    three remaining optional *_channel_id args are output-only destinations —
+    see sunny-vault/docs/architecture/discord-bot.md."""
+    dashboard_channel_id = dashboard_channel_id or chat_channel_id
+
     intents = discord.Intents.default()
     intents.message_content = True  # required to read command text, not just embeds/mentions
 
@@ -153,7 +164,7 @@ def create_discord_bot(
 
     async def _post_to(channel_id: int, text: str, fallback_channel_id: int = None):
         """Send `text` to `channel_id` if set, else to `fallback_channel_id` (typically
-        the tasks channel) if that's set — used so an unconfigured output channel just
+        the chat channel) if that's set — used so an unconfigured output channel just
         means "goes where it always went" instead of silently vanishing."""
         target_id = channel_id or fallback_channel_id
         if not target_id:
@@ -167,11 +178,12 @@ def create_discord_bot(
             await channel.send(chunk)
 
     async def refresh_dashboard(_change_message: str = None):
-        """Post or edit the pinned dashboard message in the tasks channel."""
+        """Post or edit the pinned dashboard message in the dashboard channel
+        (read-only — nothing is ever read back from here)."""
         try:
-            channel = await client.fetch_channel(tasks_channel_id)
+            channel = await client.fetch_channel(dashboard_channel_id)
         except (discord.NotFound, discord.Forbidden) as e:
-            logger.warning(f"Cannot access Discord tasks channel {tasks_channel_id}: {e}")
+            logger.warning(f"Cannot access Discord dashboard channel {dashboard_channel_id}: {e}")
             return
 
         dashboard_text = tasks_engine.format_dashboard() + DASHBOARD_MARKER
@@ -229,9 +241,9 @@ def create_discord_bot(
             return
 
         try:
-            channel = await client.fetch_channel(tasks_channel_id)
+            channel = await client.fetch_channel(chat_channel_id)
         except (discord.NotFound, discord.Forbidden) as e:
-            logger.warning(f"Cannot access Discord tasks channel {tasks_channel_id}: {e}")
+            logger.warning(f"Cannot access Discord chat channel {chat_channel_id}: {e}")
             return
 
         for item in due:
@@ -250,26 +262,29 @@ def create_discord_bot(
 
     @client.event
     async def on_ready():
-        logger.info(f"Discord bot connected as {client.user} (tasks channel: {tasks_channel_id})")
+        logger.info(
+            f"Discord bot connected as {client.user} "
+            f"(chat channel: {chat_channel_id}, dashboard: {dashboard_channel_id})"
+        )
         if not refresh_loop.is_running():
             refresh_loop.start()  # runs immediately, then every 5 minutes
         if not scheduled_check_loop.is_running():
             scheduled_check_loop.start()  # runs immediately, then every 30s
 
         # Post what's still missing an API key once per run, so it's visible —
-        # in #warnings if configured, else the tasks channel like before that
+        # in #warnings if configured, else the chat channel like before that
         # existed. Skipped entirely if everything's configured (no noise).
         if not state["posted_key_status"]:
             state["posted_key_status"] = True
             missing = missing_api_keys()
             if missing:
-                await _post_to(warnings_channel_id, startup_summary(), fallback_channel_id=tasks_channel_id)
+                await _post_to(warnings_channel_id, startup_summary(), fallback_channel_id=chat_channel_id)
 
     @client.event
     async def on_message(message: discord.Message):
         if message.author.bot:
             return
-        if message.channel.id != tasks_channel_id:
+        if message.channel.id != chat_channel_id:
             return
 
         # Checked before the shared assistant router, same reason lists/alarms
@@ -280,7 +295,7 @@ def create_discord_bot(
         admin_command = ServerAdminParser.parse(message.content)
         if admin_command is not None:
             action, data = admin_command
-            response = await _execute_server_admin(action, data, message.guild, tasks_channel_id)
+            response = await _execute_server_admin(action, data, message.guild, chat_channel_id)
             for chunk in _chunk_message(response):
                 await message.channel.send(chunk)
             return

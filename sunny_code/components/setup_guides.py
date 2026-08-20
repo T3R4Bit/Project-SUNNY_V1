@@ -112,7 +112,7 @@ or Maps/traffic. Full details: sunny-vault/docs/architecture/google-integration.
 
 def _discord_guide() -> str:
     settings = get_settings()
-    if looks_configured(settings.discord_bot_token) and settings.discord_tasks_channel_id:
+    if looks_configured(settings.discord_bot_token) and settings.discord_chat_channel_id:
         status = "✅ Connected"
     else:
         status = "⚠️  Not connected"
@@ -128,16 +128,18 @@ Status: {status}
    (for the create/delete channel & role commands) Manage Channels + Manage
    Roles. Open the generated URL, pick your server, authorize.
 4. In Discord, enable Developer Mode (User Settings → Advanced), right-click
-   your tasks channel → Copy Channel ID.
+   the channel you want commands read from → Copy Channel ID.
 5. Add to .env:
    DISCORD_BOT_TOKEN=<your token>
-   DISCORD_TASKS_CHANNEL_ID=<channel id, no quotes>
+   DISCORD_CHAT_CHANNEL_ID=<channel id, no quotes>
 6. Restart Sunny.
 
-Optional — separate output channels instead of everything landing in the
-tasks channel: DISCORD_BRIEFINGS_CHANNEL_ID, DISCORD_WARNINGS_CHANNEL_ID,
-DISCORD_TASK_UPDATES_CHANNEL_ID. Leave any blank to keep that output going
-to the tasks channel.
+Optional — DISCORD_TASKS_CHANNEL_ID gives the pinned task dashboard its own
+read-only channel instead of sharing the chat channel (nothing is ever read
+from it). DISCORD_BRIEFINGS_CHANNEL_ID, DISCORD_WARNINGS_CHANNEL_ID,
+DISCORD_TASK_UPDATES_CHANNEL_ID are separate output-only channels for
+specific things. Leave any blank to keep that output going to the chat
+channel.
 
 Full details: sunny-vault/docs/architecture/discord-bot.md"""
 
@@ -189,7 +191,7 @@ def _overview_status(key: str) -> str:
         return "✅ connected" if google_auth.is_connected() else "⚠️  needs sign-in"
     if key == "discord":
         settings = get_settings()
-        return "✅ connected" if (looks_configured(settings.discord_bot_token) and settings.discord_tasks_channel_id) else "⚠️  not connected"
+        return "✅ connected" if (looks_configured(settings.discord_bot_token) and settings.discord_chat_channel_id) else "⚠️  not connected"
     if key in ("commute", "health", "news", "motorsports"):
         return "⚠️  not built yet"
     if key == "claude":

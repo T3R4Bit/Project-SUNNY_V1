@@ -51,19 +51,24 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_oauth_redirect_uri: str = "http://127.0.0.1:5000/auth/google/callback"
 
-    # Discord bot — DISCORD_TASKS_CHANNEL_ID is the one channel the bot reads
-    # commands from (tasks/lists/alarms/server-admin). The three below are all
-    # optional *output* channels it posts to for specific things — the bot
-    # never reads commands from them. Any left unset (0) just means that
-    # output keeps going to the tasks channel instead, same as before these
-    # existed — see sunny-vault/docs/architecture/discord-bot.md.
+    # Discord bot — DISCORD_CHAT_CHANNEL_ID is the one required channel the bot
+    # reads commands from (tasks/lists/alarms/server-admin). DISCORD_TASKS_
+    # CHANNEL_ID is a separate, optional, read-only home for the pinned task
+    # dashboard — falls back to the chat channel if unset, so a bare chat
+    # channel alone reproduces the old single-channel behavior. The remaining
+    # three are optional *output* channels for specific things — the bot never
+    # reads commands from any of them. Any left unset (0) means that output
+    # keeps going to the chat channel instead — see
+    # sunny-vault/docs/architecture/discord-bot.md.
     discord_bot_token: str = ""
+    discord_chat_channel_id: int = 0
     discord_tasks_channel_id: int = 0
     discord_briefings_channel_id: int = 0
     discord_warnings_channel_id: int = 0
     discord_task_updates_channel_id: int = 0
 
     @field_validator(
+        "discord_chat_channel_id",
         "discord_tasks_channel_id",
         "discord_briefings_channel_id",
         "discord_warnings_channel_id",

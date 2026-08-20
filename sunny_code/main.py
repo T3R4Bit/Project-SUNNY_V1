@@ -74,10 +74,11 @@ class SunnyCore:
         self.discord_bot = self._create_discord_bot()
 
     def _create_discord_bot(self):
-        """Build the Discord bot if a token is configured; otherwise skip it quietly —
-        the web chatbot covers the same commands regardless."""
-        if not looks_configured(self.settings.discord_bot_token) or not self.settings.discord_tasks_channel_id:
-            self.logger.info("Discord bot not configured (no token/channel) — skipping")
+        """Build the Discord bot if a token + chat channel are configured;
+        otherwise skip it quietly — the web chatbot covers the same commands
+        regardless. The dashboard channel is optional (falls back to chat)."""
+        if not looks_configured(self.settings.discord_bot_token) or not self.settings.discord_chat_channel_id:
+            self.logger.info("Discord bot not configured (no token/chat channel) — skipping")
             return None
 
         return create_discord_bot(
@@ -85,7 +86,8 @@ class SunnyCore:
             self.briefing_engine,
             self.list_engine,
             self.scheduled_engine,
-            self.settings.discord_tasks_channel_id,
+            self.settings.discord_chat_channel_id,
+            dashboard_channel_id=self.settings.discord_tasks_channel_id,
             briefings_channel_id=self.settings.discord_briefings_channel_id,
             warnings_channel_id=self.settings.discord_warnings_channel_id,
             task_updates_channel_id=self.settings.discord_task_updates_channel_id,

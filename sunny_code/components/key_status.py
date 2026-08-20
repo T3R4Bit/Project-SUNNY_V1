@@ -18,7 +18,7 @@ _TRACKED_KEYS = [
     ("Google OAuth client ID", "google_client_id", "GOOGLE_CLIENT_ID"),
     ("Google OAuth client secret", "google_client_secret", "GOOGLE_CLIENT_SECRET"),
     ("Discord bot token", "discord_bot_token", "DISCORD_BOT_TOKEN"),
-    ("Discord tasks channel ID", "discord_tasks_channel_id", "DISCORD_TASKS_CHANNEL_ID"),
+    ("Discord chat channel ID", "discord_chat_channel_id", "DISCORD_CHAT_CHANNEL_ID"),
 ]
 
 
@@ -28,7 +28,7 @@ def missing_api_keys() -> List[Tuple[str, str]]:
     missing = []
     for label, attr, env_var in _TRACKED_KEYS:
         value = getattr(settings, attr, None)
-        # discord_tasks_channel_id is the one int-typed field here — its own
+        # discord_chat_channel_id is the one int-typed field here — its own
         # validator already turns a blank/placeholder value into 0, so plain
         # truthiness is correct for it. Every other tracked field is a string,
         # where "..." (a leftover template placeholder) is truthy but not real.
