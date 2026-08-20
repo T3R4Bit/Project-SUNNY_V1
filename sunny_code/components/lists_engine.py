@@ -30,7 +30,7 @@ class ListEngine:
 
         if "error" in data:
             log_unfulfilled("list_command", f'"{command}" — {data["error"]}')
-            return True, False, f"❌ {data['error']}"
+            return True, False, f"{data['error']}"
 
         if action == "list_all":
             return True, True, self._list_all()
@@ -46,7 +46,7 @@ class ListEngine:
                 log_unfulfilled("list_command", f'"{command}" — {msg}')
             return True, success, msg
 
-        return True, False, "❌ Unknown list action"
+        return True, False, "Unknown list action"
 
     def _list_all(self) -> str:
         lists = self.db.get_all_lists()
@@ -57,14 +57,14 @@ class ListEngine:
             items = self.db.get_items(lst["id"])
             unchecked = [i for i in items if not i["checked"]]
             lines.append(f"• {lst['name']} ({len(unchecked)} open, {len(items)} total)")
-        return "📋 YOUR LISTS\n" + "\n".join(lines)
+        return "YOUR LISTS\n" + "\n".join(lines)
 
     def _create(self, data: dict, source: Optional[str]) -> str:
         existing = self.db.get_list_by_name(data["name"])
         if existing:
             return f'You already have a list called "{existing["name"]}".'
         self.db.get_or_create_list(data["name"], source=source)
-        return f'✅ Created list "{data["name"]}"'
+        return f'Created list "{data["name"]}"'
 
     def _add_item(self, data: dict, source: Optional[str]) -> str:
         list_id = self.db.get_or_create_list(data["list_name"], source=source)
@@ -75,9 +75,9 @@ class ListEngine:
 
         items = data["items"]
         if len(items) == 1:
-            return f'✅ Added "{items[0]}" to {list_row["name"]}'
+            return f'Added "{items[0]}" to {list_row["name"]}'
         joined = ", ".join(items)
-        return f'✅ Added {len(items)} items to {list_row["name"]}: {joined}'
+        return f'Added {len(items)} items to {list_row["name"]}: {joined}'
 
     def _query(self, data: dict) -> str:
         list_row = self.db.get_list_by_name(data["list_name"])
@@ -86,11 +86,11 @@ class ListEngine:
 
         items = self.db.get_items(list_row["id"])
         if not items:
-            return f"📋 {list_row['name']} (empty)"
+            return f"{list_row['name']} (empty)"
 
-        lines = [f"{'☑' if i['checked'] else '☐'} {i['text']}" for i in items]
+        lines = [f"{'' if i['checked'] else ''} {i['text']}" for i in items]
         open_count = sum(1 for i in items if not i["checked"])
-        return f"📋 {list_row['name']} ({open_count} open, {len(items)} total)\n" + "\n".join(lines)
+        return f"{list_row['name']} ({open_count} open, {len(items)} total)\n" + "\n".join(lines)
 
     def _remove_item(self, data: dict) -> Tuple[bool, str]:
         list_row = self.db.get_list_by_name(data["list_name"])
@@ -105,4 +105,4 @@ class ListEngine:
             return False, f'That matches multiple items: {texts} — try the exact text'
 
         self.db.remove_item(matches[0]["id"])
-        return True, f'✅ Removed "{matches[0]["text"]}" from {list_row["name"]}'
+        return True, f'Removed "{matches[0]["text"]}" from {list_row["name"]}'

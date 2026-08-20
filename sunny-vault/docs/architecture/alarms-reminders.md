@@ -14,21 +14,21 @@ A separate subsystem from [[../TASK_SYSTEM.md|Tasks]] and [[lists.md|Lists]] —
 
 | Piece | Status |
 |-------|--------|
-| SQLite storage (`scheduled.db`) | ✅ Built (`sunny_code/components/scheduled_db.py`) — **unaffected** by the Tasks/Lists move to vault storage, see [[vault-storage]] |
-| Read-only vault mirror | ✅ Built (`sunny_code/components/scheduled_vault_mirror.py`) — see below |
-| Time/recurrence parsing (no library) | ✅ Built (`sunny_code/components/time_parse.py`) |
-| Command parser | ✅ Built (`sunny_code/components/scheduled_parser.py`) |
-| Scheduled-item engine | ✅ Built (`sunny_code/components/scheduled_engine.py`) |
-| Routed into web chatbot + Discord bot | ✅ Built (both go through `assistant.handle_message`) |
-| **Delivery when due** | ✅ Built, but **only fires if the Discord bot is connected** — see Delivery below |
-| Real "sounding" (speaker/hardware) | ⏳ Not built — no clock/speaker device exists yet (Phase 3) |
+| SQLite storage (`scheduled.db`) | Built (`sunny_code/components/scheduled_db.py`) — **unaffected** by the Tasks/Lists move to vault storage, see [[vault-storage]] |
+| Read-only vault mirror | Built (`sunny_code/components/scheduled_vault_mirror.py`) — see below |
+| Time/recurrence parsing (no library) | Built (`sunny_code/components/time_parse.py`) |
+| Command parser | Built (`sunny_code/components/scheduled_parser.py`) |
+| Scheduled-item engine | Built (`sunny_code/components/scheduled_engine.py`) |
+| Routed into web chatbot + Discord bot | Built (both go through `assistant.handle_message`) |
+| **Delivery when due** | Built, but **only fires if the Discord bot is connected** — see Delivery below |
+| Real "sounding" (speaker/hardware) | Not built — no clock/speaker device exists yet (Phase 3) |
 
 ## Important: what "alarm" actually means today
 
 There's no bedside clock hardware yet ([[clock]] is Phase 3, unbuilt). Nothing plays a sound or vibrates anything. What's built:
 
 1. Say "set an alarm for 7am" → a row goes into `scheduled.db` with a `trigger_at` timestamp.
-2. Every 30 seconds, if the Discord bot is running, it checks for anything due and **posts a message in the chat channel** (not the read-only dashboard channel — these are conversational pings you might reply to) (`⏰ Alarm: <label>` or `🔔 Reminder: <label>`).
+2. Every 30 seconds, if the Discord bot is running, it checks for anything due and **posts a message in the chat channel** (not the read-only dashboard channel — these are conversational pings you might reply to) (`Alarm: <label>` or `Reminder: <label>`).
 3. If the Discord bot isn't connected (no token configured), alarms and reminders still get created and stored correctly — they just never announce themselves anywhere. Querying them ("what alarms are set") always works regardless of Discord.
 
 This is stated explicitly in the chatbot's `help` text so it's never a surprise. Don't remove that caveat when editing `assistant.py`'s `HELP_TEXT`.
@@ -64,11 +64,11 @@ Read-only snapshot — the real data lives in SQLite (scheduled.db), not here.
 
 ## Alarms
 
-- ⏰ Thu Aug 20, 7:00 AM — Alarm (daily)
+- Thu Aug 20, 7:00 AM — Alarm (daily)
 
 ## Reminders
 
-- 🔔 Tue Aug 25, 3:00 PM — call Mom
+- Tue Aug 25, 3:00 PM — call Mom
 ```
 
 ## Command Syntax
@@ -84,7 +84,7 @@ set an alarm for 6:30pm tomorrow
 ### Managing Alarms
 ```
 what alarms are set / show my alarms
-cancel my 7am alarm                  → matches by time if no custom label
+cancel my 7am alarm → matches by time if no custom label
 cancel all alarms
 ```
 
@@ -100,10 +100,10 @@ clear all reminders
 
 ### Not supported (explicit, honest rejection — not silently ignored)
 ```
-remind me to grab an umbrella when I get home     → no location tracking exists;
-remind me to call Sarah when I get to the office     the parser detects this phrasing
+remind me to grab an umbrella when I get home → no location tracking exists;
+remind me to call Sarah when I get to the office the parser detects this phrasing
                                                        and says so instead of pretending
-stop / snooze                                       → doesn't map to a "post once to
+stop / snooze → doesn't map to a "post once to
                                                        Discord" delivery model; not built
 ```
 
@@ -112,12 +112,12 @@ stop / snooze                                       → doesn't map to a "post o
 ```python
 ScheduledItem {
   id: str
-  kind: str            # 'alarm' | 'reminder'
-  label: str            # defaults to "Alarm" for unlabeled alarms; the task text for reminders
+  kind: str # 'alarm' | 'reminder'
+  label: str # defaults to "Alarm" for unlabeled alarms; the task text for reminders
   trigger_at: datetime
-  recurrence: str       # None | 'daily' | 'weekdays' | a weekday name
-  active: bool           # False once fired-and-not-recurring, or cancelled
-  source: str            # web | discord | api — see Device Tracking below
+  recurrence: str # None | 'daily' | 'weekdays' | a weekday name
+  active: bool # False once fired-and-not-recurring, or cancelled
+  source: str # web | discord | api — see Device Tracking below
   created_at: datetime
 }
 ```
@@ -127,15 +127,15 @@ ScheduledItem {
 No IDs — alarms/reminders are referenced by label or, for the common "unlabeled alarm" case, by the time itself (see Cancelling below).
 
 ```
-⏰ Alarm "Alarm" set for Wednesday, August 19 at 7:00 AM
+Alarm "Alarm" set for Wednesday, August 19 at 7:00 AM
 ```
 ```
-🔔 I'll remind you to call Mom on Tuesday, August 25 at 3:00 PM
+I'll remind you to call Mom on Tuesday, August 25 at 3:00 PM
 ```
 ```
-✅ Cancelled alarm "Alarm"
-✅ Cancelled 1 alarm(s)
-✅ Deleted reminder "call Mom"
+Cancelled alarm "Alarm"
+Cancelled 1 alarm(s)
+Deleted reminder "call Mom"
 ```
 
 ### Cancelling an unlabeled alarm by time

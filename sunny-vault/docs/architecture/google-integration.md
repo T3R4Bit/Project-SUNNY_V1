@@ -14,14 +14,14 @@ One "Connect Google Account" button on [[dashboard|the console]] that authorizes
 
 | Piece | Status |
 |-------|--------|
-| OAuth flow (login/callback/token storage/refresh) | ✅ Built and fixed — `sunny_code/components/google_auth.py`, `google_routes.py`. A real PKCE bug (`invalid_grant: Missing code verifier`) was found and fixed 2026-08-20 — see How It Works |
-| Calendar read | ✅ Built — `sunny_code/components/google_calendar.py`, wired into [[briefing-engine]] |
-| Gmail read | ✅ Built — `sunny_code/components/google_gmail.py`, wired into [[briefing-engine]] |
-| Console "Connect Google Account" card | ✅ Built — `/console` |
-| Styled callback screens (connected/denied/error) | ✅ Built 2026-08-20 — was a bare unstyled `<p>` tag before, see How It Works |
-| Google Cloud OAuth client (Client ID/Secret) | ✅ Created and configured in `.env` |
-| HTTPS support (Google requires it for a non-localhost redirect URI) | ✅ Built — see HTTPS below |
-| Actual sign-in | ⚠️ In progress — the PKCE bug blocked every attempt until it was fixed; not yet confirmed successful end-to-end |
+| OAuth flow (login/callback/token storage/refresh) | Built and fixed — `sunny_code/components/google_auth.py`, `google_routes.py`. A real PKCE bug (`invalid_grant: Missing code verifier`) was found and fixed 2026-08-20 — see How It Works |
+| Calendar read | Built — `sunny_code/components/google_calendar.py`, wired into [[briefing-engine]] |
+| Gmail read | Built — `sunny_code/components/google_gmail.py`, wired into [[briefing-engine]] |
+| Console "Connect Google Account" card | Built — `/console` |
+| Styled callback screens (connected/denied/error) | Built 2026-08-20 — was a bare unstyled `<p>` tag before, see How It Works |
+| Google Cloud OAuth client (Client ID/Secret) | Created and configured in `.env` |
+| HTTPS support (Google requires it for a non-localhost redirect URI) | Built — see HTTPS below |
+| Actual sign-in | In progress — the PKCE bug blocked every attempt until it was fixed; not yet confirmed successful end-to-end |
 
 ## What This Covers
 
@@ -38,13 +38,13 @@ Scopes are requested narrowly on purpose — a wider ask both increases what a l
 
 | Capability | Covered by Google sign-in? | Notes |
 |---|---|---|
-| **Sending / drafting email** | ❌ No | Needs `gmail.send` or `gmail.compose`, not requested. Would unlock the backlog's "Auto-draft email replies" item — add the scope + a `google_gmail.create_draft()` function when that's actually being built. |
-| **Writing/creating calendar events** | ❌ No | Needs the full `calendar` scope (this only has `calendar.readonly`). Would unlock "Proactive calendar updates (detect changes, update automatically)" from the backlog. |
-| **Google Drive** | ❌ No | Nothing in Sunny's roadmap reads/writes Drive files. Not requested. |
-| **Contacts, Photos, Google Tasks** | ❌ No | Not referenced anywhere in [[../phases|phases.md]] or [[../BACKLOG]]. Not requested. |
-| **Commute / traffic** | ❌ **No — not part of Google sign-in at all**, even though it's a Google product. Google Maps Platform (Directions/Routes API) is billed and authenticated per-*project* via a plain API key, not per-*user* OAuth consent. Still needs its own `GOOGLE_MAPS_API_KEY` in `.env` and a small `google_maps.py`/similar — separate piece of work, unrelated to this sign-in flow. |
-| **Health / wellness** | ❌ No | No Google product is mapped to this in the roadmap. (Google Fit exists and *could* be added later via a `fitness.activity.read` scope, but nothing currently calls for it.) |
-| **News, motorsports** | ❌ No | Not Google products at all — would need a separate news API, unrelated to this sign-in. |
+| **Sending / drafting email** | No | Needs `gmail.send` or `gmail.compose`, not requested. Would unlock the backlog's "Auto-draft email replies" item — add the scope + a `google_gmail.create_draft()` function when that's actually being built. |
+| **Writing/creating calendar events** | No | Needs the full `calendar` scope (this only has `calendar.readonly`). Would unlock "Proactive calendar updates (detect changes, update automatically)" from the backlog. |
+| **Google Drive** | No | Nothing in Sunny's roadmap reads/writes Drive files. Not requested. |
+| **Contacts, Photos, Google Tasks** | No | Not referenced anywhere in [[../phases|phases.md]] or [[../BACKLOG]]. Not requested. |
+| **Commute / traffic** | **No — not part of Google sign-in at all**, even though it's a Google product. Google Maps Platform (Directions/Routes API) is billed and authenticated per-*project* via a plain API key, not per-*user* OAuth consent. Still needs its own `GOOGLE_MAPS_API_KEY` in `.env` and a small `google_maps.py`/similar — separate piece of work, unrelated to this sign-in flow. |
+| **Health / wellness** | No | No Google product is mapped to this in the roadmap. (Google Fit exists and *could* be added later via a `fitness.activity.read` scope, but nothing currently calls for it.) |
+| **News, motorsports** | No | Not Google products at all — would need a separate news API, unrelated to this sign-in. |
 
 **Bottom line for the briefing engine**: after connecting, Calendar and Email become real. Weather, commute, health, news, and motorsports are all still open items — see [[briefing-engine]]'s Status table and [[../log/requests|requests.md]] for which ones are actually being asked for in practice.
 

@@ -12,7 +12,7 @@ Where Sunny thinks "here" is, for weather lookups. Set on `/console` (the LOCATI
 
 ## Status
 
-✅ Built — `sunny_code/components/location_store.py`, wired into [[weather|sunny_code/components/weather.py]] and the LOCATION card on `/console`.
+Built — `sunny_code/components/location_store.py`, wired into [[weather|sunny_code/components/weather.py]] and the LOCATION card on `/console`.
 
 ## Why Not Just an Env Var
 

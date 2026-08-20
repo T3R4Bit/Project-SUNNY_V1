@@ -25,7 +25,7 @@ from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.config import get_settings
 
 _BANNER = """
-☀️  PROJECT SUNNY — Terminal Chat
+PROJECT SUNNY — Terminal Chat
 
 Same assistant as /console and Discord — tasks, lists, alarms/reminders,
 briefings, and Q&A all work exactly the same here, no browser needed.
@@ -62,7 +62,7 @@ async def main():
                 text, tasks_engine, briefing_engine, list_engine, scheduled_engine, session_id=session_id
             )
         except Exception as e:
-            response = f"❌ Error: {e}"
+            response = f"Error: {e}"
 
         print(f"\nsunny> {response}\n")
 

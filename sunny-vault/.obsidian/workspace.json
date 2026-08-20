@@ -191,6 +191,9 @@
   },
   "active": "1d01bc107c8fadf5",
   "lastOpenFiles": [
+    "state/tasks/dashboard-check.md",
+    "state/tasks/emoji-test-task.md",
+    "docs/architecture/discord-bot.md.tmp.18212.4ee6446245ee",
     "docs/DESIGN.md.tmp.18212.b9f61cf41482",
     "docs/architecture/Mind-Map.md.tmp.18212.736ecef290d5",
     "docs/README.md.tmp.18212.85b103630a2b",
@@ -200,8 +203,6 @@
     "docs/architecture/briefing-engine.md.tmp.18212.db6a2b4f8dc8",
     "docs/phases.md.tmp.18212.7435d653b478",
     "docs/QUICKSTART.md.tmp.18212.0c6360b698a1",
-    "docs/QUICKSTART.md.tmp.18212.1c3d000f1c5a",
-    "docs/QUICKSTART.md.tmp.18212.14f175b39028",
     "docs/architecture/llm-readiness.md",
     "docs/architecture/vault-storage.md",
     "state/tasks/concurrency-chat-task-3-2.md",
@@ -225,7 +226,6 @@
     "state/tasks/test-task.md",
     "state/tasks/terminal-test-task-2.md",
     "state/tasks/terminal-test-task.md",
-    "state/alarms-reminders.md",
-    "docs/phases.md"
+    "state/alarms-reminders.md"
   ]
 }

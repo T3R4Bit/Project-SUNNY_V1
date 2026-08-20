@@ -20,16 +20,16 @@ Sunny is an always-on personal voice assistant that lives on a bedside clock and
 
 ## Design Philosophy
 
-**Templates First, Tokens Last**  
+**Templates First, Tokens Last**
 Briefings are fixed scripts with API-filled slots. No LLM overhead for facts.
 
-**LLM Only for Judgment**  
+**LLM Only for Judgment**
 Claude API handles email triage, task interpretation, and freeform conversation. Never for lookups.
 
-**Fail Quietly**  
+**Fail Quietly**
 If weather API is down, briefing continues without it. Alarm still fires. System degrades, never crashes.
 
-**Local-First, Secure**  
+**Local-First, Secure**
 Tailscale mesh keeps all devices off the public internet. No port forwarding, no exposed APIs, works from anywhere via DERP relays.
 
 ---
@@ -37,15 +37,15 @@ Tailscale mesh keeps all devices off the public internet. No port forwarding, no
 ## Architecture at a Glance
 
 ```
-Clock (ESP32-S3)        Brain (Lenovo Mini PC)      External APIs
-   |                          |                            |
-   +-- Wake word ------+      |      +-- Calendar API -----+
-   |                   |      |      |
-   +-- Microphone ---> |      |  +-- Weather API
-   |                   | ---> |  |
-   +-- Speaker <------ |      |  +-- Email API
-   |                   |      |  |
-   +-- Battery Monitor |      +-- Traffic API
+Clock (ESP32-S3) Brain (Lenovo Mini PC) External APIs
+   | | |
+   +-- Wake word ------+ | +-- Calendar API -----+
+   | | | |
+   +-- Microphone ---> | | +-- Weather API
+   | | ---> | |
+   +-- Speaker <------ | | +-- Email API
+   | | | |
+   +-- Battery Monitor | +-- Traffic API
                        |
                     Tailscale Mesh
                        |
@@ -64,16 +64,16 @@ Clock (ESP32-S3)        Brain (Lenovo Mini PC)      External APIs
 
 ## Current Status
 
-**Phase 0** — Foundations (✓ Complete)
-- ✓ Ubuntu Server 26.04 LTS on Lenovo mini PC
-- ✓ Briefing system with Q&A engine (real task data, honest gaps elsewhere)
-- ✓ Task management system — natural language, no command prefix needed
-- ✓ Lists (groceries, packing, anything checkable) — see `sunny-vault/docs/architecture/lists.md`
-- ✓ Alarms & Reminders — time-based, ping Discord when due — see `sunny-vault/docs/architecture/alarms-reminders.md`
-- ✓ Device/source tracking (web/discord/api) on every task, list item, and alarm
-- ✓ Discord bot for tasks/lists/alarms/reminders (connected and live — see `sunny-vault/docs/architecture/discord-bot.md`)
-- ✓ Console over Tailscale (`/console`, `/` and `/chatbot` redirect there) — chat plus live system stats (CPU, RAM, disk, network, temp) and Google sign-in status in one page
-- ✓ Comprehensive documentation
+**Phase 0** — Foundations (Complete)
+- Ubuntu Server 26.04 LTS on Lenovo mini PC
+- Briefing system with Q&A engine (real task data, honest gaps elsewhere)
+- Task management system — natural language, no command prefix needed
+- Lists (groceries, packing, anything checkable) — see `sunny-vault/docs/architecture/lists.md`
+- Alarms & Reminders — time-based, ping Discord when due — see `sunny-vault/docs/architecture/alarms-reminders.md`
+- Device/source tracking (web/discord/api) on every task, list item, and alarm
+- Discord bot for tasks/lists/alarms/reminders (connected and live — see `sunny-vault/docs/architecture/discord-bot.md`)
+- Console over Tailscale (`/console`, `/` and `/chatbot` redirect there) — chat plus live system stats (CPU, RAM, disk, network, temp) and Google sign-in status in one page
+- Comprehensive documentation
 
 **Next** — Phase 1: Tailscale networking verified, Phase 2: Clock hardware & voice I/O
 
@@ -122,7 +122,7 @@ Hard spending caps enforced at provider accounts.
 ### Linux/macOS Quick Start
 ```bash
 chmod +x run.sh
-./run.sh                    # Starts the console at http://127.0.0.1:5000
+./run.sh # Starts the console at http://127.0.0.1:5000
 ```
 
 `run.sh` creates and manages its own Python virtual environment automatically — there's nothing to set up by hand.

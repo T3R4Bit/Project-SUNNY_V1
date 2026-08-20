@@ -142,10 +142,10 @@ Mic → I2S buffer → Wake word detector (local)
 **Shows**:
 - Current time (HH:MM, 24-hour)
 - Status icons:
-  - 🔴 Listening (wake word armed)
-  - 🟡 Processing (thinking)
-  - 🟢 Speaking (outputting)
-  - 🔋 Battery status (charging, battery%, on mains)
+  - Listening (wake word armed)
+  - Processing (thinking)
+  - Speaking (outputting)
+  - Battery status (charging, battery%, on mains)
 - Simple messages (no rich graphics)
 
 ## Local Hardwired Commands

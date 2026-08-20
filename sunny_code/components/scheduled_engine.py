@@ -43,7 +43,7 @@ class ScheduledEngine:
 
         if "error" in data:
             log_unfulfilled("scheduled_command", f'"{command}" — {data["error"]}')
-            return True, False, f"❌ {data['error']}"
+            return True, False, f"{data['error']}"
 
         if action == "create_alarm":
             success, message = self._create_alarm(data, source)
@@ -62,7 +62,7 @@ class ScheduledEngine:
         elif action == "clear_all_reminders":
             success, message = True, self._clear_all_reminders()
         else:
-            success, message = False, "❌ Unknown scheduled-item action"
+            success, message = False, "Unknown scheduled-item action"
 
         if not success:
             log_unfulfilled("scheduled_command", f'"{command}" — {message}')
@@ -82,7 +82,7 @@ class ScheduledEngine:
         self.db.create_item("alarm", data["label"], trigger_at, recurrence=data.get("recurrence"), source=source)
         when = trigger_at.strftime("%A, %B %d at %I:%M %p").replace(" 0", " ")
         recur_note = f" (repeats {data['recurrence']})" if data.get("recurrence") else ""
-        return True, f'⏰ Alarm "{data["label"]}" set for {when}{recur_note}'
+        return True, f'Alarm "{data["label"]}" set for {when}{recur_note}'
 
     def _create_reminder(self, data: Dict, source: Optional[str]) -> Tuple[bool, str]:
         trigger_at = parse_time_expression(data["time_expr"])
@@ -92,7 +92,7 @@ class ScheduledEngine:
         self.db.create_item("reminder", data["task"], trigger_at, recurrence=data.get("recurrence"), source=source)
         when = trigger_at.strftime("%A, %B %d at %I:%M %p").replace(" 0", " ")
         recur_note = f" (repeats {data['recurrence']})" if data.get("recurrence") else ""
-        return True, f'🔔 I\'ll remind you to {data["task"]} on {when}{recur_note}'
+        return True, f'I\'ll remind you to {data["task"]} on {when}{recur_note}'
 
     def _query_alarms(self) -> str:
         alarms = self.db.get_active_items(kind="alarm")
@@ -102,7 +102,7 @@ class ScheduledEngine:
         for a in alarms:
             when = _format_when(a["trigger_at"], "%a %I:%M %p")
             recur = f" (repeats {a['recurrence']})" if a["recurrence"] else ""
-            lines.append(f"⏰ {a['label']} — {when}{recur}")
+            lines.append(f"{a['label']} — {when}{recur}")
         return "\n".join(lines)
 
     def _query_reminders(self) -> str:
@@ -113,7 +113,7 @@ class ScheduledEngine:
         for r in reminders:
             when = _format_when(r["trigger_at"], "%a %b %d, %I:%M %p")
             recur = f" (repeats {r['recurrence']})" if r["recurrence"] else ""
-            lines.append(f"🔔 {r['label']} — {when}{recur}")
+            lines.append(f"{r['label']} — {when}{recur}")
         return "\n".join(lines)
 
     def _cancel_alarm(self, data: Dict) -> Tuple[bool, str]:
@@ -139,11 +139,11 @@ class ScheduledEngine:
             labels = ", ".join(f'"{m["label"]}"' for m in matches[:5])
             return False, f'That matches multiple alarms: {labels} — try being more specific'
         self.db.deactivate(matches[0]["id"])
-        return True, f'✅ Cancelled alarm "{matches[0]["label"]}"'
+        return True, f'Cancelled alarm "{matches[0]["label"]}"'
 
     def _cancel_all_alarms(self) -> str:
         count = self.db.deactivate_all("alarm")
-        return f"✅ Cancelled {count} alarm(s)" if count else "No active alarms to cancel."
+        return f"Cancelled {count} alarm(s)" if count else "No active alarms to cancel."
 
     def _delete_reminder(self, data: Dict) -> Tuple[bool, str]:
         if not self.db.get_active_items(kind="reminder"):
@@ -155,8 +155,8 @@ class ScheduledEngine:
             labels = ", ".join(f'"{m["label"]}"' for m in matches[:5])
             return False, f'That matches multiple reminders: {labels} — try being more specific'
         self.db.deactivate(matches[0]["id"])
-        return True, f'✅ Deleted reminder "{matches[0]["label"]}"'
+        return True, f'Deleted reminder "{matches[0]["label"]}"'
 
     def _clear_all_reminders(self) -> str:
         count = self.db.deactivate_all("reminder")
-        return f"✅ Cleared {count} reminder(s)" if count else "No active reminders to clear."
+        return f"Cleared {count} reminder(s)" if count else "No active reminders to clear."

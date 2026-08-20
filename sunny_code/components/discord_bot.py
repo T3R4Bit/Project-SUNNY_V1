@@ -40,10 +40,9 @@ from sunny_code.components.time_parse import next_occurrence
 
 logger = logging.getLogger(__name__)
 
-DASHBOARD_MARKER = "​"  # zero-width space appended to the dashboard message so a
+DASHBOARD_MARKER = "​" # zero-width space appended to the dashboard message so a
 # restarted bot can recognize its own pinned message and start editing it again
-REFRESH_EMOJI = "🔄"
-MAX_MESSAGE_LENGTH = 1900  # Discord's real limit is 2000; leave headroom
+MAX_MESSAGE_LENGTH = 1900 # Discord's real limit is 2000; leave headroom
 SCHEDULED_CHECK_INTERVAL_SECONDS = 30
 
 
@@ -84,57 +83,57 @@ async def _execute_server_admin(action: str, data: dict, guild: discord.Guild, c
     try:
         if action == "list_channels":
             names = ", ".join(f"#{c.name}" for c in guild.text_channels) or "(none)"
-            return f"📺 CHANNELS\n{names}"
+            return f"CHANNELS\n{names}"
 
         if action == "create_channel":
             channel = await guild.create_text_channel(data["name"])
-            return f"✅ Created channel #{channel.name}"
+            return f"Created channel #{channel.name}"
 
         if action == "delete_channel":
             channel = _find_channel(guild, data["name"])
             if channel is None:
-                return f"❌ No channel named \"{data['name']}\" found"
+                return f"No channel named \"{data['name']}\" found"
             if channel.id == chat_channel_id:
-                return "⚠️  Can't delete the channel I'm listening in — that would strand me with no way to talk to you here."
+                return "Can't delete the channel I'm listening in — that would strand me with no way to talk to you here."
             await channel.delete()
-            return f"✅ Deleted channel #{channel.name}"
+            return f"Deleted channel #{channel.name}"
 
         if action == "list_roles":
             names = ", ".join(r.name for r in guild.roles if not r.is_default()) or "(none)"
-            return f"🎭 ROLES\n{names}"
+            return f"ROLES\n{names}"
 
         if action == "create_role":
             role = await guild.create_role(name=data["name"])
-            return f"✅ Created role \"{role.name}\""
+            return f"Created role \"{role.name}\""
 
         if action == "delete_role":
             role = _find_role(guild, data["name"])
             if role is None:
-                return f"❌ No role named \"{data['name']}\" found"
+                return f"No role named \"{data['name']}\" found"
             if role.is_default():
-                return "⚠️  Can't delete @everyone — Discord doesn't allow it."
+                return "Can't delete @everyone — Discord doesn't allow it."
             await role.delete()
-            return f"✅ Deleted role \"{role.name}\""
+            return f"Deleted role \"{role.name}\""
 
         if action in ("assign_role", "remove_role"):
             role = _find_role(guild, data["role_name"])
             if role is None:
-                return f"❌ No role named \"{data['role_name']}\" found"
+                return f"No role named \"{data['role_name']}\" found"
             member = guild.get_member(data["user_id"]) or await guild.fetch_member(data["user_id"])
             if action == "assign_role":
                 await member.add_roles(role)
-                return f"✅ Gave {member.display_name} the \"{role.name}\" role"
+                return f"Gave {member.display_name} the \"{role.name}\" role"
             await member.remove_roles(role)
-            return f"✅ Removed the \"{role.name}\" role from {member.display_name}"
+            return f"Removed the \"{role.name}\" role from {member.display_name}"
 
     except discord.Forbidden:
-        return "❌ I don't have permission to do that — check my role has Manage Channels/Manage Roles, and (for roles) sits above the role being changed."
+        return "I don't have permission to do that — check my role has Manage Channels/Manage Roles, and (for roles) sits above the role being changed."
     except discord.NotFound:
-        return "❌ That no longer exists — someone may have already removed it."
+        return "That no longer exists — someone may have already removed it."
     except discord.HTTPException as e:
-        return f"❌ Discord rejected that: {e}"
+        return f"Discord rejected that: {e}"
 
-    return f"❌ Unrecognized server-admin action: {action}"
+    return f"Unrecognized server-admin action: {action}"
 
 
 def create_discord_bot(
@@ -157,7 +156,7 @@ def create_discord_bot(
     dashboard_channel_id = dashboard_channel_id or chat_channel_id
 
     intents = discord.Intents.default()
-    intents.message_content = True  # required to read command text, not just embeds/mentions
+    intents.message_content = True # required to read command text, not just embeds/mentions
 
     client = discord.Client(intents=intents)
     state = {"dashboard_message_id": None, "posted_key_status": False}
@@ -247,10 +246,9 @@ def create_discord_bot(
             return
 
         for item in due:
-            icon = "⏰" if item["kind"] == "alarm" else "🔔"
             noun = "Alarm" if item["kind"] == "alarm" else "Reminder"
             try:
-                await channel.send(f'{icon} {noun}: {item["label"]}')
+                await channel.send(f'{noun}: {item["label"]}')
             except discord.Forbidden:
                 logger.warning("Missing permission to send scheduled-item ping")
 
@@ -267,9 +265,9 @@ def create_discord_bot(
             f"(chat channel: {chat_channel_id}, dashboard: {dashboard_channel_id})"
         )
         if not refresh_loop.is_running():
-            refresh_loop.start()  # runs immediately, then every 5 minutes
+            refresh_loop.start() # runs immediately, then every 5 minutes
         if not scheduled_check_loop.is_running():
-            scheduled_check_loop.start()  # runs immediately, then every 30s
+            scheduled_check_loop.start() # runs immediately, then every 30s
 
         # Post what's still missing an API key once per run, so it's visible —
         # in #warnings if configured, else the chat channel like before that
@@ -311,25 +309,5 @@ def create_discord_bot(
 
         if briefings_channel_id and is_briefing_trigger(message.content):
             await _post_to(briefings_channel_id, response)
-
-    @client.event
-    async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
-        if payload.user_id == client.user.id:
-            return
-        if str(payload.emoji) != REFRESH_EMOJI:
-            return
-        if payload.message_id != state["dashboard_message_id"]:
-            return
-
-        await refresh_dashboard()
-
-        # Clear the reaction so it's ready to use again
-        try:
-            channel = await client.fetch_channel(payload.channel_id)
-            reacted_message = await channel.fetch_message(payload.message_id)
-            user = await client.fetch_user(payload.user_id)
-            await reacted_message.remove_reaction(payload.emoji, user)
-        except (discord.NotFound, discord.Forbidden):
-            pass
 
     return client

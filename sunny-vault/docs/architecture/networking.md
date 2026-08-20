@@ -112,11 +112,11 @@ Once on mesh, all devices reach each other:
 
 | Device | Hostname | IP | OS | Status |
 |--------|----------|----|----|--------|
-| Brain | sunshine-m700 | 100.117.41.53 | Ubuntu 26.04 LTS | ✅ Active, reachable |
-| TrueNAS | caliop-truenas | 100.123.58.119 | TrueNAS Scale | ✅ Active, reachable |
-| Phone | iphone181 | 100.73.98.114 | iOS | ✅ Active |
-| Workstation | keaton-pc | 100.82.153.78 | Windows | ✅ Active |
-| Clock | (pending) | TBD | ESP32-S3 | ⏳ Not yet configured |
+| Brain | sunshine-m700 | 100.117.41.53 | Ubuntu 26.04 LTS | Active, reachable |
+| TrueNAS | caliop-truenas | 100.123.58.119 | TrueNAS Scale | Active, reachable |
+| Phone | iphone181 | 100.73.98.114 | iOS | Active |
+| Workstation | keaton-pc | 100.82.153.78 | Windows | Active |
+| Clock | (pending) | TBD | ESP32-S3 | Not yet configured |
 
 ## Security Model
 
@@ -197,7 +197,7 @@ def status():
 # Listen on Tailscale interface only (not 0.0.0.0)
 if __name__ == "__main__":
     import uvicorn
-    tailscale_ip = get_tailscale_ip()  # 100.x.x.x
+    tailscale_ip = get_tailscale_ip() # 100.x.x.x
     uvicorn.run(app, host=tailscale_ip, port=5000)
 ```
 

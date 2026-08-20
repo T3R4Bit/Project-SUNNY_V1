@@ -1,4 +1,4 @@
-# 🌞 Project SUNNY — Quick Start
+# Project SUNNY — Quick Start
 
 Get started in 30 seconds.
 
@@ -19,28 +19,28 @@ No manual Python setup needed — `run.sh` creates and manages its own virtual e
 ## Commands
 
 ```bash
-./run.sh                   # Start web server (default)
-./run.sh chatbot           # Console, non-reload mode
-./run.sh cli briefing      # Interactive briefing CLI
-./run.sh cli tasks         # Interactive task CLI
-./run.sh test all          # Run all tests
-./run.sh dev               # Dev shell (auto-managed venv pre-activated)
+./run.sh # Start web server (default)
+./run.sh chatbot # Console, non-reload mode
+./run.sh cli briefing # Interactive briefing CLI
+./run.sh cli tasks # Interactive task CLI
+./run.sh test all # Run all tests
+./run.sh dev # Dev shell (auto-managed venv pre-activated)
 ```
 
 ## Try in the Console
 
 ```
-help                       → What Sunny can do
-setup                      → What's connected, what needs setup
-morning                    → Morning briefing
-show my tasks              → List tasks
-add Title to my tasks      → Create task
-mark Title as done         → Complete a task
+help → What Sunny can do
+setup → What's connected, what needs setup
+morning → Morning briefing
+show my tasks → List tasks
+add Title to my tasks → Create task
+mark Title as done → Complete a task
 add milk to my grocery list → Add to a list (creates it if new)
-what's on my grocery list  → Show a list
-set an alarm for 7am       → Create an alarm
+what's on my grocery list → Show a list
+set an alarm for 7am → Create an alarm
 remind me to call Mom at 5pm → Create a reminder
-What's the weather?        → Weather info
+What's the weather? → Weather info
 ```
 
 ## Access from Phone
@@ -53,7 +53,7 @@ What's the weather?        → Weather info
 
 **Port in use?**
 ```bash
-nano run.sh              # Edit file
+nano run.sh # Edit file
 # Change: --port 5000 to --port 5001
 ./run.sh
 ```
@@ -76,4 +76,4 @@ exit
 
 See [SETUP_LINUX.md](SETUP_LINUX.md) for complete installation and deployment guide.
 
-Enjoy! 🌞
+Enjoy!

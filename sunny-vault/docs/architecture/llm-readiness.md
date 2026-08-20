@@ -10,7 +10,7 @@ tags: [llm, claude, readiness, prerequisites, architecture]
 
 Project SUNNY's design philosophy is "no LLM, plain pattern matching" everywhere except a small set of judgment tasks where an LLM is the explicit, deliberate escalation path (see [[llm-integration]]). This doc is the concrete checklist for what has to exist *before* any of those tasks go live — split into what's safety-rail infrastructure (buildable and built ahead of time), what's an external/manual step only the account owner can do, and what's an actual LLM-powered *feature* (deliberately not built yet — building one is a separate decision from building the rails it needs).
 
-## ✅ Built (infrastructure — tested, nothing user-facing calls it yet)
+## Built (infrastructure — tested, nothing user-facing calls it yet)
 
 | Piece | File | What it does |
 |---|---|---|
@@ -23,7 +23,7 @@ Project SUNNY's design philosophy is "no LLM, plain pattern matching" everywhere
 
 All of the above has real, automated tests (scratch-DB circuit-breaker behavior, mocked SDK auth/rate-limit failures, vault log format, live HTTP endpoint checks) — see the test run in this change's session, not committed as a permanent test file since it exercises infrastructure with no live feature attached yet.
 
-## ⏳ Still needed before flipping on any specific feature
+## Still needed before flipping on any specific feature
 
 - **An actual Claude API key** — `console.anthropic.com`, external, user action. Nothing above requires one to exist; everything degrades to an honest "not configured" without it.
 - **A second, account-level hard spend cap** — set at `console.anthropic.com`, external, user action. The in-app cap (`token_tracker.check_budget()`) is self-tracked from a local price table, not authoritative Anthropic billing — the account-level cap is the real backstop if the two ever diverge.
@@ -32,7 +32,7 @@ All of the above has real, automated tests (scratch-DB circuit-breaker behavior,
 - **Discord `#warnings` alerting** on the error paths in `llm_client.py` — today those only go to the app log, not Discord, unlike the rest of the app's alerting.
 - A real Priority Scheduler, **only if** a genuine concurrent-LLM-caller scenario shows up (e.g. [[phone]] hardware interrupting a briefing mid-playback) — not needed today, the semaphore stand-in covers the current single-caller reality.
 
-## 🔒 Explicitly deferred — these ARE "adding an LLM," not prerequisites for it
+## Explicitly deferred — these ARE "adding an LLM," not prerequisites for it
 
 Pulled from [[llm-integration]] and BACKLOG.md. Each of these needs the infrastructure above to exist (now true) but is itself a feature decision, not infrastructure — out of scope for this pass by the very framing of "what's needed *before* adding an LLM":
 

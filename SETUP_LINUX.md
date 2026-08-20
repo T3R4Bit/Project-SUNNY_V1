@@ -1,4 +1,4 @@
-# 🐧 Project SUNNY — Linux Setup Guide
+# Project SUNNY — Linux Setup Guide
 
 Complete setup instructions for Linux (Ubuntu/Debian/Fedora) and macOS.
 
@@ -24,10 +24,10 @@ chmod +x run.sh
 ```
 
 Done! The launcher will:
-- ✓ Create a virtual environment automatically if one doesn't exist (you never create or activate it yourself)
-- ✓ Install Python dependencies
-- ✓ Start the web server
-- ✓ Serve the console at `http://127.0.0.1:5000/console` (`http://127.0.0.1:5000` redirects there)
+- Create a virtual environment automatically if one doesn't exist (you never create or activate it yourself)
+- Install Python dependencies
+- Start the web server
+- Serve the console at `http://127.0.0.1:5000/console` (`http://127.0.0.1:5000` redirects there)
 
 ## Installation Steps
 
@@ -37,7 +37,7 @@ Done! The launcher will:
 ```bash
 sudo apt update
 sudo apt install -y python3 python3-venv python3-pip
-python3 --version  # Verify
+python3 --version # Verify
 ```
 
 **Fedora/RHEL:**
@@ -63,7 +63,7 @@ cd Project-SUNNY
 
 ```bash
 chmod +x run.sh
-ls -la run.sh  # Verify it has 'x' permission
+ls -la run.sh # Verify it has 'x' permission
 ```
 
 ### 4. Start the App
@@ -119,12 +119,12 @@ Every run after the first reuses the existing `venv/` and just reinstalls/update
 
 # Now you can run Python directly
 python -c "import sunny_code; print('OK')"
-exit  # Exit dev mode
+exit # Exit dev mode
 ```
 
 ## Features Available
 
-### 💬 Console — Chat + System Status
+### Console — Chat + System Status
 - One page at `/console` (`/` and the old `/chatbot` both redirect there)
 - Chat panel: talk to the briefing engine and task system, plus `setup` for
   step-by-step instructions on connecting any API (weather, Google, Discord)
@@ -132,13 +132,13 @@ exit  # Exit dev mode
   Google sign-in status
 - Access from phone over Tailscale, no installation needed on phone
 
-### 📋 Briefing System
+### Briefing System
 - Morning briefing (9 sections)
 - Evening briefing (7 sections)
 - Q&A engine for custom questions
 - Tasks queried live from the Obsidian vault (markdown, not a database); no API key needed. Everything else (weather/calendar/email/commute/health/news) honestly says "not connected" instead of faking data — no mock data anywhere
 
-### ✅ Task Management
+### Task Management
 - Create: `add Title to my tasks` (append `--tag Category --priority 5` etc. for precision)
 - Update: `mark Title as done`
 - Delete: `delete Title`
@@ -148,24 +148,24 @@ exit  # Exit dev mode
 - Dashboard: View all tasks organized by category
 - No command prefix required — plain natural phrasing, deterministic regex parsing, no LLM
 
-### 📝 Lists
+### Lists
 - Named checkable lists: `add milk to my grocery list`, `what's on my grocery list`, `my lists`
 - No name given → falls back to a default "To-Do" list
 - Same no-LLM, free-form philosophy as tasks — see `sunny-vault/docs/architecture/lists.md`
 
-### ⏰ Alarms & Reminders
+### Alarms & Reminders
 - `set an alarm for 7am`, `remind me to call Mom at 5pm`, `what alarms are set`, `cancel my 7am alarm`
 - Time-based only (no location tracking) — deterministic parsing, no external date library
 - Nothing "sounds" without hardware; the only real delivery today is a Discord ping when due — see `sunny-vault/docs/architecture/alarms-reminders.md`
 
-### 🤖 Discord Bot (Optional)
+### Discord Bot (Optional)
 - Same task/list/alarm/reminder commands as the console chat, typed as plain messages in one dedicated chat channel
-- Pinned task dashboard in its own separate, read-only channel (falls back to the chat channel if not configured), auto-refreshes every 5 minutes, 🔄 reaction for instant refresh
-- Separate 30-second loop posts a ping (`⏰`/`🔔`) whenever an alarm or reminder comes due, in the chat channel
+- Pinned task dashboard in its own separate, read-only channel (falls back to the chat channel if not configured), auto-refreshes every 5 minutes and on every task change
+- Separate 30-second loop posts a ping ("Alarm: ..."/"Reminder: ...") whenever an alarm or reminder comes due, in the chat channel
 - Not running unless `DISCORD_BOT_TOKEN` and `DISCORD_CHAT_CHANNEL_ID` are set in `.env` — the console works either way
 - Setup steps: `sunny-vault/docs/architecture/discord-bot.md`
 
-### 📊 API Endpoints
+### API Endpoints
 - `/api/briefing/morning` — Get morning briefing
 - `/api/briefing/evening` — Get evening briefing
 - `/api/briefing/ask?q=...` — Ask a question
@@ -194,7 +194,7 @@ nano run.sh
 ### Python version too old
 ```bash
 # Check version
-python3 --version  # Need 3.9+
+python3 --version # Need 3.9+
 ```
 If your default `python3` is too old but a newer interpreter is installed (e.g. `python3.11`), edit the `python3 -m venv venv` line near the top of `run.sh` to call that interpreter instead, then let the launcher rebuild everything:
 ```bash
@@ -276,7 +276,7 @@ Optional `.env` file for customization:
 cat > .env <<EOF
 APP_ENV=production
 DEBUG=false
-API_HOST=0.0.0.0  # Listen on all interfaces
+API_HOST=0.0.0.0 # Listen on all interfaces
 API_PORT=5000
 LOG_LEVEL=INFO
 LOG_FORMAT=json
@@ -298,63 +298,63 @@ All API keys (Claude, OpenWeatherMap, Google Calendar, Discord bot token) live i
 
 ```
 Project-SUNNY/
-├── run.sh                  # Main launcher (bash)
-├── requirements.txt        # Python dependencies
-├── .env                    # Your local secrets (gitignored, chmod 600; auto-created by run.sh from its built-in template)
+├── run.sh # Main launcher (bash)
+├── requirements.txt # Python dependencies
+├── .env # Your local secrets (gitignored, chmod 600; auto-created by run.sh from its built-in template)
 ├── sunny_code/
-│   ├── __init__.py
-│   ├── config.py          # Configuration management
-│   ├── logging_config.py  # Logging setup
-│   ├── main.py            # FastAPI app + Discord bot startup
-│   └── components/
-│       ├── briefing.py         # Briefing engine (real tasks, honest gaps elsewhere)
-│       ├── briefing_api.py
-│       ├── briefing_data.py    # Mock data structures (unused by briefing.py directly)
-│       ├── data_sources.py     # Which data sources are real vs unconfigured
-│       ├── request_log.py      # Logs unfulfilled requests to sunny-vault/log/requests.md
-│       ├── key_status.py       # Startup summary of missing API keys
-│       ├── setup_guides.py     # "setup <api>" step-by-step instructions (chat command)
-│       ├── google_auth.py      # Google OAuth sign-in flow + token storage/refresh
-│       ├── google_routes.py    # /auth/google/* routes
-│       ├── google_calendar.py  # Live Calendar reads
-│       ├── google_gmail.py     # Live Gmail reads
-│       ├── tasks_db.py         # Task database
-│       ├── tasks_engine.py
-│       ├── tasks_parser.py     # Natural language + legacy !task parsing
-│       ├── tasks_api.py
-│       ├── lists_db.py         # List database (lists + list_items)
-│       ├── lists_engine.py
-│       ├── lists_parser.py     # Natural language parsing for lists
-│       ├── scheduled_db.py     # Alarm/reminder database
-│       ├── scheduled_engine.py
-│       ├── scheduled_parser.py # Natural language parsing for alarms/reminders
-│       ├── time_parse.py       # Deterministic time/recurrence parsing (no library)
-│       ├── device.py           # Maps a session_id to source: web | discord | api
-│       ├── assistant.py        # Shared message routing (console chat + Discord bot)
-│       ├── discord_bot.py      # Discord bot — tasks/lists/alarms, pinned dashboard, due-item pings
-│       ├── dashboard.py        # Dashboard JSON API
-│       ├── console_stats.py    # /console — chat + system status (/, /chatbot redirect here)
-│       └── chatbot_ui.py       # Chat message API + old-URL redirects
-├── test_*.py              # Test files
-├── sunny-vault/           # Documentation + Obsidian vault
-│   ├── log/requests.md    # What Sunny couldn't fulfill with real data (auto-generated)
-│   └── docs/
-│       ├── architecture/
-│       ├── phases.md
-│       └── TASK_SYSTEM.md
-├── venv/                  # Virtual environment (auto-created)
-└── logs/                  # Log files (auto-created)
+│ ├── __init__.py
+│ ├── config.py # Configuration management
+│ ├── logging_config.py # Logging setup
+│ ├── main.py # FastAPI app + Discord bot startup
+│ └── components/
+│ ├── briefing.py # Briefing engine (real tasks, honest gaps elsewhere)
+│ ├── briefing_api.py
+│ ├── briefing_data.py # Mock data structures (unused by briefing.py directly)
+│ ├── data_sources.py # Which data sources are real vs unconfigured
+│ ├── request_log.py # Logs unfulfilled requests to sunny-vault/log/requests.md
+│ ├── key_status.py # Startup summary of missing API keys
+│ ├── setup_guides.py # "setup <api>" step-by-step instructions (chat command)
+│ ├── google_auth.py # Google OAuth sign-in flow + token storage/refresh
+│ ├── google_routes.py # /auth/google/* routes
+│ ├── google_calendar.py # Live Calendar reads
+│ ├── google_gmail.py # Live Gmail reads
+│ ├── tasks_db.py # Task database
+│ ├── tasks_engine.py
+│ ├── tasks_parser.py # Natural language + legacy !task parsing
+│ ├── tasks_api.py
+│ ├── lists_db.py # List database (lists + list_items)
+│ ├── lists_engine.py
+│ ├── lists_parser.py # Natural language parsing for lists
+│ ├── scheduled_db.py # Alarm/reminder database
+│ ├── scheduled_engine.py
+│ ├── scheduled_parser.py # Natural language parsing for alarms/reminders
+│ ├── time_parse.py # Deterministic time/recurrence parsing (no library)
+│ ├── device.py # Maps a session_id to source: web | discord | api
+│ ├── assistant.py # Shared message routing (console chat + Discord bot)
+│ ├── discord_bot.py # Discord bot — tasks/lists/alarms, pinned dashboard, due-item pings
+│ ├── dashboard.py # Dashboard JSON API
+│ ├── console_stats.py # /console — chat + system status (/, /chatbot redirect here)
+│ └── chatbot_ui.py # Chat message API + old-URL redirects
+├── test_*.py # Test files
+├── sunny-vault/ # Documentation + Obsidian vault
+│ ├── log/requests.md # What Sunny couldn't fulfill with real data (auto-generated)
+│ └── docs/
+│ ├── architecture/
+│ ├── phases.md
+│ └── TASK_SYSTEM.md
+├── venv/ # Virtual environment (auto-created)
+└── logs/ # Log files (auto-created)
 ```
 
 ## Next Steps
 
-1. ✓ Run `./run.sh` to start
-2. ✓ Open `http://127.0.0.1:5000` in browser
-3. ✓ Type "morning" to see briefing
-4. ✓ Type "show my tasks" to see task list
-5. ✓ Check `/console` for live system stats
-6. ✓ Deploy to Lenovo brain for 24/7 access
-7. ✓ Access from phone over Tailscale
+1. Run `./run.sh` to start
+2. Open `http://127.0.0.1:5000` in browser
+3. Type "morning" to see briefing
+4. Type "show my tasks" to see task list
+5. Check `/console` for live system stats
+6. Deploy to Lenovo brain for 24/7 access
+7. Access from phone over Tailscale
 
 ## Support
 
@@ -363,4 +363,4 @@ Project-SUNNY/
 - Architecture: `sunny-vault/docs/architecture/`
 - GitHub: https://github.com/T3R4Bit/Project-SUNNY
 
-Happy coding! 🌞
+Happy coding!

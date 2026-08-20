@@ -121,7 +121,7 @@ def create_google_auth_router() -> APIRouter:
             logger.warning(f"Google sign-in cancelled/denied: {error}")
             return HTMLResponse(
                 _page(
-                    "<div class='badge err'>✕</div>"
+                    "<div class='badge err'></div>"
                     "<h1>Sign-in didn't complete</h1>"
                     f"<p>Google reported: <span class='email'>{html.escape(error)}</span></p>"
                     "<a class='btn' href='/console'>Back to console</a>"
@@ -130,7 +130,7 @@ def create_google_auth_router() -> APIRouter:
         if not code or not state:
             return HTMLResponse(
                 _page(
-                    "<div class='badge err'>✕</div>"
+                    "<div class='badge err'></div>"
                     "<h1>Incomplete callback</h1>"
                     "<p>Google's redirect was missing the expected <code>code</code>/<code>state</code> "
                     "parameters — the link may be stale. Start sign-in again from the console.</p>"
@@ -145,7 +145,7 @@ def create_google_auth_router() -> APIRouter:
             logger.error(f"Google sign-in failed: {e}", exc_info=True)
             return HTMLResponse(
                 _page(
-                    "<div class='badge err'>✕</div>"
+                    "<div class='badge err'></div>"
                     "<h1>Sign-in failed</h1>"
                     "<p>Something went wrong exchanging the sign-in code with Google.</p>"
                     f"<div class='detail'>{html.escape(str(e))}</div><br><br>"
@@ -156,7 +156,7 @@ def create_google_auth_router() -> APIRouter:
 
         return HTMLResponse(
             _page(
-                "<div class='badge ok'>✓</div>"
+                "<div class='badge ok'></div>"
                 "<h1>Connected</h1>"
                 f"<p>Signed in as <span class='email'>{html.escape(email)}</span> — Calendar and Gmail "
                 "(read-only) are now included in briefings.</p>"

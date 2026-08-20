@@ -14,12 +14,12 @@ A separate subsystem from [[../TASK_SYSTEM.md|Tasks]] — same "no LLM, plain pa
 
 | Piece | Status |
 |-------|--------|
-| Vault storage (`sunny-vault/state/lists/`) | ✅ Built (`sunny_code/components/lists_db.py`) — markdown, not SQLite, see [[vault-storage]] |
-| Command parser | ✅ Built (`sunny_code/components/lists_parser.py`) |
-| List engine | ✅ Built (`sunny_code/components/lists_engine.py`) |
-| Routed into web chatbot + Discord bot | ✅ Built (both go through `assistant.handle_message`) |
-| Dedicated REST API | ⏳ Not built — only reachable through chat/Discord today |
-| Obsidian staging integration | ⏳ Not built |
+| Vault storage (`sunny-vault/state/lists/`) | Built (`sunny_code/components/lists_db.py`) — markdown, not SQLite, see [[vault-storage]] |
+| Command parser | Built (`sunny_code/components/lists_parser.py`) |
+| List engine | Built (`sunny_code/components/lists_engine.py`) |
+| Routed into web chatbot + Discord bot | Built (both go through `assistant.handle_message`) |
+| Dedicated REST API | Not built — only reachable through chat/Discord today |
+| Obsidian staging integration | Not built |
 
 ## How It Works
 
@@ -32,13 +32,13 @@ A separate subsystem from [[../TASK_SYSTEM.md|Tasks]] — same "no LLM, plain pa
 ## Command Syntax
 
 ```
-add <item> to my list                    → default "To-Do" list
-add <item> to my <name> list              → named list, created if new
-add <item1>, <item2>, and <item3> to my <name> list   → multiple items at once
+add <item> to my list → default "To-Do" list
+add <item> to my <name> list → named list, created if new
+add <item1>, <item2>, and <item3> to my <name> list → multiple items at once
 
-what's on my list / show my list          → default list
-what's on my <name> list                  → named list
-my lists                                  → show all lists you have
+what's on my list / show my list → default list
+what's on my <name> list → named list
+my lists → show all lists you have
 
 remove <item> from my list
 remove <item> from my <name> list
@@ -57,20 +57,20 @@ Bare patterns (no list name, e.g. "add X to my list") are checked **before** nam
 ```python
 List {
   id: str
-  name: str          # unique, case-insensitive — enforced by lookup-before-create,
+  name: str # unique, case-insensitive — enforced by lookup-before-create,
                       # not a DB constraint now that storage is markdown
-  source: str         # web | discord | api — see Device Tracking below
+  source: str # web | discord | api — see Device Tracking below
   created_at: datetime
 }
 
 ListItem {
-  id: str             # synthesized from file line position at read time, not
+  id: str # synthesized from file line position at read time, not
                        # stored — see vault-storage.md for why that's safe
   text: str
   checked: bool
-  source: None         # tracked in the old SQLite schema, dropped — nothing
+  source: None # tracked in the old SQLite schema, dropped — nothing
                         # ever read it; see vault-storage.md
-  created_at: None      # same — file order already encodes creation order
+  created_at: None # same — file order already encodes creation order
 }
 ```
 
@@ -79,16 +79,16 @@ ListItem {
 No IDs shown, same as Tasks — items and lists are referenced by name/text only.
 
 ```
-✅ Added "milk" to grocery
+Added "milk" to grocery
 ```
 ```
 grocery
-☐ milk
-☐ eggs
-☑ bread
+milk
+eggs
+bread
 ```
 ```
-✅ Removed "milk" from grocery
+Removed "milk" from grocery
 ```
 
 ## Dependencies

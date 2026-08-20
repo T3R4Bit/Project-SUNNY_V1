@@ -189,9 +189,7 @@
     "state/tasks": {
       "isPinned": false,
       "isHidden": false,
-      "customOrder": [
-        "terminal-test-task.md"
-      ],
+      "customOrder": [],
       "sortOrder": "custom"
     },
     "state/lists": {
@@ -201,10 +199,6 @@
       "sortOrder": "custom"
     },
     "state/alarms-reminders.md": {
-      "isPinned": false,
-      "isHidden": false
-    },
-    "state/tasks/terminal-test-task.md": {
       "isPinned": false,
       "isHidden": false
     },

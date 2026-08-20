@@ -12,7 +12,7 @@ Tasks and Lists live as markdown files in the Obsidian vault (`sunny-vault/state
 
 ## Status
 
-✅ Built — `sunny_code/components/tasks_db.py`, `sunny_code/components/lists_db.py`, `sunny_code/components/vault_io.py` (shared atomic-write/frontmatter helpers), `migrate_to_vault.py` (one-time migration from the old `tasks.db`/`lists.db`). Every public method on `TaskDB`/`ListDB` kept its exact name/signature/return shape from the SQLite version, so `tasks_engine.py`, `lists_engine.py`, `tasks_api.py`, `discord_bot.py`, and every interface built on top needed zero changes — only the five places that *construct* a `TaskDB`/`ListDB` (`main.py`, `chat.py`, `briefing.py`, plus two test files) needed their path argument updated from a `.db` file to a vault directory.
+Built — `sunny_code/components/tasks_db.py`, `sunny_code/components/lists_db.py`, `sunny_code/components/vault_io.py` (shared atomic-write/frontmatter helpers), `migrate_to_vault.py` (one-time migration from the old `tasks.db`/`lists.db`). Every public method on `TaskDB`/`ListDB` kept its exact name/signature/return shape from the SQLite version, so `tasks_engine.py`, `lists_engine.py`, `tasks_api.py`, `discord_bot.py`, and every interface built on top needed zero changes — only the five places that *construct* a `TaskDB`/`ListDB` (`main.py`, `chat.py`, `briefing.py`, plus two test files) needed their path argument updated from a `.db` file to a vault directory.
 
 ## Why
 

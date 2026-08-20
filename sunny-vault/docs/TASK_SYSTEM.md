@@ -8,16 +8,16 @@ Tasks are one of three sibling subsystems that share the same routing entry poin
 
 | Piece | Status |
 |-------|--------|
-| Vault storage + CRUD | ✅ Built (`sunny_code/components/tasks_db.py`) — markdown in `sunny-vault/state/tasks/`, not SQLite, see [[architecture/vault-storage]] |
-| Command parser (natural phrasing, no LLM) | ✅ Built (`sunny_code/components/tasks_parser.py`) |
-| Task engine (command execution, dashboard formatting) | ✅ Built (`sunny_code/components/tasks_engine.py`) |
-| REST API | ✅ Built (`sunny_code/components/tasks_api.py`) |
-| Console chat interface (`/console`) | ✅ Built — working fallback interface |
-| **Discord bot** | ✅ Built and connected (`sunny_code/components/discord_bot.py`) — see [[architecture/discord-bot.md]] |
-| Device/source tracking (which interface created a record) | ✅ Built (`sunny_code/components/device.py`) — see Device Tracking below |
-| Lists (groceries, packing, etc.) | ✅ Built, separate subsystem — see [[architecture/lists.md]] |
-| Alarms & Reminders | ✅ Built, separate subsystem — see [[architecture/alarms-reminders.md]] |
-| Obsidian staging integration | ⏳ Not built — nothing writes to `staging/` yet |
+| Vault storage + CRUD | Built (`sunny_code/components/tasks_db.py`) — markdown in `sunny-vault/state/tasks/`, not SQLite, see [[architecture/vault-storage]] |
+| Command parser (natural phrasing, no LLM) | Built (`sunny_code/components/tasks_parser.py`) |
+| Task engine (command execution, dashboard formatting) | Built (`sunny_code/components/tasks_engine.py`) |
+| REST API | Built (`sunny_code/components/tasks_api.py`) |
+| Console chat interface (`/console`) | Built — working fallback interface |
+| **Discord bot** | Built and connected (`sunny_code/components/discord_bot.py`) — see [[architecture/discord-bot.md]] |
+| Device/source tracking (which interface created a record) | Built (`sunny_code/components/device.py`) — see Device Tracking below |
+| Lists (groceries, packing, etc.) | Built, separate subsystem — see [[architecture/lists.md]] |
+| Alarms & Reminders | Built, separate subsystem — see [[architecture/alarms-reminders.md]] |
+| Obsidian staging integration | Not built — nothing writes to `staging/` yet |
 
 Current focus: connect the Discord bot to a real server (bot token + channel ID in `.env`) — see [[architecture/discord-bot.md]].
 
@@ -33,16 +33,16 @@ Current focus: connect the Discord bot to a real server (bot token + channel ID 
 
 ```python
 Task {
-  id: str                    # short UUID, first 8 hex chars — internal only, never
+  id: str # short UUID, first 8 hex chars — internal only, never
                               # shown in chat/Discord text; reference tasks by title instead
   title: str
-  description: str           # optional
-  tag: str                   # any non-empty string — free-form category, not an enum
-  status: str                # open | in_progress | done
-  priority: int              # 1-5 (1=low, 5=critical)
+  description: str # optional
+  tag: str # any non-empty string — free-form category, not an enum
+  status: str # open | in_progress | done
+  priority: int # 1-5 (1=low, 5=critical)
   created_at: datetime
   updated_at: datetime
-  due_date: datetime         # optional
+  due_date: datetime # optional
 }
 ```
 
@@ -69,16 +69,16 @@ This exists so future features (e.g. "show me what I created from my phone today
 ## REST API
 
 ```
-POST /api/tasks/command?cmd=...   Execute a task command directly (natural phrasing or legacy !task syntax)
-GET  /api/tasks/list              List tasks (filter by status/tag/priority query params)
-GET  /api/tasks/open              All open tasks
-GET  /api/tasks/done              All completed tasks
-GET  /api/tasks/in-progress       All in-progress tasks
-GET  /api/tasks/due-soon?days=7   Tasks due within N days
-GET  /api/tasks/high-priority?min_priority=4
-GET  /api/tasks/stats             Counts by status + open tasks by tag
-GET  /api/tasks/dashboard         Full formatted dashboard (same text the Discord embed will eventually show)
-GET  /api/tasks/{task_id}         Single task by ID
+POST /api/tasks/command?cmd=... Execute a task command directly (natural phrasing or legacy !task syntax)
+GET /api/tasks/list List tasks (filter by status/tag/priority query params)
+GET /api/tasks/open All open tasks
+GET /api/tasks/done All completed tasks
+GET /api/tasks/in-progress All in-progress tasks
+GET /api/tasks/due-soon?days=7 Tasks due within N days
+GET /api/tasks/high-priority?min_priority=4
+GET /api/tasks/stats Counts by status + open tasks by tag
+GET /api/tasks/dashboard Full formatted dashboard (same text the Discord embed will eventually show)
+GET /api/tasks/{task_id} Single task by ID
 ```
 
 ## Command Syntax
@@ -87,11 +87,11 @@ Natural phrasing is the primary, documented way to talk to the task system — n
 
 ### View Tasks
 ```
-show my tasks               # Show all open tasks, grouped by tag
+show my tasks # Show all open tasks, grouped by tag
 my tasks
 tasks
 what are my tasks
-list tasks --tag School     # Trailing filters still work: --tag, --status, --priority,
+list tasks --tag School # Trailing filters still work: --tag, --status, --priority,
                              # --due-soon, --all, --done, --open, --in-progress
 ```
 
@@ -163,7 +163,7 @@ delete make pizza
 
 If a title matches more than one task at the same step, it says so instead of guessing — and asks you to make the titles distinct rather than falling back to an ID:
 ```
-❌ You have 2 tasks titled "clean the garage" — rename one so they're not identical, then try again
+You have 2 tasks titled "clean the garage" — rename one so they're not identical, then try again
 ```
 No fuzzy matching or LLM involved — just case-insensitive string comparison against whatever's in the vault (`sunny-vault/state/tasks/`).
 
@@ -175,31 +175,31 @@ The old Discord-style syntax (`!task add "Title" --tag School`, `!tasks --tag Sc
 The bot posts a pinned message in the configured tasks channel showing the same data the `/api/tasks/dashboard` endpoint already formats today:
 
 ```
-📋 OPEN TASKS
+OPEN TASKS
 
-🎓 School (3)
+School (3)
 ┌─ [P5] Finish physics homework (due Aug 20)
 ├─ [P3] Read chapter 5
 └─ [P2] Study guide review
 
-🏍️  Motorsports (2)
+Motorsports (2)
 ┌─ [P4] Engine rebuild plan
 └─ [P1] Parts supplier research
 
-📝 General (4)
+General (4)
 ┌─ [P3] Learn Rust
 ├─ [P2] Setup Tailscale
 ├─ [P2] Morning briefing prototype
 └─ [P1] Organize notes
 
-💡 Project Ideas (1)
+Project Ideas (1)
 └─ [P2] Voice assistant improvements
 
 ━━━━━━━━━━━━━━━━━━━━━━━━
-✅ DONE (7) | ⏳ IN PROGRESS (2) | 📌 DUE THIS WEEK (3)
+DONE (7) | IN PROGRESS (2) | DUE THIS WEEK (3)
 ```
 
-Refreshes automatically every 5 minutes, plus an on-demand 🔄 reaction to update instantly — both built and working in `sunny_code/components/discord_bot.py`. See [[architecture/discord-bot.md]] for setup steps to connect it to a real server, and [[../phases.md]] "Discord Activity Log" for the broader (not yet built) multi-channel activity-log idea this is scoped out of.
+Refreshes automatically every 5 minutes, plus an on-demand reaction to update instantly — both built and working in `sunny_code/components/discord_bot.py`. See [[architecture/discord-bot.md]] for setup steps to connect it to a real server, and [[../phases.md]] "Discord Activity Log" for the broader (not yet built) multi-channel activity-log idea this is scoped out of.
 
 When it ships, the web chatbot stays available as the fallback interface for whenever the Discord bot is down or unreachable.
 
@@ -212,10 +212,10 @@ One file per task, filename slugified from the title at creation (doesn't rename
 ```yaml
 ---
 id: a1b2c3d4
-tag: School              # free-form category, any non-empty string
-status: open              # open | in_progress | done
-priority: 4                # 1-5
-due_date: 2026-08-20      # omitted from frontmatter entirely if unset
+tag: School # free-form category, any non-empty string
+status: open # open | in_progress | done
+priority: 4 # 1-5
+due_date: 2026-08-20 # omitted from frontmatter entirely if unset
 source: web
 created_at: 2026-08-19T14:30:00.482113
 updated_at: 2026-08-19T14:30:00.482113
@@ -225,7 +225,7 @@ updated_at: 2026-08-19T14:30:00.482113
 Complete problems 1-20 from chapter 5.
 ```
 
-Categories are unrestricted — the 4 shipped defaults are just defaults with dedicated icons (`TaskEngine._CATEGORY_ICONS`), anything else gets a generic 🏷️ in the dashboard. (This project previously stored tasks in SQLite with a `CHECK(tag IN (...))` constraint against a fixed 4-category list, later removed — that history no longer applies now that storage is schema-flexible markdown.)
+Categories are unrestricted — the 4 shipped defaults are just defaults with dedicated icons (`TaskEngine._CATEGORY_ICONS`), anything else gets a generic in the dashboard. (This project previously stored tasks in SQLite with a `CHECK(tag IN (...))` constraint against a fixed 4-category list, later removed — that history no longer applies now that storage is schema-flexible markdown.)
 
 ## Command Parsing (No LLM)
 
@@ -234,30 +234,30 @@ All command parsing is hardcoded regex/string matching, in `tasks_parser.py` —
 ```python
 # Natural phrasing (primary)
 NATURAL_ADD_TRIGGERS = [
-    r'^add\s+(.+?)\s+to\s+(?:my\s+)?tasks?$',   # "add X to my tasks"
-    r'^add\s+task[:\s]+(.+)$',                  # "add task X"
-    r'^(?:create|new)\s+task[:\s]+(.+)$',       # "create task X" / "new task X"
-    r'^make\s+(?:a\s+|me\s+a\s+)?task[:\s]*(.*)$',  # "make a task X" (empty title → helpful error)
-    r'^remind\s+me\s+to\s+(.+)$',               # "remind me to X"
-    r'^add\s+(.+)$',                            # bare "add X" catch-all, tried last
+    r'^add\s+(.+?)\s+to\s+(?:my\s+)?tasks?$', # "add X to my tasks"
+    r'^add\s+task[:\s]+(.+)$', # "add task X"
+    r'^(?:create|new)\s+task[:\s]+(.+)$', # "create task X" / "new task X"
+    r'^make\s+(?:a\s+|me\s+a\s+)?task[:\s]*(.*)$', # "make a task X" (empty title → helpful error)
+    r'^remind\s+me\s+to\s+(.+)$', # "remind me to X"
+    r'^add\s+(.+)$', # bare "add X" catch-all, tried last
 ]
-NATURAL_LIST_PATTERN   # "show/list/see/view (my) tasks", "my tasks", "tasks", "what are my tasks"
-NATURAL_DONE_PATTERN   # "mark <id-or-title> as done", "complete <id-or-title>", "finish <id-or-title>"
+NATURAL_LIST_PATTERN # "show/list/see/view (my) tasks", "my tasks", "tasks", "what are my tasks"
+NATURAL_DONE_PATTERN # "mark <id-or-title> as done", "complete <id-or-title>", "finish <id-or-title>"
 NATURAL_DELETE_PATTERN # "delete <id-or-title>", "remove <id-or-title> (from my tasks)"
 # TaskEngine._resolve_task_id() then strips a leading "task"/"the task" filler and
 # tries title matching if the raw identifier isn't a real ID — see "Referencing a
 # Task by Title" above.
 
 # Legacy !task syntax (still works, no longer required)
-TASK_ADD_PATTERN = r'!task\s+add\s+"([^"]+)"(.*)'       # title in quotes, flags follow
-TASK_UPDATE_PATTERN = r'!task\s+(\w+)\s+(\w+)\s+(.*)'    # id, field, value
+TASK_ADD_PATTERN = r'!task\s+add\s+"([^"]+)"(.*)' # title in quotes, flags follow
+TASK_UPDATE_PATTERN = r'!task\s+(\w+)\s+(\w+)\s+(.*)' # id, field, value
 TASK_DELETE_PATTERN = r'!task\s+(\w+)\s+delete'
 TASK_LIST_PATTERN = r'!tasks?(?:\s+(.*))?'
 
 # Shared flag patterns (either syntax can carry --tag/--priority/--due/--describe)
 TAG_PATTERN = r'--tag\s+(["\']?)([^"\'\s]+)\1'
 PRIORITY_PATTERN = r'--priority\s+([1-5])'
-DUE_PATTERN = r'--due\s+([\d\-]+)'                       # YYYY-MM-DD
+DUE_PATTERN = r'--due\s+([\d\-]+)' # YYYY-MM-DD
 DESCRIPTION_PATTERN = r'--describe\s+(["\']?)(.+?)\1(?:\s--|$)'
 
 # Parse logic: regex → extract fields → validate → execute
@@ -270,21 +270,21 @@ No IDs shown anywhere — every response references tasks by title. The ID still
 
 ### Success
 ```
-✅ Task created: Finish physics homework
+Task created: Finish physics homework
 Category: School
 Priority: 4/5
 Due: 2026-08-20
 ```
 ```
-✅ Updated "Finish physics homework" — status → done
+Updated "Finish physics homework" — status → done
 ```
 ```
-✅ Deleted "Finish physics homework"
+Deleted "Finish physics homework"
 ```
 
 ### Error
 ```
-❌ Invalid priority (must be 1-5)
+Invalid priority (must be 1-5)
 ```
 
 ## Integration Points
@@ -324,7 +324,7 @@ Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging c
 - [x] Discord bot code (`sunny_code/components/discord_bot.py`) + config fields (token/channel env vars)
 - [x] Discord dashboard builder (reuses `format_dashboard()`)
 - [x] 5-minute refresh loop
-- [x] 🔄 reaction for on-demand refresh
+- [x] reaction for on-demand refresh
 - [x] Pin dashboard message to the configured channel
 - [x] Startup summary of missing API keys, logged + posted to Discord
 - [x] Device/source tracking (`web`/`discord`/`api`) on every created task — see Device Tracking above

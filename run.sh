@@ -2,14 +2,14 @@
 # Project SUNNY — Auto-launch with venv (Bash version)
 # Usage: ./run.sh [command]
 # Examples:
-#   ./run.sh                    Start web server (default) — this is what systemd runs
-#   ./run.sh reload             Same, but with auto-reload on file changes — local dev only
-#   ./run.sh chatbot            Alias for the default server (kept for old muscle memory)
-#   ./run.sh chat               Terminal chat — full assistant, no web server needed
-#   ./run.sh cli briefing       Start briefing CLI
-#   ./run.sh cli tasks          Start tasks CLI
-#   ./run.sh test briefing      Run briefing tests
-#   ./run.sh test tasks         Run task tests
+# ./run.sh Start web server (default) — this is what systemd runs
+# ./run.sh reload Same, but with auto-reload on file changes — local dev only
+# ./run.sh chatbot Alias for the default server (kept for old muscle memory)
+# ./run.sh chat Terminal chat — full assistant, no web server needed
+# ./run.sh cli briefing Start briefing CLI
+# ./run.sh cli tasks Start tasks CLI
+# ./run.sh test briefing Run briefing tests
+# ./run.sh test tasks Run task tests
 
 set -e
 
@@ -29,9 +29,9 @@ NC='\033[0m' # No Color
 
 # Check if venv exists
 if [ ! -f "venv/bin/activate" ]; then
-    echo -e "${YELLOW}⚠️  Virtual environment not found. Creating...${NC}"
+    echo -e "${YELLOW}Virtual environment not found. Creating...${NC}"
     python3 -m venv venv
-    echo -e "${GREEN}✓ Virtual environment created${NC}"
+    echo -e "${GREEN}Virtual environment created${NC}"
 fi
 
 # Activate venv
@@ -89,8 +89,8 @@ MONTHLY_SPEND_CAP=100.0
 LOG_LEVEL=INFO
 LOG_FORMAT=json
 ENV_TEMPLATE
-    echo -e "${YELLOW}⚠️  No .env found — created one with default/placeholder values.${NC}"
-    echo -e "${YELLOW}   Fill in real API keys/secrets in .env before things go fully live.${NC}"
+    echo -e "${YELLOW}No .env found — created one with default/placeholder values.${NC}"
+    echo -e "${YELLOW} Fill in real API keys/secrets in .env before things go fully live.${NC}"
 fi
 
 # .env holds API keys/secrets — make sure only the owner can read it
@@ -104,44 +104,44 @@ pip install -q -r requirements.txt 2>/dev/null || true
 
 echo ""
 echo -e "${CYAN}"
-echo "                                                                                                    "
-echo "                                                                                                    "
-echo "                                       #          #                                                 "
-echo "                                       ##        ###       #                                        "
-echo "                                      ## #      ## #      ###                                       "
-echo "                                     ##  #    ### ##     ## ##                                      "
-echo "                                     #   #  ###   ##   ###  ##                                      "
-echo "                         #####      ##   ####      ####      #                                      "
-echo "                           ## ##    #      ##  #######      ##        ######                        "
-echo "                            ##  ##  ##  #######      ###############    ##                          "
-echo "                             #    ######                   ####       ##                            "
-echo "                             ##    ##                          ##    ##                             "
-echo "                              #####                              ## ##                              "
-echo "                               ##                                 ####                              "
-echo "              ###     ##########                                    ##   ####### ###                "
-echo "                   ##        ###########################################      ###                   "
-echo "                     ##     ########   #  #################  #  ########   ###                      "
-echo "                      ###  ### ####  #  #########  ######     ####### ######                        "
-echo "                        ######  ##  #  #########    ####  #  ######## ####                          "
-echo "              ##  ######    ##  ####  #########      ### #  ########  ##  ###                       "
-echo "                ###         ##    ###########          ###########    ##     #######                "
-echo "                   ######   ##                                        #            ###              "
-echo "                          #  ##             ##         ##            ##    #######                  "
-echo "                           #####               ######               ###  #                          "
-echo "                          ##   ##                                  ## ##                            "
-echo "                       ####     ###                              ###   #                            "
-echo "                     ###         ####                          ###     ##                           "
-echo "                            ##### ######                    #####       #                           "
-echo "                                 ##     #####          #####   ## ###### #                          "
-echo "                                ##        ##############       #                                    "
-echo "                               ##  #######   ##      # ###     #                                    "
-echo "                               ####          ##     ##   ####  #                                    "
-echo "                               ##             ##   ##        ###                                    "
-echo "                                               ## #                                                 "
-echo "                                                ##                                                  "
-echo "                                                 #                                                  "
-echo "                                                                                                    "
-echo -e "${GREEN}                          PROJECT SUNNY — Launching${NC}"
+echo " "
+echo " "
+echo " # # "
+echo " ## ### # "
+echo " ## # ## # ### "
+echo " ## # ### ## ## ## "
+echo " # # ### ## ### ## "
+echo " ##### ## #### #### # "
+echo " ## ## # ## ####### ## ###### "
+echo " ## ## ## ####### ############### ## "
+echo " # ###### #### ## "
+echo " ## ## ## ## "
+echo " ##### ## ## "
+echo " ## #### "
+echo " ### ########## ## ####### ### "
+echo " ## ########################################### ### "
+echo " ## ######## # ################# # ######## ### "
+echo " ### ### #### # ######### ###### ####### ###### "
+echo " ###### ## # ######### #### # ######## #### "
+echo " ## ###### ## #### ######### ### # ######## ## ### "
+echo " ### ## ########### ########### ## ####### "
+echo " ###### ## # ### "
+echo " # ## ## ## ## ####### "
+echo " ##### ###### ### # "
+echo " ## ## ## ## "
+echo " #### ### ### # "
+echo " ### #### ### ## "
+echo " ##### ###### ##### # "
+echo " ## ##### ##### ## ###### # "
+echo " ## ############## # "
+echo " ## ####### ## # ### # "
+echo " #### ## ## #### # "
+echo " ## ## ## ### "
+echo " ## # "
+echo " ## "
+echo " # "
+echo " "
+echo -e "${GREEN} PROJECT SUNNY — Launching${NC}"
 echo -e "${CYAN}"
 echo ""
 
@@ -232,14 +232,14 @@ case "$COMMAND" in
         echo -e "${RED}Unknown command: $COMMAND${NC}"
         echo ""
         echo -e "${YELLOW}Available commands:${NC}"
-        echo -e "  ${CYAN}./run.sh${NC}                Start web server (default) — this is what systemd runs"
-        echo -e "  ${CYAN}./run.sh reload${NC}          Same, with auto-reload on file changes — local dev only"
-        echo -e "  ${CYAN}./run.sh chat${NC}            Terminal chat — full assistant, no web server needed"
-        echo -e "  ${CYAN}./run.sh cli briefing${NC}    Start briefing CLI"
-        echo -e "  ${CYAN}./run.sh cli tasks${NC}       Start task management CLI"
-        echo -e "  ${CYAN}./run.sh test briefing${NC}   Test briefing system"
-        echo -e "  ${CYAN}./run.sh test tasks${NC}      Test task system"
-        echo -e "  ${CYAN}./run.sh test all${NC}        Run all tests"
-        echo -e "  ${CYAN}./run.sh dev${NC}             Open dev shell with venv active"
+        echo -e " ${CYAN}./run.sh${NC} Start web server (default) — this is what systemd runs"
+        echo -e " ${CYAN}./run.sh reload${NC} Same, with auto-reload on file changes — local dev only"
+        echo -e " ${CYAN}./run.sh chat${NC} Terminal chat — full assistant, no web server needed"
+        echo -e " ${CYAN}./run.sh cli briefing${NC} Start briefing CLI"
+        echo -e " ${CYAN}./run.sh cli tasks${NC} Start task management CLI"
+        echo -e " ${CYAN}./run.sh test briefing${NC} Test briefing system"
+        echo -e " ${CYAN}./run.sh test tasks${NC} Test task system"
+        echo -e " ${CYAN}./run.sh test all${NC} Run all tests"
+        echo -e " ${CYAN}./run.sh dev${NC} Open dev shell with venv active"
         ;;
 esac

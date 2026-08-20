@@ -25,12 +25,13 @@ _FIELD_ORDER = ["id", "type", "status", "updated_at"]
 
 
 def _format_item(item: dict) -> str:
-    icon = "⏰" if item["kind"] == "alarm" else "🔔"
+    """One line for the vault mirror — no kind label needed, items are
+    already grouped under separate "## Alarms"/"## Reminders" headers."""
     try:
         when = datetime.fromisoformat(item["trigger_at"]).strftime("%a %b %d, %I:%M %p").replace(" 0", " ")
     except (ValueError, TypeError):
         when = item["trigger_at"]
-    line = f"- {icon} {when} — {item['label']}"
+    line = f"- {when} — {item['label']}"
     if item.get("recurrence"):
         line += f" ({item['recurrence']})"
     return line

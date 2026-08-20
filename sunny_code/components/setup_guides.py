@@ -46,8 +46,8 @@ _ALIASES = {
 
 def _claude_guide() -> str:
     settings = get_settings()
-    status = "✅ Connected" if looks_configured(settings.claude_api_key) else "⚠️  Not connected"
-    return f"""🧠 CLAUDE (LLM) SETUP
+    status = "Connected" if looks_configured(settings.claude_api_key) else "Not connected"
+    return f"""CLAUDE (LLM) SETUP
 Status: {status}
 
 No feature calls this yet — it's the safety-rail infrastructure only (spend
@@ -56,7 +56,7 @@ See sunny-vault/docs/architecture/llm-readiness.md for what's built and
 what's still gated on this.
 
 1. Go to console.anthropic.com and create an account/API key.
-2. Add to .env:  CLAUDE_API_KEY=<your key>  — then restart Sunny.
+2. Add to .env: CLAUDE_API_KEY=<your key> — then restart Sunny.
 3. Optional — adjust spend caps in .env (defaults: $20/day, $100/month):
    DAILY_SPEND_CAP=20.0
    MONTHLY_SPEND_CAP=100.0
@@ -66,9 +66,9 @@ Spend so far today/this month: GET /api/dashboard/spend/today and
 
 
 def _weather_guide() -> str:
-    status = "✅ Connected" if is_configured("weather") else "⚠️  Not connected"
+    status = "Connected" if is_configured("weather") else "Not connected"
     location = location_store.get_location()
-    return f"""🌤️  WEATHER SETUP (OpenWeatherMap)
+    return f"""WEATHER SETUP (OpenWeatherMap)
 Status: {status}
 Location: {location or "not set"}
 
@@ -76,7 +76,7 @@ Needs two things — a key alone can't tell OpenWeatherMap where you are:
 
 1. Go to openweathermap.org/api and create a free account.
 2. Under "My API keys", copy your default key (or generate a new one).
-3. Add to .env:  OPENWEATHERMAP_API_KEY=<your key>  — then restart Sunny.
+3. Add to .env: OPENWEATHERMAP_API_KEY=<your key> — then restart Sunny.
 4. Set your location on /console (LOCATION card) — saves instantly, no
    restart needed, and can be changed anytime. Format: City,State,Country
    (e.g. Detroit,MI,US). See sunny-vault/docs/architecture/location.md."""
@@ -84,13 +84,13 @@ Needs two things — a key alone can't tell OpenWeatherMap where you are:
 
 def _google_guide() -> str:
     if not google_auth.is_client_configured():
-        status = "⚠️  Not set up (no OAuth client yet)"
+        status = "Not set up (no OAuth client yet)"
     elif not google_auth.is_connected():
-        status = "⚠️  Client configured, but not signed in yet"
+        status = "Client configured, but not signed in yet"
     else:
-        status = f"✅ Connected as {google_auth.connected_email()}"
+        status = f"Connected as {google_auth.connected_email()}"
 
-    return f"""📅📧 GOOGLE SIGN-IN SETUP (Calendar + Gmail)
+    return f"""GOOGLE SIGN-IN SETUP (Calendar + Gmail)
 Status: {status}
 
 1. console.cloud.google.com → create/select a project.
@@ -113,11 +113,11 @@ or Maps/traffic. Full details: sunny-vault/docs/architecture/google-integration.
 def _discord_guide() -> str:
     settings = get_settings()
     if looks_configured(settings.discord_bot_token) and settings.discord_chat_channel_id:
-        status = "✅ Connected"
+        status = "Connected"
     else:
-        status = "⚠️  Not connected"
+        status = "Not connected"
 
-    return f"""🤖 DISCORD BOT SETUP
+    return f"""DISCORD BOT SETUP
 Status: {status}
 
 1. discord.com/developers/applications → New Application.
@@ -144,9 +144,9 @@ channel.
 Full details: sunny-vault/docs/architecture/discord-bot.md"""
 
 
-def _not_built_guide(label: str, emoji: str) -> str:
-    return f"""{emoji} {label.upper()} SETUP
-Status: ⚠️  Not built yet — no integration exists to connect
+def _not_built_guide(label: str) -> str:
+    return f"""{label.upper()} SETUP
+Status: Not built yet — no integration exists to connect
 
 There's no API wired up for this yet, so there's nothing to configure. Every
 time you ask about it, it gets logged to sunny-vault/log/requests.md — real
@@ -154,8 +154,8 @@ usage is what decides what gets built next."""
 
 
 def _tasks_guide() -> str:
-    return """✅ TASKS
-Status: ✅ Always connected — stored directly in the vault (sunny-vault/state/tasks/), no API or setup needed."""
+    return """TASKS
+Status: Always connected — stored directly in the vault (sunny-vault/state/tasks/), no API or setup needed."""
 
 
 _GUIDES = {
@@ -163,10 +163,10 @@ _GUIDES = {
     "weather": _weather_guide,
     "google": _google_guide,
     "discord": _discord_guide,
-    "commute": lambda: _not_built_guide("commute/traffic", "🚗"),
-    "health": lambda: _not_built_guide("health/wellness", "❤️"),
-    "news": lambda: _not_built_guide("news", "📰"),
-    "motorsports": lambda: _not_built_guide("motorsports", "🏁"),
+    "commute": lambda: _not_built_guide("commute/traffic"),
+    "health": lambda: _not_built_guide("health/wellness"),
+    "news": lambda: _not_built_guide("news"),
+    "motorsports": lambda: _not_built_guide("motorsports"),
     "tasks": _tasks_guide,
 }
 
@@ -187,22 +187,22 @@ _OVERVIEW_LABELS = {
 def _overview_status(key: str) -> str:
     if key == "google":
         if not google_auth.is_client_configured():
-            return "⚠️  not set up"
-        return "✅ connected" if google_auth.is_connected() else "⚠️  needs sign-in"
+            return "not set up"
+        return "connected" if google_auth.is_connected() else "needs sign-in"
     if key == "discord":
         settings = get_settings()
-        return "✅ connected" if (looks_configured(settings.discord_bot_token) and settings.discord_chat_channel_id) else "⚠️  not connected"
+        return "connected" if (looks_configured(settings.discord_bot_token) and settings.discord_chat_channel_id) else "not connected"
     if key in ("commute", "health", "news", "motorsports"):
-        return "⚠️  not built yet"
+        return "not built yet"
     if key == "claude":
         settings = get_settings()
-        return "✅ connected" if looks_configured(settings.claude_api_key) else "⚠️  not connected"
+        return "connected" if looks_configured(settings.claude_api_key) else "not connected"
     source = "weather" if key == "weather" else key
-    return "✅ connected" if is_configured(source) else "⚠️  not connected"
+    return "connected" if is_configured(source) else "not connected"
 
 
 def overview() -> str:
-    lines = ["🔧 SETUP STATUS — type \"setup <name>\" for step-by-step instructions\n"]
+    lines = ["SETUP STATUS — type \"setup <name>\" for step-by-step instructions\n"]
     for key in _OVERVIEW_ORDER:
         lines.append(f"  {_OVERVIEW_LABELS[key]:<28} {_overview_status(key)}")
     lines.append('\nExample: "setup weather" or "setup calendar"')

@@ -12,7 +12,7 @@ The intended **primary** interface for Tasks (see [[../TASK_SYSTEM.md]]), [[list
 
 ## Status
 
-✅ Built and connected — `sunny_code/components/discord_bot.py`, `sunny_code/components/server_admin_parser.py`. Live on a real server as of 2026-08-20.
+Built and connected — `sunny_code/components/discord_bot.py`, `sunny_code/components/server_admin_parser.py`. Live on a real server as of 2026-08-20.
 
 ## How It Works
 
@@ -129,15 +129,14 @@ Adding any of these three channel vars now would be dead configuration with noth
 ## Pinned Dashboard
 
 - On startup, the bot looks for a message it previously pinned (marked with a trailing zero-width space so it can recognize its own message across restarts). If found, it starts editing that one; if not, it posts a new one and pins it.
-- Refreshes automatically every 5 minutes (`discord.ext.tasks.loop(minutes=5)`).
-- React with 🔄 on the pinned dashboard message for an instant refresh — the bot clears the reaction afterward so it's ready to use again.
+- Refreshes automatically every 5 minutes (`discord.ext.tasks.loop(minutes=5)`) and instantly on every task change, from any interface.
 - Content is exactly `TaskEngine.format_dashboard()` — the same formatter the `/api/tasks/dashboard` endpoint already uses.
 - Lists don't get a pinned dashboard today — only Tasks does.
 
 ## Scheduled Items (Alarms/Reminders) — Due Check
 
 - Separate loop, `scheduled_check_loop`, runs every 30 seconds (`discord.ext.tasks.loop(seconds=30)`) — independent of the 5-minute task dashboard refresh.
-- Queries `scheduled_engine.db.get_due_items(now)`. For each due item, posts `⏰ Alarm: <label>` or `🔔 Reminder: <label>` to the **chat channel** (not the dashboard channel — these are conversational pings you might reply to, e.g. "cancel my 7am alarm"), then either reschedules it (recurring items, via `next_occurrence()`) or deactivates it (one-off items).
+- Queries `scheduled_engine.db.get_due_items(now)`. For each due item, posts `Alarm: <label>` or `Reminder: <label>` to the **chat channel** (not the dashboard channel — these are conversational pings you might reply to, e.g. "cancel my 7am alarm"), then either reschedules it (recurring items, via `next_occurrence()`) or deactivates it (one-off items).
 - This is currently the **only real "sounding" mechanism** for alarms/reminders — see [[alarms-reminders.md]] for why, and for what happens when the bot isn't connected (items still get created and stored, they just never announce themselves).
 
 ## Setup
@@ -153,7 +152,7 @@ Adding any of these three channel vars now would be dead configuration with noth
 ### 2. Invite the bot to your server
 
 1. Under **OAuth2 → URL Generator**, check the `bot` scope.
-2. Under Bot Permissions, check: **View Channel**, **Send Messages**, **Read Message History**, **Manage Messages** (needed to pin the dashboard and clear the 🔄 reaction after use), **Add Reactions** (optional, only if you want the bot to react to things later), **Manage Channels** and **Manage Roles** (needed for the server-admin commands below — skip these two if you only want Tasks/Lists/Alarms and don't want the bot able to create/delete channels or roles).
+2. Under Bot Permissions, check: **View Channel**, **Send Messages**, **Read Message History**, **Manage Messages** (needed to pin the dashboard), **Manage Channels** and **Manage Roles** (needed for the server-admin commands below — skip these two if you only want Tasks/Lists/Alarms and don't want the bot able to create/delete channels or roles).
 3. Open the generated URL, pick your server, authorize.
 
 If the bot's already in your server without Manage Channels/Manage Roles and you want to add them later, re-run the same invite URL with those boxes checked and re-authorize — Discord updates the existing bot's permissions in place, no need to kick and re-invite.
@@ -202,7 +201,7 @@ Restart Sunny (`./run.sh`). Log line to confirm it connected: `Discord bot conne
 - [x] Chat channel and dashboard channel split into separate, independently-configurable channels — dashboard falls back to chat if unset
 - [x] Pinned dashboard, survives restarts (recognizes its own prior pin)
 - [x] 5-minute auto-refresh
-- [x] 🔄 reaction for on-demand refresh
+- [x] ~~Reaction for on-demand refresh~~ — removed when emoji were stripped project-wide (2026-08-20): Discord reactions are inherently emoji, there's no non-emoji way to keep this specific interaction. Auto-refresh (5-min + on every change) still covers it.
 - [x] Long-message chunking
 - [x] Graceful no-op when not configured (web chatbot unaffected)
 - [x] Lists and Alarms/Reminders routed through the same bot (no separate bot/channel needed)

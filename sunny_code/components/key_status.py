@@ -44,17 +44,17 @@ def startup_summary() -> str:
     lines = []
 
     if missing:
-        lines.append("⚠️  Still needs an API key (set in .env at the project root):")
+        lines.append("Still needs an API key (set in .env at the project root):")
         for label, env_var in missing:
-            lines.append(f"  • {label} — {env_var}")
+            lines.append(f" • {label} — {env_var}")
         lines.append('Nothing breaks without these — affected features just say')
         lines.append('"not connected" instead of faking an answer.')
     else:
-        lines.append("✅ All tracked API keys are configured.")
+        lines.append("All tracked API keys are configured.")
 
     if google_auth.is_client_configured() and not google_auth.is_connected():
         lines.append(
-            "⚠️  Google OAuth client is configured but no account is signed in yet — "
+            "Google OAuth client is configured but no account is signed in yet — "
             "visit /console and click \"Connect Google Account\"."
         )
 

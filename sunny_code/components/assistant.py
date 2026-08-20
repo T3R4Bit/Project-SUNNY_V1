@@ -25,19 +25,19 @@ from sunny_code.components.scheduled_parser import ScheduledCommandParser
 from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.tasks_parser import TaskCommandParser
 
-HELP_TEXT = """🌞 Here's what I can do — no LLM, plain pattern matching:
+HELP_TEXT = """Here's what I can do — no LLM, plain pattern matching:
 
 TASKS (real data, stored in the vault)
-  add <title> to my tasks       — create a task
-  show my tasks                 — list open tasks
-  mark <id-or-title> as done    — complete a task
-  delete <id-or-title>          — remove a task
+  add <title> to my tasks — create a task
+  show my tasks — list open tasks
+  mark <id-or-title> as done — complete a task
+  delete <id-or-title> — remove a task
 
 LISTS (groceries, packing, anything checkable)
-  add <item> to my <name> list  — creates the list if it's new
-  what's on my <name> list      — show items
+  add <item> to my <name> list — creates the list if it's new
+  what's on my <name> list — show items
   remove <item> from my <name> list
-  my lists                      — show all your lists
+  my lists — show all your lists
 
 ALARMS & REMINDERS
   set an alarm for 7am / wake me up at 6:30am tomorrow
@@ -49,10 +49,10 @@ ALARMS & REMINDERS
   when they're due.
 
 BRIEFINGS
-  morning / evening             — full briefing
+  morning / evening — full briefing
 
 SERVER ADMIN (Discord only — needs a live server to act on)
-  create/delete channel <name>       — text channels
+  create/delete channel <name> — text channels
   create/delete role <name>
   give <@user> the <role> role / remove <@user> from the <role> role
   list channels / list roles
@@ -65,7 +65,7 @@ QUESTIONS
   one of those gets logged to sunny-vault/log/requests.md.
 
 SETUP
-  setup                          — what's connected, what still needs setup
+  setup — what's connected, what still needs setup
   setup weather / calendar / email / discord
                                   — step-by-step to connect that one
 

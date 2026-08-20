@@ -23,13 +23,13 @@ from sunny_code.components import google_calendar, google_gmail, weather
 logger = logging.getLogger(__name__)
 
 _TOPIC_LABELS = {
-    "weather": "🌤️  WEATHER FORECAST",
-    "calendar": "📅 YOUR SCHEDULE",
-    "email": "📧 EMAIL SUMMARY",
-    "commute": "🚗 COMMUTE INFORMATION",
-    "health": "❤️  WELLNESS STATUS",
-    "motorsports": "🏁 MOTORSPORTS UPDATE",
-    "news": "📰 TODAY'S HEADLINES",
+    "weather": "WEATHER FORECAST",
+    "calendar": "YOUR SCHEDULE",
+    "email": "EMAIL SUMMARY",
+    "commute": "COMMUTE INFORMATION",
+    "health": "WELLNESS STATUS",
+    "motorsports": "MOTORSPORTS UPDATE",
+    "news": "TODAY'S HEADLINES",
 }
 
 
@@ -55,7 +55,7 @@ class BriefingTemplates:
             if location:
                 line += f", {location}"
             if priority and priority != "low":
-                line += f" [⚠️ {priority.upper()}]"
+                line += f" [{priority.upper()}]"
             lines.append(line)
         return "\n".join(lines)
 
@@ -64,7 +64,7 @@ class BriefingTemplates:
         """'Not connected' note for a source, or None if it's real."""
         if is_configured(source):
             return None
-        return f"⚠️  Not connected — {missing_requirement(source)}"
+        return f"Not connected — {missing_requirement(source)}"
 
     @staticmethod
     def _calendar_text(day_offset: int = 0, unconfigured: Optional[List[str]] = None) -> str:
@@ -75,7 +75,7 @@ class BriefingTemplates:
             return BriefingTemplates._note("calendar")
         events = google_calendar.get_events(day_offset)
         if events is None:
-            return "⚠️  Google Calendar temporarily unavailable — check logs"
+            return "Google Calendar temporarily unavailable — check logs"
         if not events:
             return "No events scheduled"
         return BriefingTemplates.format_time_list(events)
@@ -89,11 +89,11 @@ class BriefingTemplates:
             return BriefingTemplates._note("email")
         summary = google_gmail.get_summary()
         if summary is None:
-            return "⚠️  Gmail temporarily unavailable — check logs"
+            return "Gmail temporarily unavailable — check logs"
         lines = [f"{summary['unread_count']} unread ({summary['urgent_count']} marked important)"]
         for s in summary["top_subjects"][:3]:
-            lines.append(f"      • {s['subject'] or '(no subject)'} — {s['from']}")
-        return "\n   ".join(lines)
+            lines.append(f" • {s['subject'] or '(no subject)'} — {s['from']}")
+        return "\n ".join(lines)
 
     @staticmethod
     def _weather_text(tomorrow: bool = False, unconfigured: Optional[List[str]] = None) -> str:
@@ -104,7 +104,7 @@ class BriefingTemplates:
             return BriefingTemplates._note("weather")
         data = weather.get_tomorrow() if tomorrow else weather.get_current()
         if data is None:
-            return "⚠️  Weather temporarily unavailable — check logs"
+            return "Weather temporarily unavailable — check logs"
         line = f"{data['temp']}°F, {data['condition']}"
         if data.get("rain_chance") is not None:
             line += f", {data['rain_chance']}% chance of rain"
@@ -143,35 +143,35 @@ class BriefingTemplates:
 
 Good morning, Keaton! Here's your day at a glance.
 
-📅 TODAY: {date_str}
+TODAY: {date_str}
 
-🌤️  WEATHER
+WEATHER
    {weather_note}
 
-📍 COMMUTE
+COMMUTE
    {commute_note}
 
-📅 TODAY'S SCHEDULE
+TODAY'S SCHEDULE
    {calendar_note}
 
-📧 EMAIL
+EMAIL
    {email_note}
 
-✅ TASKS ({task_count} total)
+TASKS ({task_count} total)
    {task_str}
    Top priority: {top['title'] if top else 'None'}
 
-❤️  WELLNESS
+WELLNESS
    {health_note}
 
-📰 HEADLINES
+HEADLINES
    {news_note}
 
-🎯 YOUR DAY AHEAD
+YOUR DAY AHEAD
    1. Focus on: {top['title'] if top else 'nothing on your task list right now'}
    2. {len(unconfigured)} section(s) above need a real data source connected — logged to sunny-vault/log/requests.md
 
-Have a productive day! ☀️
+Have a productive day!
 """
         if unconfigured:
             log_unfulfilled(
@@ -197,8 +197,8 @@ Have a productive day! ☀️
                 return n
             return ""
 
-        calendar_note = BriefingTemplates._calendar_text(1, unconfigured)  # tomorrow preview
-        weather_note = BriefingTemplates._weather_text(True, unconfigured)  # tomorrow's forecast
+        calendar_note = BriefingTemplates._calendar_text(1, unconfigured) # tomorrow preview
+        weather_note = BriefingTemplates._weather_text(True, unconfigured) # tomorrow's forecast
         health_note = note("health")
 
         open_tasks = tasks_db.get_open_tasks()
@@ -212,25 +212,25 @@ Have a productive day! ☀️
 
 Good evening, Keaton. Here's your day recap.
 
-📅 TODAY: {date_str}
+TODAY: {date_str}
 
-🎉 WHAT YOU ACCOMPLISHED
+WHAT YOU ACCOMPLISHED
    • {len(done_today)} tasks completed today
-{chr(10).join(f"   ✓ {t['title']}" for t in done_today[:5])}
+{chr(10).join(f" {t['title']}" for t in done_today[:5])}
 
-📋 WHAT'S STILL PENDING ({len(open_tasks)} items)
-{chr(10).join(f"   ◯ {t['title']}" for t in open_tasks[:5]) if open_tasks else "   (none)"}
+WHAT'S STILL PENDING ({len(open_tasks)} items)
+{chr(10).join(f" ◯ {t['title']}" for t in open_tasks[:5]) if open_tasks else " (none)"}
 
-⏰ TOMORROW AT A GLANCE
+TOMORROW AT A GLANCE
    {calendar_note}
 
-🌤️  TOMORROW'S WEATHER
+TOMORROW'S WEATHER
    {weather_note}
 
-❤️  TODAY'S WELLNESS
+TODAY'S WELLNESS
    {health_note}
 
-Sleep well and rest up for tomorrow! 🌙
+Sleep well and rest up for tomorrow!
 """
         if unconfigured:
             log_unfulfilled(
@@ -276,13 +276,13 @@ Sleep well and rest up for tomorrow! 🌙
             open_tasks = tasks_db.get_open_tasks()
             in_progress = tasks_db.get_in_progress_tasks()
             return f"""
-✅ YOUR TASKS
+YOUR TASKS
 
 In progress ({len(in_progress)}):
-{chr(10).join(f"  → {t['title']}" for t in in_progress) if in_progress else "  (none)"}
+{chr(10).join(f" → {t['title']}" for t in in_progress) if in_progress else " (none)"}
 
 Open ({len(open_tasks)}):
-{chr(10).join(f"  ◯ {t['title']}" + (f" (due {t['due_date']})" if t['due_date'] else "") for t in open_tasks[:5]) if open_tasks else "  (none)"}
+{chr(10).join(f" ◯ {t['title']}" + (f" (due {t['due_date']})" if t['due_date'] else "") for t in open_tasks[:5]) if open_tasks else " (none)"}
 
 Total: {len(open_tasks) + len(in_progress)} tasks
 """
@@ -306,8 +306,8 @@ Total: {len(open_tasks) + len(in_progress)} tasks
         # Tomorrow questions
         elif "tomorrow" in question_lower:
             if not is_configured("calendar"):
-                return unconfigured_reply("calendar", label="📅 TOMORROW'S PREVIEW")
-            return f"\n📅 TOMORROW'S PREVIEW\n\n{BriefingTemplates._calendar_text(1)}\n"
+                return unconfigured_reply("calendar", label="TOMORROW'S PREVIEW")
+            return f"\nTOMORROW'S PREVIEW\n\n{BriefingTemplates._calendar_text(1)}\n"
 
         # Default response — genuinely don't understand the question
         else:

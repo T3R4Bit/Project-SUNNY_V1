@@ -60,18 +60,18 @@ No manual Python environment setup required — `run.sh` creates and manages its
 In the console, type:
 
 ```
-help                             → What Sunny can do
-setup                            → What's connected, what needs setup
-morning                          → Morning briefing
-show my tasks                    → List tasks
-add Title to my tasks            → Create task (append --priority 5 etc. if you want)
-mark Title as done               → Complete a task (by ID or title)
-add milk to my grocery list      → Add to a list (creates it if it's new)
-what's on my grocery list        → Show a list
-set an alarm for 7am             → Create an alarm
-remind me to call Mom at 5pm     → Create a reminder
-What's the weather?              → Ask a question
-Tell me about tomorrow           → Tomorrow preview
+help → What Sunny can do
+setup → What's connected, what needs setup
+morning → Morning briefing
+show my tasks → List tasks
+add Title to my tasks → Create task (append --priority 5 etc. if you want)
+mark Title as done → Complete a task (by ID or title)
+add milk to my grocery list → Add to a list (creates it if it's new)
+what's on my grocery list → Show a list
+set an alarm for 7am → Create an alarm
+remind me to call Mom at 5pm → Create a reminder
+What's the weather? → Ask a question
+Tell me about tomorrow → Tomorrow preview
 ```
 
 ---
@@ -127,12 +127,12 @@ exit
 
 ## Next Steps
 
-1. ✓ Run `./run.sh`
-2. ✓ Open `http://127.0.0.1:5000` in browser (redirects to `/console`)
-3. ✓ Type "morning" to see morning briefing
-4. ✓ Type "show my tasks" to see task list
-5. ✓ Check the sidebar for live system stats and Google sign-in status
-6. ✓ Access from phone over Tailscale
+1. Run `./run.sh`
+2. Open `http://127.0.0.1:5000` in browser (redirects to `/console`)
+3. Type "morning" to see morning briefing
+4. Type "show my tasks" to see task list
+5. Check the sidebar for live system stats and Google sign-in status
+6. Access from phone over Tailscale
 
 ---
 
@@ -148,4 +148,4 @@ exit
 
 ---
 
-Enjoy! 🌞
+Enjoy!

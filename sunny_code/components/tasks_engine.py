@@ -34,7 +34,7 @@ class TaskEngine:
             if not success:
                 error = data.get("error", "Invalid command")
                 log_unfulfilled("task_command", f'"{command}" — {error}')
-                return False, f"❌ {error}"
+                return False, f"{error}"
 
             if cmd_type == "add":
                 result = await self._execute_add(data, source=source)
@@ -45,7 +45,7 @@ class TaskEngine:
             elif cmd_type == "list":
                 result = await self._execute_list(data)
             else:
-                result = (False, "❌ Unknown command type")
+                result = (False, "Unknown command type")
 
             success, message = result
             if not success:
@@ -60,7 +60,7 @@ class TaskEngine:
         except Exception as e:
             logger.error(f"Command execution error: {e}")
             log_unfulfilled("task_command", f'"{command}" — {e}')
-            return False, f"❌ Error: {str(e)}"
+            return False, f"Error: {str(e)}"
 
     def _match_by_title(self, identifier: str) -> Optional[Tuple[Optional[str], Optional[str]]]:
         """Try to resolve an identifier against task titles. Returns (task_id, None) on
@@ -119,7 +119,7 @@ class TaskEngine:
                 source=source,
             )
 
-            message = f"""✅ Task created: {data['title']}
+            message = f"""Task created: {data['title']}
 Category: {data.get('tag', 'General')}
 Priority: {data.get('priority', 3)}/5"""
 
@@ -129,14 +129,14 @@ Priority: {data.get('priority', 3)}/5"""
             return True, message
 
         except ValueError as e:
-            return False, f"❌ {str(e)}"
+            return False, f"{str(e)}"
 
     async def _execute_update(self, data: Dict) -> Tuple[bool, str]:
         """Update a task field."""
         try:
             task_id, error = self._resolve_task_id(data["task_id"])
             if error:
-                return False, f"❌ {error}"
+                return False, f"{error}"
 
             field = data["field"]
             value = data["value"]
@@ -156,48 +156,48 @@ Priority: {data.get('priority', 3)}/5"""
             success = self.db.update_task(task_id, **{db_field: value})
 
             if not success:
-                return False, "❌ Task not found"
+                return False, "Task not found"
 
             task = self.db.get_task(task_id)
             title = task["title"] if task else value
             field_label = "category" if field == "tag" else field
-            return True, f'✅ Updated "{title}" — {field_label} → {value}'
+            return True, f'Updated "{title}" — {field_label} → {value}'
 
         except ValueError as e:
-            return False, f"❌ {str(e)}"
+            return False, f"{str(e)}"
 
     async def _execute_delete(self, data: Dict) -> Tuple[bool, str]:
         """Delete a task."""
         task_id, error = self._resolve_task_id(data["task_id"])
         if error:
-            return False, f"❌ {error}"
+            return False, f"{error}"
 
         task = self.db.get_task(task_id)
         if not task:
-            return False, "❌ Task not found"
+            return False, "Task not found"
 
         self.db.delete_task(task_id)
-        return True, f'✅ Deleted "{task["title"]}"'
+        return True, f'Deleted "{task["title"]}"'
 
     async def _execute_list(self, data: Dict) -> Tuple[bool, str]:
         """List tasks with optional filtering."""
         # Determine which tasks to show
         if data.get("due_soon"):
             tasks = self.db.get_tasks_due_soon(days=7)
-            title = "📌 DUE SOON (next 7 days)"
+            title = "DUE SOON (next 7 days)"
         elif "status" in data:
             tasks = self.db.get_tasks_by_status(data["status"])
             status_names = {"open": "OPEN", "done": "DONE", "in_progress": "IN PROGRESS"}
-            title = f"📋 {status_names.get(data['status'], data['status'].upper())}"
+            title = f"{status_names.get(data['status'], data['status'].upper())}"
         elif "tag" in data:
             tasks = self.db.get_tasks_by_tag(data["tag"])
-            title = f"📋 {data['tag'].upper()}"
+            title = f"{data['tag'].upper()}"
         elif "min_priority" in data:
             tasks = self.db.get_high_priority_tasks(data["min_priority"])
-            title = f"🔴 PRIORITY {data['min_priority']}+"
+            title = f"PRIORITY {data['min_priority']}+"
         else:
             tasks = self.db.get_open_tasks()
-            title = "📋 OPEN TASKS"
+            title = "OPEN TASKS"
 
         if not tasks:
             return True, f"{title}\n(None)"
@@ -205,14 +205,13 @@ Priority: {data.get('priority', 3)}/5"""
         # Format tasks
         message = f"{title}\n"
         for task in tasks:
-            priority_indicator = "🔴" * task["priority"]
             status_icon = {
                 "open": "◯",
                 "in_progress": "→",
-                "done": "✓",
+                "done": "●",
             }.get(task["status"], "•")
 
-            line = f"{status_icon} [{priority_indicator}] {task['title']} ({task['tag']})"
+            line = f"{status_icon} [P{task['priority']}] {task['title']} ({task['tag']})"
 
             if task["due_date"]:
                 line += f" (due {task['due_date']})"
@@ -225,13 +224,14 @@ Priority: {data.get('priority', 3)}/5"""
 
         return True, message
 
-    # Known categories get a nice icon; anything else (any custom category the
-    # user makes up) falls back to a generic tag icon — no fixed category list.
-    _CATEGORY_ICONS = {"School": "🎓", "Motorsports": "🏍️ ", "General": "📝", "Project Ideas": "💡"}
+    # Known categories are listed first (stable, familiar order); anything
+    # else (any custom category the user makes up) is appended alphabetically
+    # — no fixed category list, this is just display ordering.
+    _KNOWN_CATEGORIES = ["School", "Motorsports", "General", "Project Ideas"]
 
     def format_dashboard(self) -> str:
         """Format complete task dashboard for Discord embed."""
-        dashboard = "📋 YOUR TASKS\n"
+        dashboard = "YOUR TASKS\n"
         dashboard += "━" * 50 + "\n\n"
 
         # Open tasks grouped by whatever categories actually exist right now —
@@ -241,31 +241,30 @@ Priority: {data.get('priority', 3)}/5"""
         for task in all_open:
             tags_dict.setdefault(task["tag"], []).append(task)
 
-        known_order = [t for t in self._CATEGORY_ICONS if t in tags_dict]
-        custom_order = sorted(t for t in tags_dict if t not in self._CATEGORY_ICONS)
+        known_order = [t for t in self._KNOWN_CATEGORIES if t in tags_dict]
+        custom_order = sorted(t for t in tags_dict if t not in self._KNOWN_CATEGORIES)
 
         for tag in known_order + custom_order:
             tasks = tags_dict[tag]
-            emoji = self._CATEGORY_ICONS.get(tag, "🏷️")
-            dashboard += f"{emoji} {tag} ({len(tasks)})\n"
+            dashboard += f"{tag} ({len(tasks)})\n"
 
-            for task in tasks[:3]:  # Show top 3
+            for task in tasks[:3]: # Show top 3
                 priority_bar = "▰" * task["priority"] + "▱" * (5 - task["priority"])
                 due_str = f" (due {task['due_date']})" if task["due_date"] else ""
-                dashboard += f"  [{priority_bar}] {task['title']}{due_str}\n"
+                dashboard += f" [{priority_bar}] {task['title']}{due_str}\n"
 
             if len(tasks) > 3:
-                dashboard += f"  ... and {len(tasks) - 3} more\n"
+                dashboard += f" ... and {len(tasks) - 3} more\n"
             dashboard += "\n"
 
         # Stats
         stats = self.db.get_stats()
         dashboard += "━" * 50 + "\n"
-        dashboard += f"✅ Done: {stats['done']} | ⏳ In Progress: {stats['in_progress']} | 📌 Open: {stats['open']}\n"
+        dashboard += f"Done: {stats['done']} | In Progress: {stats['in_progress']} | Open: {stats['open']}\n"
 
         # Due soon
         due_soon = self.db.get_tasks_due_soon(days=7)
         if due_soon:
-            dashboard += f"\n⚠️  {len(due_soon)} tasks due this week\n"
+            dashboard += f"\n{len(due_soon)} tasks due this week\n"
 
         return dashboard

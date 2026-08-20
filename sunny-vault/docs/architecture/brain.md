@@ -26,12 +26,12 @@ The always-on central compute for Project SUNNY. Runs Sunny core process, handle
 
 ## Critical BIOS Settings
 
-- ✅ **Restore Power State on AC Loss**: ENABLED
+- **Restore Power State on AC Loss**: ENABLED
   - Auto-boots when power is restored after outage
   - Essential for alarm reliability
-- ✅ **Boot Order**: Local disk first, no USB/PXE
-- ✅ **Sleep/Suspend**: Disabled (always-on)
-- ❌ **Unattended-upgrades auto-reboot**: Disabled (can't miss 3am reboot)
+- **Boot Order**: Local disk first, no USB/PXE
+- **Sleep/Suspend**: Disabled (always-on)
+- **Unattended-upgrades auto-reboot**: Disabled (can't miss 3am reboot)
 
 ## Systemd Configuration
 

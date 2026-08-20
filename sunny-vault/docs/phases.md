@@ -14,8 +14,8 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 0: Foundations (MOSTLY COMPLETE)
 
-**Timeline**: This week  
-**Current Status**: Ubuntu Server 26.04 LTS installed and running on the Lenovo (sunshine-m700) under a systemd unit (`Restart=always`, autostart on boot — see `SETUP_LINUX.md`). Core app — briefing engine, task system, [[architecture/lists.md|lists]], [[architecture/alarms-reminders.md|alarms/reminders]], the combined console (chat + system status, one page at `/console`), Discord bot (connected to a live server, split into a chat channel and a read-only dashboard channel — see [[architecture/discord-bot]]) — all built and working over Tailscale, now also over HTTPS (`TLS_CERTFILE`/`TLS_KEYFILE`, port 5443) for endpoints that need it, like the Google OAuth callback.  
+**Timeline**: This week
+**Current Status**: Ubuntu Server 26.04 LTS installed and running on the Lenovo (sunshine-m700) under a systemd unit (`Restart=always`, autostart on boot — see `SETUP_LINUX.md`). Core app — briefing engine, task system, [[architecture/lists.md|lists]], [[architecture/alarms-reminders.md|alarms/reminders]], the combined console (chat + system status, one page at `/console`), Discord bot (connected to a live server, split into a chat channel and a read-only dashboard channel — see [[architecture/discord-bot]]) — all built and working over Tailscale, now also over HTTPS (`TLS_CERTFILE`/`TLS_KEYFILE`, port 5443) for endpoints that need it, like the Google OAuth callback.
 **Deliverable**: Sunny process running locally, basic logging, systemd autostart
 
 ### Setup Tasks
@@ -59,11 +59,11 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ### Deliverables When Complete
 
 ```
-✅ Lenovo: 100.x.x.x (stable, always-on)
-✅ TrueNAS: 100.x.x.x (accessible from mesh)
-✅ Phone: Joins mesh, can ping devices
-✅ Firewall: No open ports exposed (all behind Tailscale)
-✅ Remote access: Works even away from home (DERP relays)
+Lenovo: 100.x.x.x (stable, always-on)
+TrueNAS: 100.x.x.x (accessible from mesh)
+Phone: Joins mesh, can ping devices
+Firewall: No open ports exposed (all behind Tailscale)
+Remote access: Works even away from home (DERP relays)
 ```
 
 **Next Step**: Phase 2 (Briefing Engine)
@@ -72,8 +72,8 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 2: Briefing Engine (TASKS + CALENDAR + EMAIL + WEATHER LIVE, REST PENDING)
 
-**Timeline**: Week 3-4  
-**Dependencies**: Phase 0-1 complete  
+**Timeline**: Week 3-4
+**Dependencies**: Phase 0-1 complete
 **Deliverable**: Working morning and evening briefings
 
 **Current status**: The engine itself is built and working — hardcoded morning and evening templates, slot-filling text generation, and a Q&A system covering weather, calendar, email, tasks, commute, health, motorsports, news, and tomorrow. Tasks are real, queried live from the vault (`sunny-vault/state/tasks/`, markdown — not a database, see [[architecture/vault-storage]]). Calendar and email are wired via Google Sign-In (OAuth) — see [[architecture/google-integration]] — client configured, HTTPS + a PKCE bug both had to be fixed before a sign-in could complete, not yet confirmed working end-to-end. Weather is code-complete via OpenWeatherMap — needs `OPENWEATHERMAP_API_KEY` **and** `WEATHER_LOCATION` in `.env` (a key alone isn't enough — see `sunny_code/components/weather.py`). Commute, health, motorsports, and news still have no real API behind them, so instead of showing mock data as if it were live, they say so explicitly (e.g. "Not connected — needs OPENWEATHERMAP_API_KEY and WEATHER_LOCATION in .env") — see [[architecture/briefing-engine.md]]. Every time that happens (or a task command fails), it's logged to [[../log/requests.md|sunny-vault/log/requests.md]], so real usage tells us which integration to build next.
@@ -107,12 +107,12 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ### Deliverables When Complete
 
 ```
-⏳ 7am: Briefing generated automatically (manual trigger works today)
-⏳ 9pm: Evening briefing generated automatically (manual trigger works today)
-⏳ All data from live APIs (tasks live today; calendar/email code-complete pending Google sign-in; weather code-complete pending OPENWEATHERMAP_API_KEY + a location set on /console; commute/health/news still say "not connected")
-⏳ Failures logged to Discord #warnings
-⏳ Obsidian staging has briefing record
-✅ Briefing templates + Q&A engine fully working end-to-end, tasks real, honest gaps elsewhere
+7am: Briefing generated automatically (manual trigger works today)
+9pm: Evening briefing generated automatically (manual trigger works today)
+All data from live APIs (tasks live today; calendar/email code-complete pending Google sign-in; weather code-complete pending OPENWEATHERMAP_API_KEY + a location set on /console; commute/health/news still say "not connected")
+Failures logged to Discord #warnings
+Obsidian staging has briefing record
+Briefing templates + Q&A engine fully working end-to-end, tasks real, honest gaps elsewhere
 ```
 
 **Next Step**: Phase 3 (Voice Hardware & TTS)
@@ -121,8 +121,8 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 3: Voice Out / Clock Hardware
 
-**Timeline**: Week 5-6  
-**Dependencies**: Phase 0-2 complete (briefing ready to output)  
+**Timeline**: Week 5-6
+**Dependencies**: Phase 0-2 complete (briefing ready to output)
 **Deliverable**: Working bedside clock with voice output, battery backup, alarm
 
 ### Hardware Assembly Tasks
@@ -159,12 +159,12 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ### Deliverables When Complete
 
 ```
-✅ Clock device: Physical hardware working
-✅ On mains: Time displayed, charging
-✅ On battery: Continues for 12+ hours
-✅ Alarm: Fires on schedule, survives power cut
-✅ Voice output: Sonic API TTS + Piper fallback
-✅ Tailscale: Clock accessible from Lenovo via mesh
+Clock device: Physical hardware working
+On mains: Time displayed, charging
+On battery: Continues for 12+ hours
+Alarm: Fires on schedule, survives power cut
+Voice output: Sonic API TTS + Piper fallback
+Tailscale: Clock accessible from Lenovo via mesh
 ```
 
 **Next Step**: Phase 4 (Voice In / Wake Word)
@@ -173,8 +173,8 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 4: Voice In / Wake Word Detection
 
-**Timeline**: Week 7-8  
-**Dependencies**: Phase 3 complete (Clock hardware ready)  
+**Timeline**: Week 7-8
+**Dependencies**: Phase 3 complete (Clock hardware ready)
 **Deliverable**: Wake word detection, STT, intent routing
 
 ### Wake Word & STT Tasks
@@ -210,11 +210,11 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ### Deliverables When Complete
 
 ```
-✅ Wake word detection: Local, low false-positive rate
-✅ STT: Captures user speech accurately
-✅ Intent routing: Hardcoded patterns + LLM for ambiguous
-✅ Response: TTS back to user
-✅ Latency: <5s from wake word to response
+Wake word detection: Local, low false-positive rate
+STT: Captures user speech accurately
+Intent routing: Hardcoded patterns + LLM for ambiguous
+Response: TTS back to user
+Latency: <5s from wake word to response
 ```
 
 **Next Step**: Phase 5 (Phone Integration)
@@ -223,8 +223,8 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 5: Telephony / Phone Calls
 
-**Timeline**: Week 8-9  
-**Dependencies**: Phase 4 complete (voice I/O working)  
+**Timeline**: Week 8-9
+**Dependencies**: Phase 4 complete (voice I/O working)
 **Deliverable**: Callable voice interface, live conversation, remote tasking
 
 ### Twilio Setup Tasks
@@ -252,12 +252,12 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ### Deliverables When Complete
 
 ```
-✅ Twilio number: Active, receives calls
-✅ Authentication: Caller ID + PIN
-✅ Live conversation: STT → LLM → TTS (real-time)
-✅ Task creation: From phone commands
-✅ Confirmation: Important actions require user okay
-✅ Cost: <$1/month expected
+Twilio number: Active, receives calls
+Authentication: Caller ID + PIN
+Live conversation: STT → LLM → TTS (real-time)
+Task creation: From phone commands
+Confirmation: Important actions require user okay
+Cost: <$1/month expected
 ```
 
 **Next Step**: Phase 6 (Optional) + Phases 7-Ongoing
@@ -266,8 +266,8 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 6: Remote Power Control (DEPRIORITIZED)
 
-**Timeline**: Later (lower priority)  
-**Dependencies**: Phase 5 complete  
+**Timeline**: Later (lower priority)
+**Dependencies**: Phase 5 complete
 **Deliverable**: Remote wake/shutdown of desktop PC
 
 ### Tasks
@@ -281,7 +281,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 7: Custom Hardware Finalization (MUCH LATER)
 
-**Timeline**: After Phase 5 proven  
+**Timeline**: After Phase 5 proven
 **Deliverable**: Move from breadboards to custom PCB
 
 ### Tasks
@@ -372,15 +372,15 @@ Full breakdown: [[architecture/llm-readiness]].
 
 | Milestone | Target | Status |
 |-----------|--------|--------|
-| Phase 0: Foundations | This week | 🔄 Mostly complete — systemd autostart remaining |
-| Phase 1: Networking | Week 2 | 🔄 Mostly complete — phone verification + ACLs remaining |
-| Phase 2: Briefing | Week 3-4 | 🔄 Templates/Q&A + Calendar/Gmail/Weather code-complete (needs sign-in/keys) — commute/health/news remaining |
-| Phase 3: Clock Hardware | Week 5-6 | ⏳ Upcoming |
-| Phase 4: Wake Word | Week 7-8 | ⏳ Upcoming |
-| Phase 5: Phone | Week 8-9 | ⏳ Upcoming |
-| **MVP**: All 0-5 complete | End Sept 2026 | 🚀 Target |
-| Phase 6: Power Control | Q4 2026 | ⏳ Optional |
-| Phase 7: Custom PCB | Q4 2026+ | ⏳ Nice-to-have |
+| Phase 0: Foundations | This week | Mostly complete — systemd autostart remaining |
+| Phase 1: Networking | Week 2 | Mostly complete — phone verification + ACLs remaining |
+| Phase 2: Briefing | Week 3-4 | Templates/Q&A + Calendar/Gmail/Weather code-complete (needs sign-in/keys) — commute/health/news remaining |
+| Phase 3: Clock Hardware | Week 5-6 | Upcoming |
+| Phase 4: Wake Word | Week 7-8 | Upcoming |
+| Phase 5: Phone | Week 8-9 | Upcoming |
+| **MVP**: All 0-5 complete | End Sept 2026 | Target |
+| Phase 6: Power Control | Q4 2026 | Optional |
+| Phase 7: Custom PCB | Q4 2026+ | Nice-to-have |
 
 ---
 
@@ -389,14 +389,14 @@ Full breakdown: [[architecture/llm-readiness]].
 ```
 Phase 0
   ├─→ Phase 1 (Networking)
-  │   ├─→ Phase 2 (Briefing)
-  │   │   ├─→ Phase 3 (Clock Hardware)
-  │   │   │   ├─→ Phase 4 (Wake Word)
-  │   │   │   │   ├─→ Phase 5 (Phone)
-  │   │   │   │   └─→ Phase 6 (Power Control)
-  │   │   │   └─→ Phase 7 (Custom PCB)
-  │   │   └─→ Ongoing (Discord, Costs, etc.)
-  │   └─→ Ongoing (Priority Queue, Circuit Breaker, etc.)
+  │ ├─→ Phase 2 (Briefing)
+  │ │ ├─→ Phase 3 (Clock Hardware)
+  │ │ │ ├─→ Phase 4 (Wake Word)
+  │ │ │ │ ├─→ Phase 5 (Phone)
+  │ │ │ │ └─→ Phase 6 (Power Control)
+  │ │ │ └─→ Phase 7 (Custom PCB)
+  │ │ └─→ Ongoing (Discord, Costs, etc.)
+  │ └─→ Ongoing (Priority Queue, Circuit Breaker, etc.)
   └─→ Ongoing (Obsidian Vault, Logging, etc.)
 ```
 

@@ -39,7 +39,7 @@ def create_console_router() -> APIRouter:
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="dark">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%80%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='40' fill='%23ffb703'/%3E%3C/svg%3E">
     <title>SUNNY</title>
     <style>
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
@@ -505,25 +505,25 @@ def create_console_router() -> APIRouter:
 <body>
     <div class="topbar">
         <div class="brand">
-            <div class="sun-badge">&#9728;&#65039;</div>
+            <div class="sun-badge"></div>
             <div class="brand-text">
                 <h1>SUNNY</h1>
                 <p><span class="status-dot"></span>Online</p>
             </div>
         </div>
-        <button class="icon-btn" id="clearBtn" title="Clear chat history" aria-label="Clear chat history">&#128465;&#65039;</button>
+        <button class="icon-btn" id="clearBtn" title="Clear chat history" aria-label="Clear chat history"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6M14 11v6"></path><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path></svg></button>
     </div>
 
     <div class="layout">
         <div class="chat-col">
             <div class="chat-card">
                 <div class="chips" id="chips">
-                    <button class="chip" data-cmd="morning" data-send="1">&#9728;&#65039; Morning</button>
-                    <button class="chip" data-cmd="evening" data-send="1">&#127769; Evening</button>
-                    <button class="chip" data-cmd="show my tasks" data-send="1">&#10003; Tasks</button>
-                    <button class="chip" data-cmd="add " data-send="0">&#65291; Add task</button>
-                    <button class="chip" data-cmd="setup" data-send="1">&#128295; Setup</button>
-                    <button class="chip" data-cmd="/help" data-send="1">&#10067; Help</button>
+                    <button class="chip" data-cmd="morning" data-send="1">Morning</button>
+                    <button class="chip" data-cmd="evening" data-send="1">Evening</button>
+                    <button class="chip" data-cmd="show my tasks" data-send="1">Tasks</button>
+                    <button class="chip" data-cmd="add " data-send="0">Add task</button>
+                    <button class="chip" data-cmd="setup" data-send="1">Setup</button>
+                    <button class="chip" data-cmd="/help" data-send="1">Help</button>
                 </div>
 
                 <div class="messages" id="messages"></div>
@@ -532,7 +532,7 @@ def create_console_router() -> APIRouter:
                     <div class="input-shell">
                         <textarea id="input" rows="1" placeholder="Ask me anything..." autocomplete="off"></textarea>
                     </div>
-                    <button class="send-btn" id="sendBtn" aria-label="Send message">&#10148;</button>
+                    <button class="send-btn" id="sendBtn" aria-label="Send message"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button>
                 </div>
             </div>
         </div>
@@ -700,7 +700,7 @@ def create_console_router() -> APIRouter:
 
             const typingMsg = document.createElement('div');
             typingMsg.className = 'message bot';
-            typingMsg.innerHTML = '<div class="avatar">&#9728;&#65039;</div><div class="bubble-wrap"><div class="bubble"><span class="typing-dots"><span></span><span></span><span></span></span></div></div>';
+            typingMsg.innerHTML = '<div class="avatar">S</div><div class="bubble-wrap"><div class="bubble"><span class="typing-dots"><span></span><span></span><span></span></span></div></div>';
             messagesDiv.appendChild(typingMsg);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
@@ -729,7 +729,7 @@ def create_console_router() -> APIRouter:
         function renderMessage(text, sender, time) {{
             const msg = document.createElement('div');
             msg.className = 'message ' + sender;
-            const avatar = sender === 'user' ? '&#128100;' : '&#9728;&#65039;';
+            const avatar = sender === 'user' ? 'U' : 'S';
             msg.innerHTML =
                 '<div class="avatar">' + avatar + '</div>' +
                 '<div class="bubble-wrap">' +
