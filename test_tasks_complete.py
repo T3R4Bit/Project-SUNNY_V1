@@ -2,6 +2,7 @@
 """Complete test suite for task management system."""
 
 import asyncio
+import shutil
 import subprocess
 import time
 import requests
@@ -20,11 +21,10 @@ async def test_task_database():
     print("=" * 70)
 
     settings = get_settings()
-    db_path = settings.project_root / "tasks_test.db"
+    db_path = settings.project_root / "tasks_test_vault"
 
-    # Clean up old test DB
-    if db_path.exists():
-        db_path.unlink()
+    # Clean up any previous test run's vault directory
+    shutil.rmtree(db_path, ignore_errors=True)
 
     db = TaskDB(db_path)
 
@@ -107,7 +107,9 @@ async def test_task_database():
     print(f"   ✓ Deleted task, {len(remaining)} remaining")
 
     print("\n✅ All database tests passed!\n")
-    # Don't delete the file on Windows due to file locking
+    # No Windows file-locking concern to work around anymore (that was a
+    # SQLite-specific quirk) — the next run's shutil.rmtree() above cleans
+    # this up, nothing needed here.
     return True
 
 
@@ -198,10 +200,9 @@ async def test_task_engine():
     print("=" * 70)
 
     settings = get_settings()
-    db_path = settings.project_root / "tasks_test2.db"
+    db_path = settings.project_root / "tasks_test2_vault"
 
-    if db_path.exists():
-        db_path.unlink()
+    shutil.rmtree(db_path, ignore_errors=True)
 
     db = TaskDB(db_path)
     engine = TaskEngine(db)

@@ -27,7 +27,7 @@ from sunny_code.components.tasks_parser import TaskCommandParser
 
 HELP_TEXT = """🌞 Here's what I can do — no LLM, plain pattern matching:
 
-TASKS (real data, backed by tasks.db)
+TASKS (real data, stored in the vault)
   add <title> to my tasks       — create a task
   show my tasks                 — list open tasks
   mark <id-or-title> as done    — complete a task

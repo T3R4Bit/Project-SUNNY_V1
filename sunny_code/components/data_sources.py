@@ -8,8 +8,8 @@ Google Sign-In is connected (sunny_code.components.google_auth) — see
 sunny-vault/docs/architecture/google-integration.md for what that does and
 doesn't cover. Commute/health/news/motorsports have no integration built yet
 (and commute/health aren't part of Google Sign-In even once other sources
-are wired up — see that doc). Tasks are always real — backed directly by
-tasks.db, no external API needed.
+are wired up — see that doc). Tasks are always real — stored directly in
+the vault, no external API needed.
 """
 
 from sunny_code.components import google_auth, location_store

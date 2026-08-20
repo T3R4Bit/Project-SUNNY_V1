@@ -1,17 +1,31 @@
-"""Task database management and CRUD operations."""
+"""Task storage — one markdown file per task in the Obsidian vault
+(sunny-vault/state/tasks/<slug>.md), not SQLite. See
+sunny-vault/docs/architecture/vault-storage.md for the migration rationale.
 
-import sqlite3
+Sunny is the sole writer — these files are meant to be browsed in Obsidian,
+not hand-edited (see that doc for what happens if you do anyway). Every
+public method here keeps the exact name/signature/return-dict-shape the old
+SQLite-backed TaskDB had, since sunny_code/components/tasks_api.py calls
+most of them directly, bypassing TaskEngine entirely.
+"""
+
+import logging
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Dict, Optional
-import logging
+from typing import Dict, List, Optional
+
+from sunny_code.components import vault_io
 
 logger = logging.getLogger(__name__)
 
+# Field order in the YAML frontmatter block — purely cosmetic (stable, readable
+# diffs) but kept consistent across every write.
+_FIELD_ORDER = ["id", "tag", "status", "priority", "due_date", "source", "created_at", "updated_at"]
+
 
 class TaskDB:
-    """SQLite database for task storage."""
+    """Vault-backed task storage."""
 
     # Categories are free-form (any non-empty string) — these are just the
     # originally-shipped defaults, not an enforced list.
@@ -19,81 +33,84 @@ class TaskDB:
     VALID_STATUSES = {"open", "in_progress", "done"}
     VALID_PRIORITIES = {1, 2, 3, 4, 5}
 
-    def __init__(self, db_path: Path):
-        self.db_path = db_path
-        self._init_db()
+    def __init__(self, tasks_dir: Path):
+        self.tasks_dir = tasks_dir
+        self.tasks_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"Task vault storage initialized: {self.tasks_dir}")
 
-    def _init_db(self):
-        """Initialize database schema."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+    # ---------- internal: file <-> dict ----------
 
-            # Tasks table
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS tasks (
-                    id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    description TEXT,
-                    tag TEXT NOT NULL,
-                    status TEXT NOT NULL CHECK(status IN ('open', 'in_progress', 'done')) DEFAULT 'open',
-                    priority INTEGER CHECK(priority BETWEEN 1 AND 5) DEFAULT 3,
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    due_date DATETIME,
-                    source TEXT
-                )
-                """
-            )
+    def _path_for_slug(self, slug: str) -> Path:
+        return self.tasks_dir / f"{slug}.md"
 
-            # Older databases have a CHECK(tag IN (...)) constraint from when
-            # categories were a fixed list. SQLite can't ALTER a CHECK away, so
-            # rebuild the table without it. Safe to run every startup — no-op
-            # once migrated, and a no-op on fresh installs (no constraint to find).
-            cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='tasks'")
-            row = cursor.fetchone()
-            if row and row[0] and "CHECK(tag IN" in row[0]:
-                logger.info("Migrating tasks table: removing fixed-category constraint")
-                cursor.execute("ALTER TABLE tasks RENAME TO tasks_old")
-                cursor.execute(
-                    """
-                    CREATE TABLE tasks (
-                        id TEXT PRIMARY KEY,
-                        title TEXT NOT NULL,
-                        description TEXT,
-                        tag TEXT NOT NULL,
-                        status TEXT NOT NULL CHECK(status IN ('open', 'in_progress', 'done')) DEFAULT 'open',
-                        priority INTEGER CHECK(priority BETWEEN 1 AND 5) DEFAULT 3,
-                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        due_date DATETIME
-                    )
-                    """
-                )
-                cursor.execute(
-                    """
-                    INSERT INTO tasks (id, title, description, tag, status, priority, created_at, updated_at, due_date)
-                    SELECT id, title, description, tag, status, priority, created_at, updated_at, due_date FROM tasks_old
-                    """
-                )
-                cursor.execute("DROP TABLE tasks_old")
+    def _unique_slug(self, title: str) -> str:
+        base = vault_io.slugify(title)
+        slug = base
+        n = 2
+        while self._path_for_slug(slug).exists():
+            slug = f"{base}-{n}"
+            n += 1
+        return slug
 
-            # Older databases predate the "source" column (which device created
-            # the task — web/discord/api). Additive, so a plain ALTER is enough.
-            cursor.execute("PRAGMA table_info(tasks)")
-            columns = {row[1] for row in cursor.fetchall()}
-            if "source" not in columns:
-                logger.info("Migrating tasks table: adding source column")
-                cursor.execute("ALTER TABLE tasks ADD COLUMN source TEXT")
+    @staticmethod
+    def _task_to_document(task: Dict) -> str:
+        metadata = {k: task.get(k) for k in _FIELD_ORDER}
+        title = task.get("title", "")
+        description = task.get("description")
+        body = f"\n# {title}\n"
+        if description:
+            body += f"\n{description}\n"
+        return vault_io.serialize_frontmatter(metadata, body, _FIELD_ORDER)
 
-            # Indexes for faster queries
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_tag ON tasks(tag)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_status ON tasks(status)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_priority ON tasks(priority)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_due_date ON tasks(due_date)")
+    @staticmethod
+    def _document_to_task(text: str) -> Optional[Dict]:
+        metadata, body = vault_io.parse_frontmatter(text)
+        if not metadata or "id" not in metadata:
+            return None
+        lines = body.strip("\n").split("\n")
+        title = lines[0].lstrip("#").strip() if lines and lines[0].startswith("#") else ""
+        description_lines = [l for l in lines[1:] if l.strip()]
+        description = "\n".join(description_lines).strip() or None
 
-            conn.commit()
-            logger.info(f"Task database initialized: {self.db_path}")
+        # Every field always present with a None default for anything
+        # omitted from frontmatter (see serialize_frontmatter — None-valued
+        # fields are dropped from what's written, for cleaner Dataview
+        # output). SQLite always returned a full row with NULL for any
+        # unset column; callers like TaskEngine.format_dashboard() use
+        # bracket access (task["due_date"]) expecting that same guarantee —
+        # a key simply missing from the dict would be a KeyError there.
+        task = {field: metadata.get(field) for field in _FIELD_ORDER}
+        task["title"] = title
+        task["description"] = description
+        return task
+
+    def _iter_tasks(self):
+        """Yield every parseable task dict in the directory. Skips (and logs)
+        any file that fails to parse rather than letting one bad file break
+        every caller that scans the whole directory — a risk SQLite's
+        single-table-read never had."""
+        for path in sorted(self.tasks_dir.glob("*.md")):
+            try:
+                text = path.read_text(encoding="utf-8")
+                task = self._document_to_task(text)
+                if task is not None:
+                    yield task
+            except (OSError, UnicodeDecodeError) as e:
+                logger.warning(f"Skipping unreadable task file {path}: {e}")
+            except Exception as e:
+                logger.warning(f"Skipping unparseable task file {path}: {e}")
+
+    def _find_path_by_id(self, task_id: str) -> Optional[Path]:
+        for path in self.tasks_dir.glob("*.md"):
+            try:
+                metadata, _ = vault_io.parse_frontmatter(path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError):
+                continue
+            if metadata.get("id") == task_id:
+                return path
+        return None
+
+    # ---------- public API (unchanged from the SQLite version) ----------
 
     def create_task(
         self,
@@ -105,7 +122,6 @@ class TaskDB:
         source: str = None,
     ) -> str:
         """Create a new task. Returns task ID."""
-        # Validate inputs
         if not tag or not tag.strip():
             raise ValueError("Category cannot be empty")
         if priority not in self.VALID_PRIORITIES:
@@ -114,51 +130,50 @@ class TaskDB:
             raise ValueError("Title cannot be empty")
 
         tag = tag.strip()
+
+        # Collision guard: SQLite would loudly reject a duplicate id via its
+        # PRIMARY KEY constraint; a naive markdown write instead would
+        # silently overwrite an unrelated task. Regenerate on the
+        # astronomically unlikely chance of a real uuid4 collision.
         task_id = str(uuid.uuid4())[:8]
+        while self._find_path_by_id(task_id) is not None:
+            task_id = str(uuid.uuid4())[:8]
+
         now = datetime.utcnow().isoformat()
+        task = {
+            "id": task_id,
+            "title": title,
+            "description": description,
+            "tag": tag,
+            "status": "open",
+            "priority": priority,
+            "created_at": now,
+            "updated_at": now,
+            "due_date": due_date,
+            "source": source,
+        }
 
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                INSERT INTO tasks (id, title, description, tag, priority, created_at, updated_at, due_date, status, source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
-                """,
-                (task_id, title, description, tag, priority, now, now, due_date, source),
-            )
-            conn.commit()
-            logger.info(f"Task created: {task_id} - {title} (source: {source})")
-
+        slug = self._unique_slug(title)
+        vault_io.atomic_write_text(self._path_for_slug(slug), self._task_to_document(task))
+        logger.info(f"Task created: {task_id} - {title} (source: {source})")
         return task_id
 
     def get_task(self, task_id: str) -> Optional[Dict]:
         """Get a single task by ID."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM tasks WHERE id = ?", (task_id,))
-            row = cursor.fetchone()
-            return dict(row) if row else None
+        path = self._find_path_by_id(task_id)
+        if path is None:
+            return None
+        return self._document_to_task(path.read_text(encoding="utf-8"))
 
     def get_all_tasks(self, status: str = None, tag: str = None) -> List[Dict]:
         """Get tasks with optional filtering."""
-        query = "SELECT * FROM tasks WHERE 1=1"
-        params = []
-
+        tasks = list(self._iter_tasks())
         if status:
-            query += " AND status = ?"
-            params.append(status)
+            tasks = [t for t in tasks if t.get("status") == status]
         if tag:
-            query += " AND tag = ?"
-            params.append(tag)
-
-        query += " ORDER BY priority DESC, created_at ASC"
-
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute(query, params)
-            return [dict(row) for row in cursor.fetchall()]
+            tasks = [t for t in tasks if t.get("tag") == tag]
+        tasks.sort(key=lambda t: (-t.get("priority", 3), t.get("created_at") or ""))
+        return tasks
 
     def get_tasks_by_status(self, status: str) -> List[Dict]:
         """Get all tasks with a specific status."""
@@ -181,35 +196,34 @@ class TaskDB:
         return self.get_all_tasks(status="in_progress")
 
     def get_tasks_due_soon(self, days: int = 7) -> List[Dict]:
-        """Get tasks due within N days."""
+        """Get tasks due within N days.
+
+        Preserves the old SQLite version's exact comparison semantics: a
+        bare "YYYY-MM-DD" due_date compared as a plain string against a
+        full ISO timestamp cutoff — SQLite did this as a TEXT comparison,
+        and Python's string `<=` reproduces it identically (a date-only
+        prefix always sorts before/equal to a same-day full timestamp).
+        Deliberately not "fixed" to parse real dates — that would change
+        behavior, not just implementation.
+        """
         cutoff = (datetime.utcnow() + timedelta(days=days)).isoformat()
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT * FROM tasks
-                WHERE status != 'done' AND due_date IS NOT NULL AND due_date <= ?
-                ORDER BY due_date ASC, priority DESC
-                """,
-                (cutoff,),
-            )
-            return [dict(row) for row in cursor.fetchall()]
+        tasks = [
+            t
+            for t in self._iter_tasks()
+            if t.get("status") != "done" and t.get("due_date") is not None and t["due_date"] <= cutoff
+        ]
+        tasks.sort(key=lambda t: (t["due_date"], -t.get("priority", 3)))
+        return tasks
 
     def get_high_priority_tasks(self, min_priority: int = 4) -> List[Dict]:
         """Get high-priority tasks."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute(
-                """
-                SELECT * FROM tasks
-                WHERE status != 'done' AND priority >= ?
-                ORDER BY priority DESC, created_at ASC
-                """,
-                (min_priority,),
-            )
-            return [dict(row) for row in cursor.fetchall()]
+        tasks = [
+            t
+            for t in self._iter_tasks()
+            if t.get("status") != "done" and t.get("priority", 3) >= min_priority
+        ]
+        tasks.sort(key=lambda t: (-t.get("priority", 3), t.get("created_at") or ""))
+        return tasks
 
     def update_task(self, task_id: str, **kwargs) -> bool:
         """Update a task. Valid keys: title, description, tag, status, priority, due_date."""
@@ -219,7 +233,6 @@ class TaskDB:
         if not keys.issubset(valid_keys):
             raise ValueError(f"Invalid keys: {keys - valid_keys}")
 
-        # Validate values
         if "tag" in kwargs and (not kwargs["tag"] or not kwargs["tag"].strip()):
             raise ValueError("Category cannot be empty")
         if "status" in kwargs and kwargs["status"] not in self.VALID_STATUSES:
@@ -233,57 +246,59 @@ class TaskDB:
         if not kwargs:
             return False
 
-        now = datetime.utcnow().isoformat()
-        updates = ", ".join([f"{k} = ?" for k in kwargs.keys()])
-        values = list(kwargs.values()) + [now, task_id]
+        path = self._find_path_by_id(task_id)
+        if path is None:
+            return False
 
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(
-                f"UPDATE tasks SET {updates}, updated_at = ? WHERE id = ?",
-                values,
-            )
-            conn.commit()
-            logger.info(f"Task updated: {task_id} - {kwargs}")
+        task = self._document_to_task(path.read_text(encoding="utf-8"))
+        if task is None:
+            return False
 
-        return cursor.rowcount > 0
+        task.update(kwargs)
+        task["updated_at"] = datetime.utcnow().isoformat()
+        vault_io.atomic_write_text(path, self._task_to_document(task))
+        logger.info(f"Task updated: {task_id} - {kwargs}")
+        return True
 
     def delete_task(self, task_id: str) -> bool:
         """Delete a task."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
-            conn.commit()
-            logger.info(f"Task deleted: {task_id}")
-
-        return cursor.rowcount > 0
+        path = self._find_path_by_id(task_id)
+        if path is None:
+            return False
+        path.unlink()
+        logger.info(f"Task deleted: {task_id}")
+        return True
 
     def get_stats(self) -> Dict:
         """Get task statistics."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+        tasks = list(self._iter_tasks())
+        open_tasks = [t for t in tasks if t.get("status") == "open"]
+        by_tag: Dict[str, int] = {}
+        for t in open_tasks:
+            by_tag[t.get("tag", "General")] = by_tag.get(t.get("tag", "General"), 0) + 1
 
-            cursor.execute("SELECT COUNT(*) as count FROM tasks WHERE status = 'open'")
-            open_count = cursor.fetchone()["count"]
+        return {
+            "open": len(open_tasks),
+            "done": sum(1 for t in tasks if t.get("status") == "done"),
+            "in_progress": sum(1 for t in tasks if t.get("status") == "in_progress"),
+            "total": len(tasks),
+            "by_tag": by_tag,
+        }
 
-            cursor.execute("SELECT COUNT(*) as count FROM tasks WHERE status = 'done'")
-            done_count = cursor.fetchone()["count"]
+    def import_task(self, task: Dict) -> None:
+        """Migration-only: write a task dict verbatim, preserving its original
+        id/status/created_at/updated_at exactly (unlike create_task(), which
+        always mints fresh ones). Used solely by migrate_to_vault.py.
 
-            cursor.execute("SELECT COUNT(*) as count FROM tasks WHERE status = 'in_progress'")
-            in_progress_count = cursor.fetchone()["count"]
-
-            cursor.execute("SELECT COUNT(*) as count FROM tasks")
-            total_count = cursor.fetchone()["count"]
-
-            # Tasks by tag
-            cursor.execute("SELECT tag, COUNT(*) as count FROM tasks WHERE status = 'open' GROUP BY tag")
-            by_tag = {row["tag"]: row["count"] for row in cursor.fetchall()}
-
-            return {
-                "open": open_count,
-                "done": done_count,
-                "in_progress": in_progress_count,
-                "total": total_count,
-                "by_tag": by_tag,
-            }
+        Idempotent by id, not by slug: re-running the migration must
+        overwrite this same task's file rather than create a second one —
+        if a file already exists for this exact id, reuse its path/slug
+        instead of asking _unique_slug() for a fresh one (which would only
+        ever see "a file with this slug exists" and increment past it).
+        """
+        existing_path = self._find_path_by_id(task["id"])
+        if existing_path is not None:
+            path = existing_path
+        else:
+            path = self._path_for_slug(self._unique_slug(task.get("title", "untitled")))
+        vault_io.atomic_write_text(path, self._task_to_document(task))

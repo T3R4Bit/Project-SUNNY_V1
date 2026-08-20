@@ -54,6 +54,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "vault-storage.md",
         "location.md",
         "google-integration.md",
         "alarms-reminders.md",
@@ -122,7 +123,11 @@
       "isPinned": false,
       "isHidden": false,
       "sortOrder": "custom",
-      "customOrder": []
+      "customOrder": [
+        "alarms-reminders.md",
+        "lists",
+        "tasks"
+      ]
     },
     "docs/architecture/Mind-Map.md": {
       "isPinned": false,
@@ -177,6 +182,32 @@
       "isHidden": false
     },
     "docs/architecture/location.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks": {
+      "isPinned": false,
+      "isHidden": false,
+      "customOrder": [
+        "terminal-test-task.md"
+      ],
+      "sortOrder": "custom"
+    },
+    "state/lists": {
+      "isPinned": false,
+      "isHidden": false,
+      "customOrder": [],
+      "sortOrder": "custom"
+    },
+    "state/alarms-reminders.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/terminal-test-task.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/vault-storage.md": {
       "isPinned": false,
       "isHidden": false
     }

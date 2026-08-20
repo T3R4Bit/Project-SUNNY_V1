@@ -211,10 +211,11 @@ Needs a queue or priority scheduler design so active foreground requests always 
 
 ## Obsidian Vault Structure
 
-Two distinct things live in the vault with different lifecycles, and they should not share a tree:
+Three distinct things live in the vault with different lifecycles, and they should not share a tree:
 
-- **Staging**: transient. Pushed to Notion, then moves out.
+- **Staging**: transient. Pushed to Notion, then moves out. *(Planned — nothing writes here yet.)*
 - **Log mirror**: permanent, append-only, never syncs anywhere.
+- **Live state**: Sunny-owned, mutable, neither transient-then-pushed nor append-only-forever — Sunny is the sole writer, files get rewritten in place as things change. *(Built — see [[architecture/vault-storage]].)*
 
 ```
 sunny-vault/
@@ -222,15 +223,15 @@ sunny-vault/
 ├── staging/      structured items awaiting Notion push
 ├── archive/      already pushed, kept locally
 ├── log/          2026/08/2026-08-17.md — Discord mirror
-└── state/        sleep mode, token counters, sync cursor
+└── state/        tasks/, lists/, alarms-reminders.md, sleep mode, token counters, sync cursor
 ```
 
-- **One file per item**, never a shared append target. The core process runs concurrent async tasks across four input surfaces. If they all append to a single daily file, that invents a locking problem for no reason. One file per item means zero write contention.
+- **One file per item**, never a shared append target. The core process runs concurrent async tasks across four input surfaces. If they all append to a single daily file, that invents a locking problem for no reason. One file per item means zero write contention. This is also why Tasks/Lists (`state/tasks/`, `state/lists/`) are one-file-per-task/list, not one shared file.
 - **Every staging file carries frontmatter**: `id`, `type`, `status`, `source`, `created`, `notion_id`.
 - **The sync sweeper** scans for `status: pending`, batches them into a single Notion call, writes back `synced` plus the returned `notion_id`, then moves the file to `archive/`. The `id` field is what makes retries safe: a half-failed push can be re-run against the same IDs without creating duplicates.
-- **Atomic writes**: write to a `.tmp` file, then `os.rename()`. A sweeper reading a file mid-write parses garbage. Rename is atomic on Linux, so the file either does not exist or is complete. This is the failure that otherwise appears at 3am.
+- **Atomic writes**: write to a `.tmp` file, then replace it into place. A sweeper (or anything else) reading a file mid-write parses garbage otherwise. **Platform note**: use `os.replace()`, not `os.rename()` — `rename()` is only an atomic *overwrite* on POSIX; on Windows it raises `FileExistsError` if the destination already exists. This only bit us once something actually got rewritten repeatedly (Tasks/Lists' vault storage, developed on Windows) rather than written once and left alone (the log mirror here, which only ever runs on the Linux production box) — worth keeping in mind if this pattern gets reused anywhere else.
 - **The `log/YYYY/MM/` nesting** is functional, not cosmetic. Obsidian's indexer degrades badly past roughly ten thousand files in a single folder; the nesting is what keeps the vault openable in a year.
-- The Dataview plugin renders a live pending-sync dashboard off that frontmatter for free, with no work required from Sunny.
+- The Dataview plugin renders a live pending-sync dashboard off that frontmatter for free, with no work required from Sunny. (Not actually installed in the vault yet as of this writing — the frontmatter is written Dataview-ready for whenever it is.)
 
 ---
 

@@ -18,6 +18,7 @@ from sunny_code.components.lists_db import ListDB
 from sunny_code.components.lists_engine import ListEngine
 from sunny_code.components.scheduled_db import ScheduledDB
 from sunny_code.components.scheduled_engine import ScheduledEngine
+from sunny_code.components.scheduled_vault_mirror import create_scheduled_vault_mirror, write_scheduled_mirror
 from sunny_code.components.chatbot_ui import create_chatbot_router
 from sunny_code.components.console_stats import create_console_router
 from sunny_code.components.discord_bot import create_discord_bot
@@ -39,13 +40,29 @@ class SunnyCore:
         # bot, so a change from any interface is visible everywhere immediately
         # (e.g. an instant Discord dashboard refresh) instead of waiting on a
         # timer — see TaskEngine.on_change / ScheduledEngine.on_change.
-        tasks_db = TaskDB(self.settings.project_root / "tasks.db")
+        #
+        # Tasks and Lists live in the Obsidian vault as markdown (Sunny is the
+        # sole writer — see sunny-vault/docs/architecture/vault-storage.md),
+        # not SQLite. Alarms/Reminders/Scheduled items are unaffected and stay
+        # SQLite — see the read-only vault mirror wiring below instead.
+        vault_state_dir = self.settings.project_root / "sunny-vault" / "state"
+        tasks_db = TaskDB(vault_state_dir / "tasks")
         self.tasks_engine = TaskEngine(tasks_db)
         self.briefing_engine = BriefingEngine()
-        lists_db = ListDB(self.settings.project_root / "lists.db")
+        lists_db = ListDB(vault_state_dir / "lists")
         self.list_engine = ListEngine(lists_db)
         scheduled_db = ScheduledDB(self.settings.project_root / "scheduled.db")
         self.scheduled_engine = ScheduledEngine(scheduled_db)
+
+        # Read-only alarms/reminders mirror — updates on every change, and once
+        # now so the file reflects reality from startup rather than staying
+        # stale/absent until the first future change. Wired here (not inside
+        # discord_bot.py) since it must work whether or not Discord is configured.
+        write_scheduled_mirror(scheduled_db, self.settings.project_root / "sunny-vault")
+        self.scheduled_engine.on_change = create_scheduled_vault_mirror(
+            scheduled_db, self.settings.project_root / "sunny-vault"
+        )
+
         self.app = self._create_app()
         self.discord_bot = self._create_discord_bot()
 

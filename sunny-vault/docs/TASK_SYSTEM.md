@@ -8,7 +8,7 @@ Tasks are one of three sibling subsystems that share the same routing entry poin
 
 | Piece | Status |
 |-------|--------|
-| SQLite storage + CRUD | ✅ Built (`sunny_code/components/tasks_db.py`) |
+| Vault storage + CRUD | ✅ Built (`sunny_code/components/tasks_db.py`) — markdown in `sunny-vault/state/tasks/`, not SQLite, see [[architecture/vault-storage]] |
 | Command parser (natural phrasing, no LLM) | ✅ Built (`sunny_code/components/tasks_parser.py`) |
 | Task engine (command execution, dashboard formatting) | ✅ Built (`sunny_code/components/tasks_engine.py`) |
 | REST API | ✅ Built (`sunny_code/components/tasks_api.py`) |
@@ -24,7 +24,7 @@ Current focus: connect the Discord bot to a real server (bot token + channel ID 
 ## Overview
 
 - **Categories**: Free-form — School, Motorsports, General, and Project Ideas are just the shipped defaults, not a fixed list. Typing `--tag Cooking` on a task that's never had that category before creates it on the spot, no setup step.
-- **Storage**: SQLite database (`tasks.db`)
+- **Storage**: Markdown in the Obsidian vault (`sunny-vault/state/tasks/`, one file per task) — see [[architecture/vault-storage]]
 - **Interface today**: Console chat at `/console`, sending commands to a REST API
 - **Interface planned**: Discord bot + live dashboard embed (primary, once built)
 - **Logic**: Deterministic, no LLM calls
@@ -64,7 +64,7 @@ Every record created anywhere (a task, a list item, an alarm) gets tagged with `
 - Discord messages: `discord:<channel_id>:<user_id>` → `source = "discord"`
 - Anything else (direct REST API calls with no session): `source = "api"`
 
-This exists so future features (e.g. "show me what I created from my phone today") have real data to query against — nothing currently filters or displays by `source` yet, it's just recorded on every row in `tasks.db`, `lists.db`, and `scheduled.db`.
+This exists so future features (e.g. "show me what I created from my phone today") have real data to query against — nothing currently filters or displays by `source` yet, it's just recorded on every task/list-item file and every row in `scheduled.db`.
 
 ## REST API
 
@@ -205,28 +205,27 @@ When it ships, the web chatbot stays available as the fallback interface for whe
 
 ## Storage Schema
 
-### SQLite (tasks.db)
+### Vault markdown (`sunny-vault/state/tasks/<slug>.md`)
 
-```sql
-CREATE TABLE tasks (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  description TEXT,
-  tag TEXT NOT NULL,          -- free-form category, any non-empty string
-  status TEXT NOT NULL CHECK(status IN ('open', 'in_progress', 'done')) DEFAULT 'open',
-  priority INTEGER CHECK(priority BETWEEN 1 AND 5) DEFAULT 3,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  due_date DATETIME
-);
+One file per task, filename slugified from the title at creation (doesn't rename if the title changes later). Full design, concurrency reasoning, and migration details: [[architecture/vault-storage]].
 
-CREATE INDEX idx_tag ON tasks(tag);
-CREATE INDEX idx_status ON tasks(status);
-CREATE INDEX idx_priority ON tasks(priority);
-CREATE INDEX idx_due_date ON tasks(due_date);
+```yaml
+---
+id: a1b2c3d4
+tag: School              # free-form category, any non-empty string
+status: open              # open | in_progress | done
+priority: 4                # 1-5
+due_date: 2026-08-20      # omitted from frontmatter entirely if unset
+source: web
+created_at: 2026-08-19T14:30:00.482113
+updated_at: 2026-08-19T14:30:00.482113
+---
+# Finish physics homework
+
+Complete problems 1-20 from chapter 5.
 ```
 
-This is the actual schema created by `TaskDB._init_db()`. `tag` used to be `CHECK(tag IN (...))` against a fixed 4-category list — `_init_db()` detects and migrates any existing database still on that schema automatically on startup (rebuilds the table without the constraint, copies all rows over, no data loss). Categories are unrestricted now; the 4 originals are just defaults with dedicated icons (`TaskEngine._CATEGORY_ICONS`) — anything else gets a generic 🏷️ in the dashboard.
+Categories are unrestricted — the 4 shipped defaults are just defaults with dedicated icons (`TaskEngine._CATEGORY_ICONS`), anything else gets a generic 🏷️ in the dashboard. (This project previously stored tasks in SQLite with a `CHECK(tag IN (...))` constraint against a fixed 4-category list, later removed — that history no longer applies now that storage is schema-flexible markdown.)
 
 ## Command Parsing (No LLM)
 
@@ -293,13 +292,13 @@ Due: 2026-08-20
 ### With Briefing Engine
 The briefing engine already queries the task DB for its "Tasks" section (see [[briefing-engine]]) — this part is built and working, just running against whatever's actually in `tasks.db` rather than mock task data.
 
-### With Obsidian Staging (Not Yet Built)
-Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging convention (see [[../staging]]). Nothing writes there yet — today, tasks only exist in `tasks.db`.
+### With Obsidian Staging (Still Not Built — Different From Vault Storage Above)
+Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging convention (see [[../staging]]) as a transient, Notion-export-bound summary. Nothing writes there yet. **Don't confuse this with `sunny-vault/state/tasks/`** (above) — that's tasks' live, permanent storage (built, in use today); `staging/` would be a separate, temporary copy for pushing to Notion, a different concept that's still just a plan.
 
 ### Cost Impact
 - **Zero LLM tokens** — all hardcoded, confirmed in code (no `anthropic` calls anywhere in the task system)
-- **Minimal API calls** — HTTP requests + SQLite queries only
-- **Storage**: ~1KB per task in SQLite
+- **Minimal API calls** — HTTP requests only, no external API for storage
+- **Storage**: one small markdown file per task in the vault
 
 ## Future Enhancements
 
@@ -311,7 +310,7 @@ Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging c
 
 ## Implementation Checklist
 
-- [x] SQLite schema + creation script
+- [x] Vault markdown storage (`sunny-vault/state/tasks/`) — see [[architecture/vault-storage]]
 - [x] Command parser (regex-based)
 - [x] Task CRUD operations
 - [x] Dashboard formatter (`format_dashboard()`)
@@ -319,7 +318,7 @@ Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging c
 - [x] Title-based resolution for mark/complete/finish/delete (with filler-word handling)
 - [x] `help`/`commands`/`info` response in the chatbot
 - [x] No task IDs in chat/Discord text — every response references tasks by title
-- [x] Free-form categories — no fixed tag list, `tasks.db` auto-migrates off the old CHECK constraint on startup
+- [x] Free-form categories — no fixed tag list, storage is schema-flexible markdown
 - [x] Dashboard groups by whatever categories actually exist (known ones first, custom ones alphabetically after)
 - [x] Conversational follow-up — "make a new task" with no title asks "what should I call it?" instead of erroring, then creates it from the next reply (per-session state in `sunny_code/components/assistant.py`, 5-minute expiry, "cancel" to back out)
 - [x] Discord bot code (`sunny_code/components/discord_bot.py`) + config fields (token/channel env vars)
@@ -331,5 +330,5 @@ Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging c
 - [x] Device/source tracking (`web`/`discord`/`api`) on every created task — see Device Tracking above
 - [x] Lists and Alarms/Reminders built as separate sibling subsystems, routed through the same `handle_message()` — see [[architecture/lists.md]] and [[architecture/alarms-reminders.md]] for their own checklists
 - [ ] **Connect a real bot token and verify against a live server**
-- [ ] Logging to Obsidian staging
+- [ ] Logging to Obsidian *staging* (transient, Notion-export-bound — distinct from the vault storage above, which is already built)
 - [ ] Slash command variants (optional)

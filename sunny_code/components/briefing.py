@@ -331,7 +331,7 @@ class BriefingEngine:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         settings = get_settings()
-        self.tasks_db = TaskDB(settings.project_root / "tasks.db")
+        self.tasks_db = TaskDB(settings.project_root / "sunny-vault" / "state" / "tasks")
 
     async def generate_morning_briefing(self) -> str:
         """Generate morning briefing."""

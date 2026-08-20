@@ -27,7 +27,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 - [x] Python env setup on the Lenovo (`run.sh` creates/manages `venv/` automatically — no manual venv step)
 - [x] Git repo + folder structure
 - [x] Logging from the start
-- [x] Set up local dashboard skeleton — now functional, not just skeleton: FastAPI app bound to `0.0.0.0:5000`, one combined console at `/console` (chat + live system/Google status — `/` and the old `/chatbot` both redirect there), sunny.db + tasks.db via SQLite
+- [x] Set up local dashboard skeleton — now functional, not just skeleton: FastAPI app bound to `0.0.0.0:5000`, one combined console at `/console` (chat + live system/Google status — `/` and the old `/chatbot` both redirect there), sunny.db + scheduled.db via SQLite, tasks + lists stored as markdown in the vault (see [[architecture/vault-storage]])
 - [x] Set up Obsidian vault structure (inbox/staging/archive/log/state)
 
 - [x] Set BIOS to restore power state on AC loss
