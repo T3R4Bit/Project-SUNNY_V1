@@ -93,6 +93,16 @@ class Settings(BaseSettings):
     daily_spend_cap: float = 20.0  # USD per day
     monthly_spend_cap: float = 100.0  # USD per month
 
+    # TLS (optional) — some external providers require HTTPS on the redirect/
+    # callback URI (e.g. Google OAuth won't accept a plain-http non-localhost
+    # URI). Empty means "not configured": Sunny serves plain HTTP only on
+    # api_port, same as always. See sunny-vault/docs/architecture/
+    # google-integration.md for how these get populated (a Tailscale-issued
+    # cert, not a manually-managed one).
+    tls_certfile: str = ""
+    tls_keyfile: str = ""
+    tls_port: int = 5443
+
     # Logging
     log_level: str = "INFO"
     log_format: str = "json"  # json or text

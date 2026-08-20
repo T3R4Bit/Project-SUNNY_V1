@@ -154,7 +154,12 @@ case "$COMMAND" in
         echo -e "${GREEN}Console: http://100.117.41.53:5000/console${NC}"
         echo -e "${CYAN}Press Ctrl+C to stop${NC}"
         echo ""
-        python -m uvicorn sunny_code.main:app --host 0.0.0.0 --port 5000
+        # Direct invocation (not `uvicorn sunny_code.main:app`) so
+        # SunnyCore.run() actually runs — that's what starts the Discord bot
+        # and, when TLS_CERTFILE/TLS_KEYFILE are set, a second HTTPS server.
+        # The bare uvicorn CLI form can only bind one port and never calls
+        # run() at all. See main.py's start()/lifespan comments.
+        python -m sunny_code.main
         ;;
 
     "chatbot")
@@ -163,7 +168,7 @@ case "$COMMAND" in
         echo -e "${GREEN}Network/Tailscale: http://100.117.41.53:5000/console${NC}"
         echo -e "${CYAN}Press Ctrl+C to stop${NC}"
         echo ""
-        python -m uvicorn sunny_code.main:app --host 0.0.0.0 --port 5000
+        python -m sunny_code.main
         ;;
 
     "reload")

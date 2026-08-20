@@ -24,6 +24,11 @@ __pycache__/
 google_token.json
 location.json
 
+# TLS cert/key (Tailscale-issued, host-specific — see google-integration.md)
+certs/
+*.crt
+*.key
+
 # Database
 *.db
 *.sqlite

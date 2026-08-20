@@ -64,6 +64,12 @@ class SunnyCore:
             scheduled_db, self.settings.project_root / "sunny-vault"
         )
 
+        # Guards the lifespan hook below against starting the Discord bot
+        # twice — start() runs one uvicorn Server per port (plain HTTP always,
+        # plus HTTPS when TLS is configured), and FastAPI's lifespan protocol
+        # fires once per Server serving the same app.
+        self._discord_started = False
+
         self.app = self._create_app()
         self.discord_bot = self._create_discord_bot()
 
@@ -91,17 +97,24 @@ class SunnyCore:
         @asynccontextmanager
         async def lifespan(_app: FastAPI):
             # Must start the Discord bot from here, not from run()/start()'s own
-            # asyncio.gather() below — this app object is served two different
-            # ways (`uvicorn sunny_code.main:app` in production per run.sh, or
-            # SunnyCore.run() directly for local dev/testing), and only the
-            # ASGI lifespan protocol fires identically under both. A bot task
-            # started from run()/start() alone silently never launches under
-            # the `uvicorn module:app` CLI form, since that form never calls
+            # asyncio.gather() below — this app object can be served multiple
+            # ways (plain `uvicorn sunny_code.main:app` CLI, SunnyCore.run()
+            # with one server, or SunnyCore.run() with an HTTP + HTTPS server
+            # pair — see start()), and only the ASGI lifespan protocol fires
+            # identically under all of them. A bot task started from
+            # run()/start() alone silently never launches under the
+            # `uvicorn module:app` CLI form, since that form never calls
             # run()/start() at all — found and fixed 2026-08-20 (the Discord
             # client constructed fine and sat there forever, never connecting,
             # no error, because .start() was simply never reached).
+            #
+            # Guarded by self._discord_started because running two Server
+            # instances (HTTP + HTTPS) against this same app fires lifespan
+            # twice — without the guard, the bot would connect twice and every
+            # message would get handled and replied to twice.
             discord_task = None
-            if self.discord_bot is not None:
+            if self.discord_bot is not None and not self._discord_started:
+                self._discord_started = True
                 discord_task = asyncio.create_task(
                     self.discord_bot.start(self.settings.discord_bot_token)
                 )
@@ -162,17 +175,35 @@ class SunnyCore:
         for line in startup_summary().split("\n"):
             self.logger.info(line)
 
-        # Run FastAPI server
-        config = Config(
+        # Run FastAPI server. The Discord bot (if configured) starts from the
+        # FastAPI lifespan hook in _create_app(), not here — see the comment
+        # there for why, and for why it's guarded against firing per-server.
+        log_level = "info" if self.settings.debug else "warning"
+        http_config = Config(
             app=self.app,
             host=self.settings.api_host,
             port=self.settings.api_port,
-            log_level="info" if self.settings.debug else "warning",
+            log_level=log_level,
         )
-        server = Server(config)
-        # The Discord bot (if configured) starts from the FastAPI lifespan
-        # hook in _create_app(), not here — see the comment there for why.
-        await server.serve()
+        servers = [Server(http_config)]
+
+        # HTTPS is optional and only needed today for Google OAuth's redirect
+        # URI policy (rejects plain http:// on a non-localhost domain) — see
+        # sunny-vault/docs/architecture/google-integration.md. Plain HTTP on
+        # api_port keeps working unchanged either way.
+        if self.settings.tls_certfile and self.settings.tls_keyfile:
+            https_config = Config(
+                app=self.app,
+                host=self.settings.api_host,
+                port=self.settings.tls_port,
+                ssl_certfile=self.settings.tls_certfile,
+                ssl_keyfile=self.settings.tls_keyfile,
+                log_level=log_level,
+            )
+            servers.append(Server(https_config))
+            self.logger.info(f"HTTPS enabled on port {self.settings.tls_port}")
+
+        await asyncio.gather(*(server.serve() for server in servers))
 
     def run(self):
         """Blocking run (for systemd/production)."""
