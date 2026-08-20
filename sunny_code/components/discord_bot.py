@@ -326,11 +326,18 @@ def create_discord_bot(
 
         # Guild-scoped sync (instant) rather than global (~1hr to propagate) —
         # this bot is single-server by design already (see discord-bot.md).
+        # copy_global_to() is required first: commands defined with
+        # @tree.command() (no guild=) are global commands, and tree.sync(
+        # guild=...) alone only uploads that guild's OWN command list, which
+        # starts empty — it does not implicitly copy global commands in.
         # Guarded so a reconnect doesn't re-sync every time.
         if not state["commands_synced"] and client.guilds:
             state["commands_synced"] = True
+            guild = client.guilds[0]
             try:
-                await tree.sync(guild=client.guilds[0])
+                tree.copy_global_to(guild=guild)
+                synced = await tree.sync(guild=guild)
+                logger.info(f"Synced {len(synced)} slash command(s) to guild {guild.id}")
             except discord.HTTPException as e:
                 logger.error(f"Slash command sync failed: {e}")
 
