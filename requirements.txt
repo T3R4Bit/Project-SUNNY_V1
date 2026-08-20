@@ -12,3 +12,4 @@ google-auth-oauthlib>=1.2.0
 google-api-python-client>=2.126.0
 PyYAML>=6.0
 tzdata>=2024.1
+piper-tts>=1.7.0

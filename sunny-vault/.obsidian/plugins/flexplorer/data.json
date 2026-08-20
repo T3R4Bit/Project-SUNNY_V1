@@ -55,6 +55,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "tts-piper.md",
         "health-check.md",
         "llm-instructions.md",
         "llm-readiness.md",
@@ -235,6 +236,10 @@
       "isHidden": false
     },
     "docs/architecture/health-check.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/tts-piper.md": {
       "isPinned": false,
       "isHidden": false
     }

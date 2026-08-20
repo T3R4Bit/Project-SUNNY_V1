@@ -20,15 +20,24 @@ Also the only real delivery mechanism for alarms/reminders today: there's no
 clock/speaker hardware yet, so "sounding" an alarm means posting a message in
 the chat channel when it's due (see the scheduled-items loop below).
 
+One real slash command, /speak (Piper TTS, see sunny_code/components/tts.py
+and sunny-vault/docs/architecture/tts-piper.md) — everything else here is
+plain-text via handle_message(). Registered via a discord.app_commands.
+CommandTree bound directly to this bare discord.Client (no commands.Bot
+needed), synced to this bot's one guild in on_ready.
+
 Setup steps: see sunny-vault/docs/architecture/discord-bot.md
 """
 
+import asyncio
+import io
 import logging
 from datetime import datetime
 
 import discord
 from discord.ext import tasks
 
+from sunny_code.components import tts
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.key_status import missing_api_keys, startup_summary
@@ -44,6 +53,8 @@ DASHBOARD_MARKER = "​" # zero-width space appended to the dashboard message so
 # restarted bot can recognize its own pinned message and start editing it again
 MAX_MESSAGE_LENGTH = 1900 # Discord's real limit is 2000; leave headroom
 SCHEDULED_CHECK_INTERVAL_SECONDS = 30
+SPEAK_MAX_CHARS = 1000 # practical cap on synthesis time/file size, well under
+# Discord's own 6000-char slash-command string option limit
 
 
 def _chunk_message(text: str, limit: int = MAX_MESSAGE_LENGTH):
@@ -160,7 +171,36 @@ def create_discord_bot(
     intents.message_content = True # required to read command text, not just embeds/mentions
 
     client = discord.Client(intents=intents)
-    state = {"dashboard_message_id": None, "posted_key_status": False}
+    tree = discord.app_commands.CommandTree(client)
+    client.tree = tree # exposed for introspection/testing, and for future slash commands (e.g. /join) to extend
+    state = {"dashboard_message_id": None, "posted_key_status": False, "commands_synced": False}
+
+    @tree.command(name="speak", description="Speak this text out loud (Piper TTS, posted as an audio attachment)")
+    async def speak_command(interaction: discord.Interaction, text: str):
+        """The bot's first slash command — everything else is plain-text via
+        handle_message(). Restricted to the chat channel, same as every
+        other command this bot has, and deferred since Piper's first call
+        (model load, or a one-time download) can take longer than Discord's
+        3-second initial-response window."""
+        if interaction.channel_id != chat_channel_id:
+            await interaction.response.send_message(
+                "Use /speak in the chat channel.", ephemeral=True
+            )
+            return
+        if len(text) > SPEAK_MAX_CHARS:
+            await interaction.response.send_message(
+                f"That's {len(text)} characters — keep it under {SPEAK_MAX_CHARS}.", ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(thinking=True)
+        try:
+            wav_bytes = await asyncio.to_thread(tts.synthesize_wav_bytes, text)
+        except Exception as e:
+            logger.error(f"/speak synthesis failed: {e}")
+            await interaction.followup.send("Couldn't synthesize that — check the logs.")
+            return
+        await interaction.followup.send(file=discord.File(io.BytesIO(wav_bytes), filename="speech.wav"))
 
     async def _post_to(channel_id: int, text: str, fallback_channel_id: int = None):
         """Send `text` to `channel_id` if set, else to `fallback_channel_id` (typically
@@ -283,6 +323,16 @@ def create_discord_bot(
             refresh_loop.start() # runs immediately, then every 5 minutes
         if not scheduled_check_loop.is_running():
             scheduled_check_loop.start() # runs immediately, then every 30s
+
+        # Guild-scoped sync (instant) rather than global (~1hr to propagate) —
+        # this bot is single-server by design already (see discord-bot.md).
+        # Guarded so a reconnect doesn't re-sync every time.
+        if not state["commands_synced"] and client.guilds:
+            state["commands_synced"] = True
+            try:
+                await tree.sync(guild=client.guilds[0])
+            except discord.HTTPException as e:
+                logger.error(f"Slash command sync failed: {e}")
 
         # Post what's still missing an API key once per run, so it's visible —
         # in #warnings if configured, else the chat channel like before that

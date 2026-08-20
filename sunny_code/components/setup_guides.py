@@ -7,7 +7,7 @@ text — so the answer is never stale.
 
 from typing import Optional
 
-from sunny_code.components import google_auth, location_store
+from sunny_code.components import google_auth, location_store, tts
 from sunny_code.components.data_sources import is_configured
 from sunny_code.config import get_settings, looks_configured
 
@@ -33,6 +33,11 @@ _ALIASES = {
     "google sign-in": "google",
     "discord": "discord",
     "discord bot": "discord",
+    "piper": "piper",
+    "speak": "piper",
+    "tts": "piper",
+    "text to speech": "piper",
+    "text-to-speech": "piper",
     "commute": "commute",
     "traffic": "commute",
     "maps": "commute",
@@ -194,10 +199,34 @@ one, and weather falls back to your static location (see "setup weather").
 Full details: sunny-vault/docs/architecture/location.md"""
 
 
+def _piper_guide() -> str:
+    settings = get_settings()
+    status = "Connected — voice model downloaded" if tts.is_voice_downloaded() else \
+        "Not downloaded yet — happens automatically the first time /speak is used"
+    return f"""PIPER TTS SETUP
+Status: {status}
+Voice: {settings.piper_voice}
+
+Free, fully local text-to-speech — no API key, no cost, nothing to sign up
+for. Type /speak <text> as a real Discord slash command (not a plain chat
+message) in the chat channel — Sunny posts back a playable audio attachment.
+
+1. Nothing to configure — the voice model (~60MB) downloads automatically
+   the first time /speak is used.
+2. If /speak doesn't show up in Discord's slash-command picker, the bot's
+   invite is probably missing the "applications.commands" scope — re-run
+   the invite URL with that box checked too (see "setup discord"), Discord
+   updates the bot in place, no need to kick/re-invite.
+3. Keep it under 1000 characters per call.
+
+Full details: sunny-vault/docs/architecture/tts-piper.md"""
+
+
 _GUIDES = {
     "claude": _claude_guide,
     "weather": _weather_guide,
     "gps": _gps_guide,
+    "piper": _piper_guide,
     "google": _google_guide,
     "discord": _discord_guide,
     "commute": lambda: _not_built_guide("commute/traffic"),
@@ -207,7 +236,7 @@ _GUIDES = {
     "tasks": _tasks_guide,
 }
 
-_OVERVIEW_ORDER = ["tasks", "weather", "gps", "google", "discord", "claude", "commute", "health", "news", "motorsports"]
+_OVERVIEW_ORDER = ["tasks", "weather", "gps", "google", "discord", "piper", "claude", "commute", "health", "news", "motorsports"]
 _OVERVIEW_LABELS = {
     "tasks": "Tasks",
     "claude": "Claude (LLM, infra-only)",
@@ -215,6 +244,7 @@ _OVERVIEW_LABELS = {
     "gps": "GPS location (OwnTracks)",
     "google": "Calendar + Email (Google)",
     "discord": "Discord bot",
+    "piper": "Voice (Piper TTS, /speak)",
     "commute": "Commute/Traffic",
     "health": "Health",
     "news": "News",
@@ -237,6 +267,8 @@ def _overview_status(key: str) -> str:
         return "connected" if looks_configured(settings.claude_api_key) else "not connected"
     if key == "gps":
         return "connected" if location_store.get_coordinates() is not None else "not connected"
+    if key == "piper":
+        return "connected" if tts.is_voice_downloaded() else "not downloaded yet"
     source = "weather" if key == "weather" else key
     return "connected" if is_configured(source) else "not connected"
 

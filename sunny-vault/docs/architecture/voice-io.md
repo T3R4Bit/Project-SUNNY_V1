@@ -10,6 +10,8 @@ tags: [voice, audio, stt, tts, io]
 
 Audio input (speech-to-text) and output (text-to-speech) handling. Streams from [[clock]] microphone, processes on [[brain]], outputs back to [[clock]] speaker.
 
+**Piper TTS itself is already built and proven**, ahead of this hardware-bound pipeline — see [[tts-piper]] for the `/speak` Discord slash command, a narrower software-only slice (no STT, no wake word, no Sonic API, Discord attachment instead of a physical speaker) that exercises the same Piper engine named as a fallback below.
+
 ## Overview
 
 ```

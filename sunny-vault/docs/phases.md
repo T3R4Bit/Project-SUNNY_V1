@@ -141,7 +141,7 @@ Briefing templates + Q&A engine fully working end-to-end, tasks real, honest gap
 ### Software Tasks
 
 - [ ] Sonic API integration for TTS
-- [ ] Piper TTS fallback (download model)
+- [x] Piper TTS fallback (download model) — built ahead of the hardware, 2026-08-20, as a standalone `/speak` Discord slash command (no Clock device needed for this piece) — see [[architecture/tts-piper]]. Still needed here: wiring Piper as the actual *fallback* once Sonic API + the Clock's audio streaming exist.
 - [ ] Audio streaming from Lenovo to Clock
 - [ ] Speaker amplifier control
 - [ ] OLED display driver (time, status, messages)

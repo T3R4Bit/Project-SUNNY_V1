@@ -30,6 +30,9 @@ certs/
 *.crt
 *.key
 
+# Piper TTS voice model — downloaded automatically on first use (~60MB), not source
+piper_voices/
+
 # Database
 *.db
 *.sqlite

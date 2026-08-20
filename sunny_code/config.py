@@ -131,6 +131,12 @@ class Settings(BaseSettings):
     discord_bot_token_expires: str = ""
     google_client_secret_expires: str = ""
 
+    # Piper TTS (see sunny_code/components/tts.py) — free, fully local, no
+    # API cost. Model downloads automatically to piper_voices_dir on first
+    # use if not already present (~60MB, one time).
+    piper_voice: str = "en_US-lessac-medium"
+    piper_voices_dir: Path = project_root / "piper_voices"
+
     # Logging
     log_level: str = "INFO"
     log_format: str = "json"  # json or text

@@ -102,6 +102,11 @@ OPENWEATHERMAP_API_KEY_EXPIRES=
 DISCORD_BOT_TOKEN_EXPIRES=
 GOOGLE_CLIENT_SECRET_EXPIRES=
 
+# Piper TTS (/speak in Discord) — free, local, no API key needed. Model
+# downloads automatically on first use. Leave PIPER_VOICE at the default
+# unless you want a different voice (see sunny-vault/docs/architecture/tts-piper.md).
+PIPER_VOICE=en_US-lessac-medium
+
 # Logging
 LOG_LEVEL=INFO
 LOG_FORMAT=json

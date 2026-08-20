@@ -58,6 +58,7 @@ cancel my 7am alarm
 - **Setup status** — "setup" for the full connection overview, or "setup \<name\>" (e.g. "setup weather", "setup claude") for step-by-step instructions on one integration — same live-status output as typing it into `/console`.
 - **Help** — "help" (or blank/"commands"/"what can you do") prints the full command list.
 - **Server admin** (channels/roles) — see the dedicated section below; these are Discord-only and use different verbs (`create a channel called ...`) from everything above.
+- **Voice** — `/speak <text>`, a real Discord slash command (not plain-text), posts back a playable audio attachment via Piper TTS. See [[tts-piper]].
 
 ## Server Admin (Channels & Roles)
 
@@ -153,11 +154,11 @@ Adding any of these three channel vars now would be dead configuration with noth
 
 ### 2. Invite the bot to your server
 
-1. Under **OAuth2 → URL Generator**, check the `bot` scope.
+1. Under **OAuth2 → URL Generator**, check the `bot` scope, and also check `applications.commands` (needed for `/speak` — see [[tts-piper]] — and any future slash command; skip it if you only want the plain-text commands).
 2. Under Bot Permissions, check: **View Channel**, **Send Messages**, **Read Message History**, **Manage Messages** (needed to pin the dashboard), **Manage Channels** and **Manage Roles** (needed for the server-admin commands below — skip these two if you only want Tasks/Lists/Alarms and don't want the bot able to create/delete channels or roles).
 3. Open the generated URL, pick your server, authorize.
 
-If the bot's already in your server without Manage Channels/Manage Roles and you want to add them later, re-run the same invite URL with those boxes checked and re-authorize — Discord updates the existing bot's permissions in place, no need to kick and re-invite.
+If the bot's already in your server without Manage Channels/Manage Roles (or without `applications.commands`) and you want to add them later, re-run the same invite URL with those boxes checked and re-authorize — Discord updates the existing bot's permissions/scopes in place, no need to kick and re-invite.
 
 ### 3. Get the chat channel ID
 
@@ -187,7 +188,7 @@ Restart Sunny (`./run.sh`). Log line to confirm it connected: `Discord bot conne
 ## Known Limitations
 
 - **One chat channel.** Commands are only ever read from `DISCORD_CHAT_CHANNEL_ID` — every other channel (dashboard included) is output-only, the bot never listens on them. No per-guild/multi-server config either — fine for personal use, would need work for anything more.
-- **No slash commands.** Plain-message parsing only, matching the chatbot's UX. Could be added later without touching the parsing logic — Discord's slash-command UI would just be another caller into `handle_message()` (tasks/lists/alarms) or `server_admin_parser`/`_execute_server_admin` (channels/roles).
+- **One real slash command (`/speak`), everything else is plain-text.** `/speak` (see [[tts-piper]]) is the bot's first `discord.app_commands` command, registered via a `CommandTree` bound directly to the bare `discord.Client` — no framework swap to `commands.Bot` needed. Tasks/lists/alarms/setup/help/server-admin are all still plain-message parsing via `handle_message()` — a future slash-command version of any of those would be a separate `@tree.command()` calling into the same `handle_message()`, not a rewrite.
 - **Text channels only.** Channel creation doesn't support voice channels or categories — not asked for, easy to add later (`guild.create_voice_channel`/`create_category` alongside `create_text_channel` in `discord_bot.py`) if needed.
 - **No role color/permission customization on create.** `create role <name>` makes a plain role with no color and no permissions set — matches Discord's own default for a freshly created role. Edit color/permissions in Discord's UI after creating it, or ask to add `--color` support later if this comes up in practice.
 
@@ -213,6 +214,7 @@ Restart Sunny (`./run.sh`). Log line to confirm it connected: `Discord bot conne
 - [x] Server admin: create/delete channels, create/delete roles, assign/remove roles on members — parser + execution unit-tested (mocked guild), including both guardrails
 - [x] Multi-channel output routing: optional `#briefings`/`#warnings`/`#task-updates`/`#health` channels, each falling back to the chat channel if unset — routing + fallback unit-tested (mocked client)
 - [x] **Connected to a real live server** — 2026-08-20
+- [x] First slash command: `/speak` (Piper TTS) — see [[tts-piper]]
 - [ ] Multi-channel activity log (briefings, warnings, etc.) — separate, larger scope
-- [ ] Slash command variants (optional, nice-to-have)
+- [ ] More slash command variants (optional, nice-to-have) — `/join` (live voice channel, see [[tts-piper]] and BACKLOG.md) is the next planned one
 - [ ] Voice channels / categories / role color on create (optional, not asked for yet)
