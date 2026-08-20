@@ -24,7 +24,7 @@ from datetime import datetime
 import discord
 from discord.ext import tasks
 
-from sunny_code.components.assistant import handle_message
+from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.key_status import missing_api_keys, startup_summary
 from sunny_code.components.lists_engine import ListEngine
@@ -138,15 +138,35 @@ def create_discord_bot(
     list_engine: ListEngine,
     scheduled_engine: ScheduledEngine,
     tasks_channel_id: int,
+    briefings_channel_id: int = 0,
+    warnings_channel_id: int = 0,
+    task_updates_channel_id: int = 0,
 ) -> discord.Client:
-    """Build (but don't start) the Discord client."""
+    """Build (but don't start) the Discord client. tasks_channel_id is the only
+    channel commands are read from; the three optional *_channel_id args are
+    output-only destinations — see sunny-vault/docs/architecture/discord-bot.md."""
     intents = discord.Intents.default()
     intents.message_content = True  # required to read command text, not just embeds/mentions
 
     client = discord.Client(intents=intents)
     state = {"dashboard_message_id": None, "posted_key_status": False}
 
-    async def refresh_dashboard():
+    async def _post_to(channel_id: int, text: str, fallback_channel_id: int = None):
+        """Send `text` to `channel_id` if set, else to `fallback_channel_id` (typically
+        the tasks channel) if that's set — used so an unconfigured output channel just
+        means "goes where it always went" instead of silently vanishing."""
+        target_id = channel_id or fallback_channel_id
+        if not target_id:
+            return
+        try:
+            channel = await client.fetch_channel(target_id)
+        except (discord.NotFound, discord.Forbidden) as e:
+            logger.warning(f"Cannot access Discord channel {target_id}: {e}")
+            return
+        for chunk in _chunk_message(text):
+            await channel.send(chunk)
+
+    async def refresh_dashboard(_change_message: str = None):
         """Post or edit the pinned dashboard message in the tasks channel."""
         try:
             channel = await client.fetch_channel(tasks_channel_id)
@@ -186,10 +206,15 @@ def create_discord_bot(
             logger.warning("Missing permission to pin the dashboard message — sent unpinned")
         state["dashboard_message_id"] = new_message.id
 
-    # Any successful add/update/delete anywhere — web chatbot, REST API, or a
-    # message in this very channel — goes through this same tasks_engine, so
-    # wiring the refresh here covers every interface, not just Discord-originated ones.
-    tasks_engine.on_change = refresh_dashboard
+    async def on_task_change(change_message: str = None):
+        """Runs on every successful add/update/delete, from any interface (web
+        console, terminal chat, or this bot) — wiring it here covers all of
+        them, not just Discord-originated changes."""
+        await refresh_dashboard()
+        if change_message and task_updates_channel_id:
+            await _post_to(task_updates_channel_id, change_message)
+
+    tasks_engine.on_change = on_task_change
 
     @tasks.loop(minutes=5)
     async def refresh_loop():
@@ -231,17 +256,14 @@ def create_discord_bot(
         if not scheduled_check_loop.is_running():
             scheduled_check_loop.start()  # runs immediately, then every 30s
 
-        # Post what's still missing an API key once per run, so it's visible right
-        # in the channel — but skip it entirely if everything's configured (no noise).
+        # Post what's still missing an API key once per run, so it's visible —
+        # in #warnings if configured, else the tasks channel like before that
+        # existed. Skipped entirely if everything's configured (no noise).
         if not state["posted_key_status"]:
             state["posted_key_status"] = True
             missing = missing_api_keys()
             if missing:
-                try:
-                    channel = await client.fetch_channel(tasks_channel_id)
-                    await channel.send(startup_summary())
-                except (discord.NotFound, discord.Forbidden) as e:
-                    logger.warning(f"Could not post startup key-status summary: {e}")
+                await _post_to(warnings_channel_id, startup_summary(), fallback_channel_id=tasks_channel_id)
 
     @client.event
     async def on_message(message: discord.Message):
@@ -271,6 +293,9 @@ def create_discord_bot(
             await message.channel.send(chunk)
         # Dashboard refresh (if this was a mutating command) happens automatically
         # via tasks_engine.on_change — no need to check/trigger it here too.
+
+        if briefings_channel_id and is_briefing_trigger(message.content):
+            await _post_to(briefings_channel_id, response)
 
     @client.event
     async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):

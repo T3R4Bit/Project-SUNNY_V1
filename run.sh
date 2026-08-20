@@ -61,10 +61,16 @@ GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 GOOGLE_OAUTH_REDIRECT_URI=http://100.117.41.53:5000/auth/google/callback
 
-# Discord bot (tasks channel) — leave both blank to run without the bot (console chat still works)
+# Discord bot — leave token/tasks-channel blank to run without the bot (console
+# chat still works). Tasks channel is the only one commands are read from.
 # See sunny-vault/docs/architecture/discord-bot.md for setup steps
 DISCORD_BOT_TOKEN=
 DISCORD_TASKS_CHANNEL_ID=
+# Optional output-only channels — leave blank to keep everything posting to
+# the tasks channel above instead (nothing breaks either way)
+DISCORD_BRIEFINGS_CHANNEL_ID=
+DISCORD_WARNINGS_CHANNEL_ID=
+DISCORD_TASK_UPDATES_CHANNEL_ID=
 
 # Network (will bind to this on Lenovo in production)
 TAILSCALE_IP=100.117.41.53

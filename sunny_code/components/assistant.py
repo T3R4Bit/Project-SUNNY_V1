@@ -206,3 +206,10 @@ async def handle_message(
         return await briefing_engine.generate_evening_briefing()
 
     return await briefing_engine.answer_question(stripped)
+
+
+def is_briefing_trigger(text: str) -> bool:
+    """Whether `text` would make handle_message() generate a full morning/evening
+    briefing — used by discord_bot.py to decide whether to also cross-post the
+    result to a #briefings channel, without duplicating the trigger phrases."""
+    return text.strip().lower().strip("? ") in _BRIEFING_KEYWORDS

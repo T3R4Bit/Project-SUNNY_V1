@@ -99,14 +99,20 @@ Status: {status}
 2. Bot tab → Reset Token → copy it. Enable the "MESSAGE CONTENT INTENT" toggle
    (under Privileged Gateway Intents) or commands won't parse.
 3. OAuth2 → URL Generator → check "bot" scope → permissions: View Channel,
-   Send Messages, Read Message History, Manage Messages, Add Reactions.
-   Open the generated URL, pick your server, authorize.
+   Send Messages, Read Message History, Manage Messages, Add Reactions, and
+   (for the create/delete channel & role commands) Manage Channels + Manage
+   Roles. Open the generated URL, pick your server, authorize.
 4. In Discord, enable Developer Mode (User Settings → Advanced), right-click
    your tasks channel → Copy Channel ID.
 5. Add to .env:
    DISCORD_BOT_TOKEN=<your token>
    DISCORD_TASKS_CHANNEL_ID=<channel id, no quotes>
 6. Restart Sunny.
+
+Optional — separate output channels instead of everything landing in the
+tasks channel: DISCORD_BRIEFINGS_CHANNEL_ID, DISCORD_WARNINGS_CHANNEL_ID,
+DISCORD_TASK_UPDATES_CHANNEL_ID. Leave any blank to keep that output going
+to the tasks channel.
 
 Full details: sunny-vault/docs/architecture/discord-bot.md"""
 

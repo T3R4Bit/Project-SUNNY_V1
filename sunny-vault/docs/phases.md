@@ -305,19 +305,20 @@ Work on these in parallel, integrate incrementally:
 
 ### Discord Activity Log
 
-**Scoped ahead of this**: a single-channel bot is already built — see [[architecture/discord-bot.md]], [[TASK_SYSTEM.md]], [[architecture/lists.md]], and [[architecture/alarms-reminders.md]]. It handles Tasks, Lists, and Alarms/Reminders (including a 30-second due-item check that pings the channel), all in one `#tasks`-style channel; it doesn't touch the multi-channel activity log below.
+A single command-channel bot is built — see [[architecture/discord-bot.md]], [[TASK_SYSTEM.md]], [[architecture/lists.md]], and [[architecture/alarms-reminders.md]]. It handles Tasks, Lists, Alarms/Reminders, and server administration (create/delete channels & roles — see below), all read from one `#tasks`-style command channel. Three of the eight originally-planned output channels are now built as optional destinations the bot *posts* to (still only reads commands from the one channel):
 
-- [ ] Set up Discord server + channels:
-  - `#briefings` — Briefing output
-  - `#calendar-actions` — Calendar updates
-  - `#email-actions` — Email processing
-  - `#task-updates` — Task changes
-  - `#state-changes` — Sleep/wake mode
-  - `#warnings` — API errors, credential expiry
-  - `#direct-chat` — Live chat alternative
-  - `#notion-sync` — What got pushed to Notion
-- [ ] Bot integration: Log all actions
-- [ ] Permanent searchable audit trail
+- [x] `#task-updates` — Task changes (create/update/delete), from any interface
+- [x] `#warnings` — API errors, missing credentials (was already posted to the tasks channel; now optionally its own channel)
+- [x] `#direct-chat` — this **is** the existing command channel (`DISCORD_TASKS_CHANNEL_ID`), name it whatever you like
+- [x] `#briefings` — Briefing output, cross-posted whenever "morning"/"evening" is typed in the command channel
+- [ ] `#calendar-actions` — Calendar updates — **blocked**: Calendar is read-only Q&A today (see [[architecture/google-integration]]), nothing ever *takes an action* on it to log
+- [ ] `#email-actions` — Email processing — **blocked**: same reason, Gmail is read-only Q&A today
+- [ ] `#state-changes` — Sleep/wake mode — **blocked**: this concept isn't tracked anywhere in the codebase yet
+- [ ] `#notion-sync` — What got pushed to Notion — **blocked**: no Notion integration exists at all
+- [x] Bot integration: Log all actions — done for the four channels above that have something to log
+- [ ] Permanent searchable audit trail — the channels themselves *are* a searchable log today (Discord's own search); a separate persisted audit trail beyond that isn't built
+
+**Also built, not in the original plan**: server administration — `create/delete channel <name>`, `create/delete role <name>`, `give/remove <@user>` a role, `list channels`/`list roles`. See [[architecture/discord-bot.md]] for the full command list and the two safety guardrails.
 
 ### Priority Scheduler
 - [ ] Queue system for concurrent requests

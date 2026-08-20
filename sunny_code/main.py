@@ -63,6 +63,9 @@ class SunnyCore:
             self.list_engine,
             self.scheduled_engine,
             self.settings.discord_tasks_channel_id,
+            briefings_channel_id=self.settings.discord_briefings_channel_id,
+            warnings_channel_id=self.settings.discord_warnings_channel_id,
+            task_updates_channel_id=self.settings.discord_task_updates_channel_id,
         )
 
     def _create_app(self) -> FastAPI:
