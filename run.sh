@@ -13,6 +13,10 @@
 
 set -e
 
+# Unbuffered stdout/stderr — Python block-buffers by default when stdout isn't
+# a tty (true under systemd), which can delay or hide log lines by minutes.
+export PYTHONUNBUFFERED=1
+
 COMMAND="${1:-server}"
 SUBCOMMAND="${2:-}"
 

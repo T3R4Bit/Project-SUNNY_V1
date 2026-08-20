@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from uvicorn import Server, Config
@@ -86,10 +87,34 @@ class SunnyCore:
 
     def _create_app(self) -> FastAPI:
         """Create FastAPI application with all routes."""
+
+        @asynccontextmanager
+        async def lifespan(_app: FastAPI):
+            # Must start the Discord bot from here, not from run()/start()'s own
+            # asyncio.gather() below — this app object is served two different
+            # ways (`uvicorn sunny_code.main:app` in production per run.sh, or
+            # SunnyCore.run() directly for local dev/testing), and only the
+            # ASGI lifespan protocol fires identically under both. A bot task
+            # started from run()/start() alone silently never launches under
+            # the `uvicorn module:app` CLI form, since that form never calls
+            # run()/start() at all — found and fixed 2026-08-20 (the Discord
+            # client constructed fine and sat there forever, never connecting,
+            # no error, because .start() was simply never reached).
+            discord_task = None
+            if self.discord_bot is not None:
+                discord_task = asyncio.create_task(
+                    self.discord_bot.start(self.settings.discord_bot_token)
+                )
+            yield
+            if discord_task is not None:
+                await self.discord_bot.close()
+                discord_task.cancel()
+
         app = FastAPI(
             title=self.settings.app_name,
             version="0.1.0",
             debug=self.settings.debug,
+            lifespan=lifespan,
         )
 
         @app.get("/health")
@@ -145,14 +170,9 @@ class SunnyCore:
             log_level="info" if self.settings.debug else "warning",
         )
         server = Server(config)
-
-        if self.discord_bot is not None:
-            await asyncio.gather(
-                server.serve(),
-                self.discord_bot.start(self.settings.discord_bot_token),
-            )
-        else:
-            await server.serve()
+        # The Discord bot (if configured) starts from the FastAPI lifespan
+        # hook in _create_app(), not here — see the comment there for why.
+        await server.serve()
 
     def run(self):
         """Blocking run (for systemd/production)."""
