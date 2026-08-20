@@ -25,6 +25,7 @@ from sunny_code.components.console_stats import create_console_router
 from sunny_code.components.discord_bot import create_discord_bot
 from sunny_code.components.google_routes import create_google_auth_router
 from sunny_code.components.weather_routes import create_weather_router
+from sunny_code.components.legal_pages import create_legal_router
 from sunny_code.components.key_status import startup_summary
 
 
@@ -165,6 +166,10 @@ class SunnyCore:
         # Weather location — /api/weather/location (read/write for the console's LOCATION card)
         weather_router = create_weather_router()
         app.include_router(weather_router)
+
+        # /legal/home, /legal/privacy, /legal/terms — for Google OAuth verification
+        legal_router = create_legal_router()
+        app.include_router(legal_router)
 
         return app
 
