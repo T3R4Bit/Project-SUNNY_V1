@@ -39,7 +39,8 @@ def is_configured(source: str) -> bool:
         return google_auth.is_connected()
     if requirement == "OPENWEATHERMAP_API_KEY":
         settings = get_settings()
-        return looks_configured(settings.openweathermap_api_key) and bool(location_store.get_location())
+        has_location = bool(location_store.get_location()) or location_store.get_coordinates() is not None
+        return looks_configured(settings.openweathermap_api_key) and has_location
     return False
 
 
@@ -53,8 +54,8 @@ def missing_requirement(source: str) -> str:
         missing = []
         if not looks_configured(settings.openweathermap_api_key):
             missing.append("OPENWEATHERMAP_API_KEY in .env")
-        if not location_store.get_location():
-            missing.append("a location — open /console and enter it in the LOCATION card (right sidebar)")
+        if not location_store.get_location() and location_store.get_coordinates() is None:
+            missing.append("a location — open /console and enter it in the LOCATION card, or connect GPS reporting (see \"setup gps\")")
         return f"needs {' and '.join(missing)}"
     if requirement:
         return f"needs {requirement} in .env"

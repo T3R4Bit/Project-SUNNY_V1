@@ -176,6 +176,20 @@ def create_discord_bot(
         for chunk in _chunk_message(text):
             await channel.send(chunk)
 
+    async def post_to_warnings(text: str):
+        """Exposed for callers outside this module (currently the weekly
+        health check, started from main.py) that want to post to #warnings
+        without importing Discord internals. No-ops if the client isn't
+        connected yet — the health-check loop and Discord's own reconnect are
+        scheduled independently, with no ordering guarantee (a 4am fire right
+        after a restart could beat Discord)."""
+        if not client.is_ready():
+            logger.warning("post_to_warnings: Discord client not ready, skipping")
+            return
+        await _post_to(warnings_channel_id, text, fallback_channel_id=chat_channel_id)
+
+    client.post_to_warnings = post_to_warnings
+
     async def refresh_dashboard(_change_message: str = None):
         """Post or edit the pinned dashboard message in the dashboard channel
         (read-only — nothing is ever read back from here)."""

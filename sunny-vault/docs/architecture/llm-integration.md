@@ -194,14 +194,14 @@ else:
 
 ## Prompt Engineering
 
-All prompts hardcoded (never dynamic).
+System prompts live in the vault, not in Python — `sunny-vault/instructions/{purpose}.md`, one file per task, loaded by `ask_claude()` automatically when a caller passes `purpose=` and no explicit `system=`. See [[llm-instructions]]. This replaced the original plan of fully-hardcoded, Python-embedded prompts — the user wanted to edit prompts directly without a redeploy, which vault-loaded prompts give for free.
 
 **Examples**:
 - Email triage: 3-sentence prompt, ask for one-word response
 - Task interpret: 5-sentence prompt, structured output format
 - Phone conversation: 10-sentence system prompt, conversation context
 
-**No system prompt injection risks**: All input is treated as data, prompts are fixed templates.
+**Prompt injection**: loading prompt *text* from hand-editable vault files is a different threat model than the original fixed-Python-template design, which is why this doc used to say there was no injection risk at all — that claim no longer holds in the strict sense. Accepted as a deliberate risk (2026-08-20): Sunny is single-user, the vault isn't shared or synced anywhere untrusted reaches it, and the user made this call explicitly rather than it being an oversight. Revisit if that threat model ever changes (e.g. multi-user, a synced/shared vault, or instruction files ever being written by anything other than the user).
 
 ## Privacy & Data
 

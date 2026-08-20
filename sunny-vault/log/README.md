@@ -80,10 +80,11 @@ Logs are kept indefinitely. No pruning. This is your permanent audit trail.
 
 ## Other Log Files
 
-Two flat, single-file logs also live directly in `log/` — simpler append-only files, not the nested per-day design above (that design is for the Discord activity mirror, not yet built as described; these two predate/sit alongside it):
+Flat, single-file logs also live directly in `log/` — simpler append-only files, not the nested per-day design above (that design is for the Discord activity mirror, not yet built as described; these predate/sit alongside it):
 
 - `requests.md` — requests Sunny couldn't fulfill with real data (`request_log.py`)
-- `llm-usage.md` — timestamped prompt/response record of every real LLM call (`llm_client.log_llm_call()`, see [[../docs/architecture/llm-readiness]]). Doesn't exist yet as a file — created on first real LLM call, since no feature makes one yet.
+- `llm-usage.md` — a record of **every** `ask_claude()` attempt, not just successes — status, prompt, and (on success) response — see `llm_client.log_llm_call()` and [[../docs/architecture/llm-readiness]].
+- `health-checks.md` — the weekly Sunday-4am system health report, appended by `health_check.py` — see [[../docs/architecture/health-check]].
 
 ## Discord Bot Sync
 

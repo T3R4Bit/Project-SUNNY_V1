@@ -20,7 +20,7 @@ means "last writer wins for that file," never corruption or a torn read.
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
@@ -66,6 +66,17 @@ def parse_frontmatter(text: str) -> Tuple[Dict, str]:
     metadata = yaml.safe_load(raw_yaml) or {}
     metadata = {k: _coerce_datelike(v) for k, v in metadata.items()}
     return metadata, body
+
+
+def read_body(path: Path) -> Optional[str]:
+    """A frontmatter markdown file's body only, frontmatter stripped, or
+    None if the file doesn't exist. For callers that only want the content
+    (e.g. loading a prompt template) and shouldn't have to parse/discard
+    YAML they never use."""
+    if not path.exists():
+        return None
+    _metadata, body = parse_frontmatter(path.read_text(encoding="utf-8"))
+    return body
 
 
 def serialize_frontmatter(metadata: Dict, body: str, field_order: List[str]) -> str:

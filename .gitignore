@@ -23,6 +23,7 @@ __pycache__/
 .env.*.local
 google_token.json
 location.json
+location_gps.json
 
 # TLS cert/key (Tailscale-issued, host-specific — see google-integration.md)
 certs/

@@ -15,7 +15,7 @@ list" before the more specific parser ever saw it.
 import time
 from typing import Dict, Optional
 
-from sunny_code.components import setup_guides
+from sunny_code.components import health_check, setup_guides
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.device import device_from_session
 from sunny_code.components.lists_engine import ListEngine
@@ -50,6 +50,7 @@ ALARMS & REMINDERS
 
 BRIEFINGS
   morning / evening — full briefing
+  health check — latest weekly system report (runs Sunday 4am on its own)
 
 SERVER ADMIN (Discord only — needs a live server to act on)
   create/delete channel <name> — text channels
@@ -204,6 +205,10 @@ async def handle_message(
 
     if lowered in ("evening", "evening briefing"):
         return await briefing_engine.generate_evening_briefing()
+
+    if lowered in ("health check", "health report"):
+        report = health_check.latest_report()
+        return report if report else "No health check report yet — the first one runs Sunday at 4am."
 
     return await briefing_engine.answer_question(stripped)
 

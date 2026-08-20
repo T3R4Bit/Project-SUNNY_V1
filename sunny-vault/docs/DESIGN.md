@@ -211,19 +211,21 @@ Needs a queue or priority scheduler design so active foreground requests always 
 
 ## Obsidian Vault Structure
 
-Three distinct things live in the vault with different lifecycles, and they should not share a tree:
+Four distinct things live in the vault with different lifecycles, and they should not share a tree:
 
 - **Staging**: transient. Pushed to Notion, then moves out. *(Planned — nothing writes here yet.)*
 - **Log mirror**: permanent, append-only, never syncs anywhere.
 - **Live state**: Sunny-owned, mutable, neither transient-then-pushed nor append-only-forever — Sunny is the sole writer, files get rewritten in place as things change. *(Built — see [[architecture/vault-storage]].)*
+- **Instructions**: hand-authored, rarely-changing, Sunny-read-only except for the user's own edits — LLM system prompts, one file per task. Not transient (nothing pushes it out), not append-only (it's meant to be edited in place), not Sunny-owned (the user writes these, Sunny only reads them). *(Built — see [[architecture/llm-instructions]].)*
 
 ```
 sunny-vault/
-├── inbox/        raw capture, unparsed
-├── staging/      structured items awaiting Notion push
-├── archive/      already pushed, kept locally
-├── log/          2026/08/2026-08-17.md — Discord mirror
-└── state/        tasks/, lists/, alarms-reminders.md, sleep mode, token counters, sync cursor
+├── inbox/         raw capture, unparsed
+├── staging/       structured items awaiting Notion push
+├── archive/       already pushed, kept locally
+├── log/           2026/08/2026-08-17.md — Discord mirror; also requests.md, llm-usage.md, health-checks.md
+├── state/         tasks/, lists/, alarms-reminders.md, health-check.md, sleep mode, sync cursor
+└── instructions/  one file per LLM task's system prompt, hand-edited
 ```
 
 - **One file per item**, never a shared append target. The core process runs concurrent async tasks across four input surfaces. If they all append to a single daily file, that invents a locking problem for no reason. One file per item means zero write contention. This is also why Tasks/Lists (`state/tasks/`, `state/lists/`) are one-file-per-task/list, not one shared file.

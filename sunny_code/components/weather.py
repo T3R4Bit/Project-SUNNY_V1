@@ -25,11 +25,13 @@ _TIMEOUT = 5
 
 def _params() -> Optional[dict]:
     settings = get_settings()
-    location = location_store.get_location()
-    if not looks_configured(settings.openweathermap_api_key) or not location:
+    if not looks_configured(settings.openweathermap_api_key):
+        return None
+    location_params = location_store.get_weather_query_params()
+    if not location_params:
         return None
     return {
-        "q": location,
+        **location_params,
         "appid": settings.openweathermap_api_key,
         "units": "imperial",
     }

@@ -19,6 +19,9 @@ _ALIASES = {
     "weather": "weather",
     "openweathermap": "weather",
     "openweather": "weather",
+    "gps": "gps",
+    "owntracks": "gps",
+    "location": "gps",
     "calendar": "google",
     "google calendar": "google",
     "email": "google",
@@ -68,9 +71,12 @@ Spend so far today/this month: GET /api/dashboard/spend/today and
 def _weather_guide() -> str:
     status = "Connected" if is_configured("weather") else "Not connected"
     location = location_store.get_location()
+    gps = location_store.get_coordinates()
+    location_line = f"{location} (also have a live GPS fix)" if location and gps else \
+        (f"GPS fix, {gps[0]:.3f},{gps[1]:.3f}" if gps else (location or "not set"))
     return f"""WEATHER SETUP (OpenWeatherMap)
 Status: {status}
-Location: {location or "not set"}
+Location: {location_line}
 
 Needs two things — a key alone can't tell OpenWeatherMap where you are:
 
@@ -79,7 +85,10 @@ Needs two things — a key alone can't tell OpenWeatherMap where you are:
 3. Add to .env: OPENWEATHERMAP_API_KEY=<your key> — then restart Sunny.
 4. Set your location on /console (LOCATION card) — saves instantly, no
    restart needed, and can be changed anytime. Format: City,State,Country
-   (e.g. Detroit,MI,US). See sunny-vault/docs/architecture/location.md."""
+   (e.g. Detroit,MI,US). See sunny-vault/docs/architecture/location.md.
+
+Or skip the static location entirely and connect live GPS instead — see
+"setup gps"."""
 
 
 def _google_guide() -> str:
@@ -158,9 +167,37 @@ def _tasks_guide() -> str:
 Status: Always connected — stored directly in the vault (sunny-vault/state/tasks/), no API or setup needed."""
 
 
+def _gps_guide() -> str:
+    settings = get_settings()
+    fix = location_store.get_coordinates()
+    status = f"Connected — last fix {fix[0]:.4f}, {fix[1]:.4f}" if fix else "Not connected"
+    auth_line = (
+        "A shared secret is set — use it as the Basic Auth password (any username)."
+        if looks_configured(settings.owntracks_shared_secret)
+        else "No shared secret set — the endpoint accepts reports with no auth at all "
+        "(fine for personal use over Tailscale; set OWNTRACKS_SHARED_SECRET in .env for a bit more safety)."
+    )
+    return f"""GPS LOCATION (OwnTracks)
+Status: {status}
+
+Free, self-hosted, no cloud — OwnTracks pushes your phone's location
+straight to Sunny on its own schedule (~30 min by default in the app,
+configurable). A fix older than 30 minutes is treated as if there isn't
+one, and weather falls back to your static location (see "setup weather").
+
+1. Install OwnTracks (iOS or Android) — owntracks.org
+2. In the app's connection settings, choose HTTP mode.
+3. Endpoint URL: https://<your-tailscale-hostname>:5443/api/location/owntracks
+4. {auth_line}
+5. Set the report mode to "Significant" or a custom interval — your call.
+
+Full details: sunny-vault/docs/architecture/location.md"""
+
+
 _GUIDES = {
     "claude": _claude_guide,
     "weather": _weather_guide,
+    "gps": _gps_guide,
     "google": _google_guide,
     "discord": _discord_guide,
     "commute": lambda: _not_built_guide("commute/traffic"),
@@ -170,11 +207,12 @@ _GUIDES = {
     "tasks": _tasks_guide,
 }
 
-_OVERVIEW_ORDER = ["tasks", "weather", "google", "discord", "claude", "commute", "health", "news", "motorsports"]
+_OVERVIEW_ORDER = ["tasks", "weather", "gps", "google", "discord", "claude", "commute", "health", "news", "motorsports"]
 _OVERVIEW_LABELS = {
     "tasks": "Tasks",
     "claude": "Claude (LLM, infra-only)",
     "weather": "Weather",
+    "gps": "GPS location (OwnTracks)",
     "google": "Calendar + Email (Google)",
     "discord": "Discord bot",
     "commute": "Commute/Traffic",
@@ -197,6 +235,8 @@ def _overview_status(key: str) -> str:
     if key == "claude":
         settings = get_settings()
         return "connected" if looks_configured(settings.claude_api_key) else "not connected"
+    if key == "gps":
+        return "connected" if location_store.get_coordinates() is not None else "not connected"
     source = "weather" if key == "weather" else key
     return "connected" if is_configured(source) else "not connected"
 

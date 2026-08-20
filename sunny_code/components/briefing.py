@@ -17,7 +17,7 @@ from sunny_code.config import get_settings
 from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.data_sources import is_configured, missing_requirement
 from sunny_code.components.request_log import log_unfulfilled
-from sunny_code.components import google_calendar, google_gmail, weather
+from sunny_code.components import google_calendar, google_gmail, health_check, weather
 
 
 logger = logging.getLogger(__name__)
@@ -138,6 +138,14 @@ class BriefingTemplates:
         top = (in_progress + open_tasks)[0] if (in_progress or open_tasks) else None
         task_str = f"{len(in_progress)} in progress, {len(open_tasks)} open — {task_count} total"
 
+        # Nudge only, never the report content itself — see health_check.py's
+        # BACKLOG-sourced requirement to tell the user to check it, not what
+        # it is. Persists across days until acknowledged (morning briefings
+        # are manual-trigger-only, so a same-day-only check could silently
+        # lose the reminder if "morning" isn't said on the Sunday it ran).
+        health_notice = health_check.pending_notice()
+        health_line = f"\n{health_notice}\n" if health_notice else ""
+
         briefing = f"""
 === PROJECT SUNNY — MORNING BRIEFING ===
 
@@ -170,7 +178,7 @@ HEADLINES
 YOUR DAY AHEAD
    1. Focus on: {top['title'] if top else 'nothing on your task list right now'}
    2. {len(unconfigured)} section(s) above need a real data source connected — logged to sunny-vault/log/requests.md
-
+{health_line}
 Have a productive day!
 """
         if unconfigured:

@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     # e.g. "Detroit,MI,US" (state code only applies to US cities).
     weather_location: str = ""
 
+    # OwnTracks GPS reporting (see sunny_code/components/location_routes.py)
+    # — optional HTTP Basic Auth on the receiving endpoint. Blank means
+    # auth is skipped entirely, matching this app's existing single-user,
+    # Tailscale-only trust posture.
+    owntracks_shared_secret: str = ""
+
     # Google Sign-In (OAuth 2.0) — powers Calendar + Gmail. See
     # sunny-vault/docs/architecture/google-integration.md for the Google
     # Cloud Console setup steps required before this works.
@@ -107,6 +113,21 @@ class Settings(BaseSettings):
     tls_certfile: str = ""
     tls_keyfile: str = ""
     tls_port: int = 5443
+
+    # Local wall-clock timezone — used by the weekly health check's Sunday
+    # 4am trigger (see sunny_code/components/health_check.py). Bound once
+    # at startup, not live-reloaded like most settings here — changing this
+    # needs a restart.
+    local_timezone: str = "America/New_York"
+
+    # Optional, user-maintained API key expiry dates (YYYY-MM-DD), checked
+    # by the weekly health check. Blank means "skip this key's check" — none
+    # of these providers expose real expiration dates via API, so this is
+    # opt-in and only as accurate as you keep it.
+    claude_api_key_expires: str = ""
+    openweathermap_api_key_expires: str = ""
+    discord_bot_token_expires: str = ""
+    google_client_secret_expires: str = ""
 
     # Logging
     log_level: str = "INFO"

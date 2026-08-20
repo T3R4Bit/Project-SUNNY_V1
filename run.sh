@@ -59,6 +59,11 @@ OPENWEATHERMAP_API_KEY=...
 # "City,State,CountryCode" — e.g. Detroit,MI,US (state code only applies to US)
 WEATHER_LOCATION=...
 
+# Optional — free/self-hosted phone location via OwnTracks (see "setup gps").
+# Blank means the /api/location/owntracks endpoint accepts reports with no
+# auth at all (fine for personal use over Tailscale).
+OWNTRACKS_SHARED_SECRET=
+
 # Google Sign-In (OAuth 2.0) — powers Calendar + Gmail (read-only).
 # Setup steps: sunny-vault/docs/architecture/google-integration.md
 GOOGLE_CLIENT_ID=...
@@ -84,6 +89,17 @@ API_HOST=127.0.0.1
 # Spending caps
 DAILY_SPEND_CAP=20.0
 MONTHLY_SPEND_CAP=100.0
+
+# Weekly system health check (Sunday 4am — see sunny-vault/docs/architecture/
+# health-check.md). Needs a real IANA name (not "EST"/"PST" abbreviations).
+LOCAL_TIMEZONE=America/New_York
+# Optional, hand-maintained key expiry dates (YYYY-MM-DD) — the health check
+# warns you a week before any of these. Blank = skip that key's check; none
+# of these providers expose real expiration dates via API.
+CLAUDE_API_KEY_EXPIRES=
+OPENWEATHERMAP_API_KEY_EXPIRES=
+DISCORD_BOT_TOKEN_EXPIRES=
+GOOGLE_CLIENT_SECRET_EXPIRES=
 
 # Logging
 LOG_LEVEL=INFO

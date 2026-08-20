@@ -6,8 +6,9 @@ Built ahead of those features, per sunny-vault/docs/architecture/
 llm-readiness.md, so the safety rails already exist and are already tested
 by the time a real feature needs them: honest "not configured" handling
 (matches the rest of the app's pattern for every other integration), a hard
-spend-cap circuit breaker (token_tracker.py), an auth-failure latch, and
-vault usage logging. Nothing in the app calls ask_claude() yet — wiring a
+spend-cap circuit breaker (token_tracker.py), an auth-failure latch, and a
+complete vault usage log (every call attempt, not just successes — see
+log_llm_call below). Nothing in the app calls ask_claude() yet — wiring a
 real feature to it is a deliberate, separate decision.
 """
 
@@ -18,7 +19,7 @@ from typing import Optional
 
 import anthropic
 
-from sunny_code.components import token_tracker
+from sunny_code.components import instructions, token_tracker
 from sunny_code.config import get_settings, looks_configured
 
 logger = logging.getLogger(__name__)
@@ -53,25 +54,38 @@ async def ask_claude(
     """Ask Claude a question. Never raises — returns None on any failure
     (not configured, over budget, rate limited, API/network error) so a
     caller can always fall back to existing non-LLM behavior instead of
-    crashing a request."""
+    crashing a request.
+
+    If `system` isn't given, it's auto-loaded from
+    sunny-vault/instructions/{purpose}.md — see instructions.py. A caller
+    that passes `system` explicitly always wins.
+
+    Every exit point logs to the vault (see log_llm_call) — not just
+    successful calls. That's deliberate: the point is to see everything
+    that *would* reach the LLM, including calls refused before ever making
+    a request, so patterns worth hardcoding are visible over time."""
     global _auth_disabled
 
     settings = get_settings()
+    model_id = MODELS.get(model, MODELS["haiku"])
+    if system is None:
+        system = instructions.load_instructions(purpose)
 
     if not looks_configured(settings.claude_api_key):
         logger.info("ask_claude: no Claude API key configured, skipping")
+        log_llm_call(purpose, model_id, prompt, status="not_configured")
         return None
 
     if _auth_disabled:
         logger.warning("ask_claude: disabled after an invalid API key error earlier this run — restart required")
+        log_llm_call(purpose, model_id, prompt, status="auth_disabled")
         return None
 
     ok, reason = token_tracker.check_budget()
     if not ok:
         logger.warning(f"ask_claude: refusing call, {reason}")
+        log_llm_call(purpose, model_id, prompt, status="budget_exceeded", detail=reason)
         return None
-
-    model_id = MODELS.get(model, MODELS["haiku"])
 
     async with _concurrency_guard:
         try:
@@ -81,15 +95,22 @@ async def ask_claude(
         except anthropic.AuthenticationError:
             _auth_disabled = True
             logger.error("ask_claude: invalid Claude API key — disabling further calls until restart")
+            log_llm_call(purpose, model_id, prompt, status="auth_error")
             return None
         except anthropic.RateLimitError:
             logger.warning("ask_claude: rate limited — failing this call, a later message can retry")
+            log_llm_call(purpose, model_id, prompt, status="rate_limited")
             return None
         except anthropic.APIStatusError as e:
             logger.error(f"ask_claude: Claude API error ({e.status_code}): {e.message}")
+            log_llm_call(purpose, model_id, prompt, status="api_error", detail=f"HTTP {e.status_code}: {e.message}")
             return None
         except anthropic.APIConnectionError as e:
+            # type(e).__name__ only, never str(e) — a connection error's
+            # message can embed the full request URL, which includes the
+            # API key (same caution as weather.py's equivalent handler).
             logger.error(f"ask_claude: connection error: {e}")
+            log_llm_call(purpose, model_id, prompt, status="connection_error", detail=type(e).__name__)
             return None
 
     text = "".join(block.text for block in response.content if block.type == "text")
@@ -100,7 +121,7 @@ async def ask_claude(
         completion_tokens=response.usage.output_tokens,
         cost=token_tracker.calculate_cost(model_id, response.usage.input_tokens, response.usage.output_tokens),
     )
-    log_llm_call(purpose=purpose, model=model_id, prompt=prompt, response=text)
+    log_llm_call(purpose, model_id, prompt, status="success", response=text)
 
     return text
 
@@ -117,20 +138,32 @@ def _call_claude_sync(api_key: str, model_id: str, max_tokens: int, system: Opti
     return client.messages.create(**kwargs)
 
 
-def log_llm_call(purpose: str, model: str, prompt: str, response: str) -> None:
-    """Append a timestamped record to the vault — per BACKLOG.md: "All chats
-    that were forced to an llm (except weather mode or project builds) get a
-    copy of the message logged with a time stamp into the obsidian vault."""
+def log_llm_call(
+    purpose: str,
+    model: str,
+    prompt: str,
+    status: str = "success",
+    detail: Optional[str] = None,
+    response: Optional[str] = None,
+) -> None:
+    """Append a timestamped record to the vault for *every* call attempt,
+    not just successful ones — per BACKLOG.md: "All chats that were forced
+    to an llm... get a copy of the message logged with a time stamp into
+    the obsidian vault." Logging refusals too (not_configured,
+    budget_exceeded, etc.) with the full prompt is the point: that's what
+    would have gone to the LLM, which is exactly what's useful for spotting
+    patterns worth hardcoding later."""
     settings = get_settings()
     log_path = settings.project_root / "sunny-vault" / "log" / "llm-usage.md"
     try:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        entry = (
-            f"## {timestamp} — {purpose} ({model})\n\n"
-            f"**Prompt:** {prompt}\n\n"
-            f"**Response:** {response}\n\n---\n\n"
-        )
+        entry = f"## {timestamp} — {purpose} ({model}) — {status}\n\n**Prompt:** {prompt}\n\n"
+        if detail is not None:
+            entry += f"**Detail:** {detail}\n\n"
+        if status == "success":
+            entry += f"**Response:** {response}\n\n"
+        entry += "---\n\n"
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(entry)
     except OSError as e:

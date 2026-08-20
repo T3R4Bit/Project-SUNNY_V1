@@ -3,7 +3,10 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime, time as dtime
+from zoneinfo import ZoneInfo
 
+from discord.ext import tasks
 from fastapi import FastAPI
 from uvicorn import Server, Config
 
@@ -24,7 +27,9 @@ from sunny_code.components.chatbot_ui import create_chatbot_router
 from sunny_code.components.console_stats import create_console_router
 from sunny_code.components.discord_bot import create_discord_bot
 from sunny_code.components.google_routes import create_google_auth_router
+from sunny_code.components.health_check import run_weekly_health_check
 from sunny_code.components.weather_routes import create_weather_router
+from sunny_code.components.location_routes import create_location_router
 from sunny_code.components.legal_pages import create_legal_router
 from sunny_code.components.key_status import startup_summary
 
@@ -71,8 +76,12 @@ class SunnyCore:
         # fires once per Server serving the same app.
         self._discord_started = False
 
+        # Same guard, same reason, for the weekly health-check loop below.
+        self._health_check_started = False
+
         self.app = self._create_app()
         self.discord_bot = self._create_discord_bot()
+        self.health_check_loop = self._create_health_check_loop()
 
     def _create_discord_bot(self):
         """Build the Discord bot if a token + chat channel are configured;
@@ -93,6 +102,30 @@ class SunnyCore:
             warnings_channel_id=self.settings.discord_warnings_channel_id,
             task_updates_channel_id=self.settings.discord_task_updates_channel_id,
         )
+
+    def _create_health_check_loop(self):
+        """Standalone weekly Sunday-4am system health check (see
+        sunny_code/components/health_check.py) — deliberately not attached to
+        the Discord client, unlike the bot's own tasks.loop instances in
+        discord_bot.py. Must run and log even when Discord isn't configured;
+        posting the report to Discord is optional, not a requirement for the
+        check itself to happen. Same reasoning, same place, as the vault
+        mirror wiring above.
+
+        discord.ext.tasks.loop's time= fires daily with no native
+        day-of-week filter, so the callback checks for Sunday itself and
+        no-ops otherwise. tzinfo is bound once here at startup — changing
+        LOCAL_TIMEZONE needs a restart, unlike most settings in this app."""
+        tz = ZoneInfo(self.settings.local_timezone)
+
+        @tasks.loop(time=dtime(hour=4, tzinfo=tz))
+        async def health_check_loop():
+            if datetime.now(tz).weekday() != 6:  # Monday=0 ... Sunday=6
+                return
+            post_fn = getattr(self.discord_bot, "post_to_warnings", None) if self.discord_bot else None
+            await run_weekly_health_check(post_fn=post_fn)
+
+        return health_check_loop
 
     def _create_app(self) -> FastAPI:
         """Create FastAPI application with all routes."""
@@ -121,10 +154,18 @@ class SunnyCore:
                 discord_task = asyncio.create_task(
                     self.discord_bot.start(self.settings.discord_bot_token)
                 )
+
+            # Same double-start hazard as the Discord bot above (HTTP + HTTPS
+            # servers both fire this hook against the same app) — same guard.
+            if not self._health_check_started:
+                self._health_check_started = True
+                self.health_check_loop.start()
+
             yield
             if discord_task is not None:
                 await self.discord_bot.close()
                 discord_task.cancel()
+            self.health_check_loop.cancel()
 
         app = FastAPI(
             title=self.settings.app_name,
@@ -166,6 +207,10 @@ class SunnyCore:
         # Weather location — /api/weather/location (read/write for the console's LOCATION card)
         weather_router = create_weather_router()
         app.include_router(weather_router)
+
+        # GPS location reports — /api/location/owntracks
+        location_router = create_location_router()
+        app.include_router(location_router)
 
         # /legal/home, /legal/privacy, /legal/terms — for Google OAuth verification
         legal_router = create_legal_router()

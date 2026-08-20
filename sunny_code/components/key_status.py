@@ -6,6 +6,7 @@ clear one-time summary of what's set up and what isn't, logged at startup and
 posted to Discord when the bot connects.
 """
 
+from datetime import date, timedelta
 from typing import List, Tuple
 
 from sunny_code.components import google_auth
@@ -19,6 +20,17 @@ _TRACKED_KEYS = [
     ("Google OAuth client secret", "google_client_secret", "GOOGLE_CLIENT_SECRET"),
     ("Discord bot token", "discord_bot_token", "DISCORD_BOT_TOKEN"),
     ("Discord chat channel ID", "discord_chat_channel_id", "DISCORD_CHAT_CHANNEL_ID"),
+]
+
+# (label, settings attribute) — only keys with a meaningful, user-trackable
+# expiry. Most providers here don't expose expiration dates via API at all,
+# so these are opt-in (.env, YYYY-MM-DD, blank = skip) and only as accurate
+# as they're kept — see config.py.
+_EXPIRY_KEYS = [
+    ("Claude API (LLM)", "claude_api_key_expires"),
+    ("OpenWeatherMap (weather)", "openweathermap_api_key_expires"),
+    ("Discord bot token", "discord_bot_token_expires"),
+    ("Google OAuth client secret", "google_client_secret_expires"),
 ]
 
 
@@ -36,6 +48,26 @@ def missing_api_keys() -> List[Tuple[str, str]]:
         if not configured:
             missing.append((label, env_var))
     return missing
+
+
+def expiring_within(days: int) -> List[Tuple[str, str]]:
+    """(label, expiry_date_str) pairs for tracked keys whose user-set expiry
+    date falls within the next `days` days. Keys with no expiry date set are
+    silently skipped — there's no data to check for them."""
+    settings = get_settings()
+    cutoff = date.today() + timedelta(days=days)
+    expiring = []
+    for label, attr in _EXPIRY_KEYS:
+        raw = getattr(settings, attr, "")
+        if not looks_configured(raw):
+            continue
+        try:
+            expiry_date = date.fromisoformat(raw)
+        except ValueError:
+            continue
+        if expiry_date <= cutoff:
+            expiring.append((label, raw))
+    return expiring
 
 
 def startup_summary() -> str:

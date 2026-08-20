@@ -5,6 +5,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "instructions",
         "archive",
         "docs",
         "inbox",
@@ -54,6 +55,8 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "health-check.md",
+        "llm-instructions.md",
         "llm-readiness.md",
         "vault-storage.md",
         "location.md",
@@ -207,6 +210,31 @@
       "isHidden": false
     },
     "docs/architecture/llm-readiness.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "instructions": {
+      "isPinned": false,
+      "isHidden": false,
+      "customOrder": [
+        "weekly-health-check.md",
+        "README.md"
+      ],
+      "sortOrder": "custom"
+    },
+    "instructions/README.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "instructions/weekly-health-check.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/llm-instructions.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/health-check.md": {
       "isPinned": false,
       "isHidden": false
     }
