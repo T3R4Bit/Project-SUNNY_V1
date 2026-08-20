@@ -219,6 +219,12 @@ message) in the chat channel — Sunny posts back a playable audio attachment.
    updates the bot in place, no need to kick/re-invite.
 3. Keep it under 1000 characters per call.
 
+Want it to sound different? PIPER_VOICE picks a different voice entirely
+(free choice of dozens, higher quality tiers included); PIPER_LENGTH_SCALE/
+PIPER_NOISE_SCALE/PIPER_NOISE_W_SCALE tune speed and expressiveness on the
+current voice. All take effect on the next /speak, no restart. See
+"Tuning Piper's Voice" in sunny-vault/docs/architecture/tts-piper.md.
+
 Full details: sunny-vault/docs/architecture/tts-piper.md"""
 
 

@@ -133,9 +133,46 @@ class Settings(BaseSettings):
 
     # Piper TTS (see sunny_code/components/tts.py) — free, fully local, no
     # API cost. Model downloads automatically to piper_voices_dir on first
-    # use if not already present (~60MB, one time).
+    # use if not already present (~60MB, one time). All of these take effect
+    # on the very next /speak call, no restart needed — same uncached-by-
+    # design pattern as get_settings() itself.
     piper_voice: str = "en_US-lessac-medium"
     piper_voices_dir: Path = project_root / "piper_voices"
+
+    # Optional tuning knobs (blank = use the voice model's own baked-in
+    # defaults). See sunny-vault/docs/architecture/tts-piper.md's "Tuning
+    # Piper's Voice" section for what each does and where to start.
+    piper_length_scale: Optional[float] = None
+    piper_noise_scale: Optional[float] = None
+    piper_noise_w_scale: Optional[float] = None
+    piper_speaker_id: Optional[int] = None
+
+    @field_validator(
+        "piper_length_scale", "piper_noise_scale", "piper_noise_w_scale",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_optional_float(cls, v):
+        """Same "blank/placeholder means unset" contract as
+        _coerce_channel_id above, for optional floats instead of required
+        ints — blank means "use Piper's own default for this voice", not
+        a crash."""
+        if v in (None, ""):
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    @field_validator("piper_speaker_id", mode="before")
+    @classmethod
+    def _coerce_optional_int(cls, v):
+        if v in (None, ""):
+            return None
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return None
 
     # Logging
     log_level: str = "INFO"

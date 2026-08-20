@@ -67,6 +67,23 @@ def _get_voice():
     return _voice
 
 
+def _syn_config():
+    """Built fresh from current settings on every call (not cached) so a
+    .env tuning edit — length_scale, noise_scale, noise_w_scale, speaker_id
+    — takes effect on the very next /speak, no restart. None fields fall
+    through to the voice model's own baked-in defaults — see
+    sunny-vault/docs/architecture/tts-piper.md's "Tuning Piper's Voice"."""
+    from piper.config import SynthesisConfig
+
+    settings = get_settings()
+    return SynthesisConfig(
+        speaker_id=settings.piper_speaker_id,
+        length_scale=settings.piper_length_scale,
+        noise_scale=settings.piper_noise_scale,
+        noise_w_scale=settings.piper_noise_w_scale,
+    )
+
+
 def synthesize_wav_bytes(text: str) -> bytes:
     """Synthesizes `text` to WAV audio bytes. Blocking (model load, on-disk
     I/O, CPU-bound inference) — callers on an event loop should run this via
@@ -79,7 +96,7 @@ def synthesize_wav_bytes(text: str) -> bytes:
 
     buf = io.BytesIO()
     with wave.open(buf, "wb") as wav_file:
-        voice.synthesize_wav(text, wav_file)
+        voice.synthesize_wav(text, wav_file, syn_config=_syn_config())
     return buf.getvalue()
 
 

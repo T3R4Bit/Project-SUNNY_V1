@@ -106,6 +106,12 @@ GOOGLE_CLIENT_SECRET_EXPIRES=
 # downloads automatically on first use. Leave PIPER_VOICE at the default
 # unless you want a different voice (see sunny-vault/docs/architecture/tts-piper.md).
 PIPER_VOICE=en_US-lessac-medium
+# Optional tuning — leave blank for the voice's own defaults. See
+# tts-piper.md's "Tuning Piper's Voice" for what each does and where to start.
+PIPER_LENGTH_SCALE=
+PIPER_NOISE_SCALE=
+PIPER_NOISE_W_SCALE=
+PIPER_SPEAKER_ID=
 
 # Logging
 LOG_LEVEL=INFO
