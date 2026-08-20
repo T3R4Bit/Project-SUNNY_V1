@@ -32,9 +32,14 @@ SCOPES = [
     "https://www.googleapis.com/auth/userinfo.email",
 ]
 
-# Single-user server: one pending OAuth state at a time is enough CSRF
-# protection here, no need for a session store.
+# Single-user server: one pending OAuth flow at a time is enough here, no
+# need for a session store. Both state (CSRF) and code_verifier (PKCE) must
+# survive from build_authorization_url() to handle_callback() — they're two
+# separate HTTP requests (the user goes to Google and back in between), so
+# a Flow object's own auto-generated code_verifier is lost the moment that
+# function returns unless it's captured here first.
 _pending_state: Optional[str] = None
+_pending_code_verifier: Optional[str] = None
 
 
 def _client_config() -> dict:
@@ -58,7 +63,7 @@ def is_client_configured() -> bool:
 
 def build_authorization_url() -> str:
     """Start a sign-in: returns the Google consent screen URL to redirect the user to."""
-    global _pending_state
+    global _pending_state, _pending_code_verifier
     settings = get_settings()
     flow = Flow.from_client_config(
         _client_config(), scopes=SCOPES, redirect_uri=settings.google_oauth_redirect_uri
@@ -70,20 +75,30 @@ def build_authorization_url() -> str:
         prompt="consent",  # forces a refresh_token even on repeat sign-ins
         state=state,
     )
+    # authorization_url() is what auto-generates the PKCE code_verifier on
+    # this Flow instance (see google_auth_oauthlib's Flow.authorization_url)
+    # — it doesn't exist before this call. Must capture it now: this Flow
+    # object is discarded when this function returns, and handle_callback()
+    # runs in a separate HTTP request with no way to get it back otherwise.
     _pending_state = state
+    _pending_code_verifier = flow.code_verifier
     return auth_url
 
 
 def handle_callback(code: str, state: str) -> str:
     """Exchange the callback's ?code= for tokens, persist them, return the connected email."""
-    global _pending_state
+    global _pending_state, _pending_code_verifier
     if not state or state != _pending_state:
         raise ValueError("OAuth state mismatch — sign-in flow expired or was tampered with")
     _pending_state = None
+    code_verifier, _pending_code_verifier = _pending_code_verifier, None
 
     settings = get_settings()
     flow = Flow.from_client_config(
-        _client_config(), scopes=SCOPES, redirect_uri=settings.google_oauth_redirect_uri
+        _client_config(),
+        scopes=SCOPES,
+        redirect_uri=settings.google_oauth_redirect_uri,
+        code_verifier=code_verifier,
     )
     flow.fetch_token(code=code)
     creds = flow.credentials
