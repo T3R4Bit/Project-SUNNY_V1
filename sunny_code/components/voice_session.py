@@ -113,38 +113,94 @@ def _patch_voice_recv_packet_router() -> None:
     _router_mod.PacketRouter._do_run = _patched_do_run
 
 
-def _disable_dave() -> None:
-    """Force discord.py to negotiate classic (pre-DAVE) voice encryption
-    instead of Discord's newer end-to-end DAVE protocol. Whether DAVE gets
-    used is decided entirely client-side, by whether the `davey` package
-    is importable (see discord/voice_state.py's `has_dave` and
-    `max_dave_protocol_version`, and gateway.py, which sends that value
-    straight to Discord as part of the voice-connect handshake).
+def _patch_dave_decrypt() -> None:
+    """DAVE (Discord's end-to-end voice encryption) became mandatory
+    platform-wide in March 2026 — no server setting, no opt-out. A client
+    without DAVE support gets flatly refused at connect time with voice
+    close code 4017 ("this channel requires DAVE") — confirmed live,
+    2026-08-20, after an earlier version of this patch tried disabling
+    DAVE client-side to fix the "corrupted stream on every packet" issue
+    below; that made /join fail to connect at all instead. DAVE has to
+    stay on — `davey` must stay installed.
 
-    discord-ext-voice-recv's decode path predates DAVE and can't decrypt
-    DAVE-encrypted frames before handing them to the Opus decoder — with
-    DAVE active, every single incoming packet failed with "corrupted
-    stream" (confirmed live, 2026-08-20 — not occasional loss, 100% of
-    packets). `davey` only got installed in the first place as part of
-    `discord.py[voice]` while fixing a separate libopus issue.
+    That leaves the real problem: discord-ext-voice-recv 0.5.2a179 (the
+    PyPI release) hands Opus-decode raw MLS ciphertext without decrypting
+    it first, since it predates DAVE — every real voice frame decodes as
+    "corrupted stream". No PyPI release fixes this, but there's a real,
+    working fix: PR #58 on the project's GitHub (open, unmerged as of
+    2026-08-20 — the author reports it's been running 24/7 in a
+    production voice bot). Verified by installing that exact fork/branch
+    locally and reading the real installed source via
+    inspect.getsource() — not a summarized diff — then replicated here
+    faithfully as a patch, same reasoning as the PacketRouter patch
+    above: don't depend on an unofficial personal fork as a pip
+    dependency for something this central.
 
-    Uninstalling the `davey` package doesn't stick: discord-ext-voice-recv
-    itself declares `discord.py[voice]>=2.5` as its own dependency, so any
-    full `pip install -r requirements.txt` (which run.sh does on every
-    start) reinstalls it regardless of what this project's own
-    requirements.txt says. This patches the actual flag discord.py checks
-    instead — robust regardless of whether davey happens to be
-    importable. See sunny-vault/docs/architecture/voice-join.md."""
-    import discord.voice_state as _voice_state_mod
+    Decrypts each inbound frame with discord.py's own DaveSession
+    (already maintained for the sending side) before Opus ever sees it.
+    See sunny-vault/docs/architecture/voice-join.md."""
+    try:
+        import davey as _davey
+    except ImportError:
+        _davey = None
 
-    _voice_state_mod.has_dave = False
+    from discord.ext.voice_recv import opus as _opus_mod
+
+    def _dave_decrypt(self, packet) -> None:
+        if _davey is None or not packet or not packet.decrypted_data:
+            return
+
+        state = getattr(self.sink.voice_client, "_connection", None)
+        session = getattr(state, "dave_session", None)
+        if session is None or not session.ready or getattr(state, "dave_protocol_version", 0) == 0:
+            return
+
+        user_id = self._cached_id
+        if user_id is None:
+            # SSRC not mapped to a user yet — without the sender we can't
+            # pick the right ratchet; leave the frame for normal handling.
+            return
+
+        try:
+            packet.decrypted_data = session.decrypt(
+                int(user_id), _davey.MediaType.audio, bytes(packet.decrypted_data)
+            )
+        except Exception as e:
+            # Expected for passthrough (unencrypted) frames, e.g. silence/
+            # keepalive — those arrive as plaintext and fall through
+            # unchanged, decoding fine as-is.
+            logger.debug(f"voice_session: DAVE decrypt skipped for ssrc {self.ssrc}: {e}")
+
+    def _patched_process_packet(self, packet):
+        pcm = None
+        member = self._get_cached_member()
+        if member is None:
+            self._cached_id = self.sink.voice_client._get_id_from_ssrc(self.ssrc)
+            member = self._get_cached_member()
+
+        self._dave_decrypt(packet)
+
+        if not self.sink.wants_opus():
+            packet, pcm = self._decode_packet(packet)
+
+        data = _opus_mod.VoiceData(packet, member, pcm=pcm)
+        self._last_seq = packet.sequence
+        self._last_ts = packet.timestamp
+        return data
+
+    _opus_mod.PacketDecoder._dave_decrypt = _dave_decrypt
+    _opus_mod.PacketDecoder._process_packet = _patched_process_packet
 
 
 _patch_voice_recv_packet_router()
-_disable_dave()
+_patch_dave_decrypt()
 
 _voice_client: Optional[voice_recv.VoiceRecvClient] = None
 _awake_until: float = 0.0
+_connecting: bool = False  # guards the window between "checked is_active()"
+# and "_voice_client actually assigned" — channel.connect()'s own retry loop
+# can take 25+ seconds (5 attempts, increasing backoff) before returning, and
+# is_active() alone doesn't catch a second /join fired during that window.
 
 
 def is_active() -> bool:
@@ -154,12 +210,20 @@ def is_active() -> bool:
 async def start(interaction, tasks_engine, briefing_engine, list_engine, scheduled_engine) -> str:
     """Joins the invoking user's current voice channel and starts
     listening. Fails with an honest message (not a crash) if the user
-    isn't in a channel, a session is already active, or the connect
-    itself fails (missing permissions, etc.)."""
-    global _voice_client, _awake_until
+    isn't in a channel, a session (or connection attempt) is already in
+    progress, or the connect/listen sequence itself fails (missing
+    permissions, Discord voice server issues, etc.) — always returns a
+    string, never lets an exception escape to the caller, since an
+    uncaught exception here leaves Discord's "thinking..." indicator
+    stuck forever (confirmed live, 2026-08-20: this exact gap left a
+    real /join stuck when the connect "succeeded" but the connection
+    wasn't actually usable and .listen() then raised)."""
+    global _voice_client, _awake_until, _connecting
 
     if is_active():
         return "Already in a voice call — use /leave first."
+    if _connecting:
+        return "Already joining a voice call — give it a moment."
 
     voice_state = getattr(interaction.user, "voice", None)
     if voice_state is None or voice_state.channel is None:
@@ -240,15 +304,29 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
             asyncio.run_coroutine_threadsafe(handle_utterance(user, text), loop)
 
     _awake_until = 0.0
+    _connecting = True
     try:
-        _voice_client = await channel.connect(cls=voice_recv.VoiceRecvClient)
-    except Exception as e:
-        logger.error(f"voice_session: failed to connect to {channel}: {e}")
-        return "Couldn't join that voice channel — check my permissions."
+        try:
+            new_client = await channel.connect(cls=voice_recv.VoiceRecvClient)
+        except Exception as e:
+            logger.error(f"voice_session: failed to connect to {channel}: {e}")
+            return "Couldn't join that voice channel — check my permissions, or Discord's voice servers may be having issues."
 
-    _voice_client.listen(voice_recv.BasicSink(on_audio))
-    logger.info(f"voice_session: joined #{channel.name} ({channel.id})")
-    return f'Joined {channel.name} — say "Hey Sunny" to start.'
+        try:
+            new_client.listen(voice_recv.BasicSink(on_audio))
+        except Exception as e:
+            logger.error(f"voice_session: connected but failed to start listening: {e}")
+            try:
+                await new_client.disconnect()
+            except Exception:
+                pass
+            return "Joined but couldn't start listening — try /join again."
+
+        _voice_client = new_client
+        logger.info(f"voice_session: joined #{channel.name} ({channel.id})")
+        return f'Joined {channel.name} — say "Hey Sunny" to start.'
+    finally:
+        _connecting = False
 
 
 async def stop() -> str:

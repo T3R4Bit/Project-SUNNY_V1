@@ -194,14 +194,16 @@ def create_discord_bot(
             )
             return
 
-        await interaction.response.defer(thinking=True)
+        await interaction.response.defer(thinking=True, ephemeral=True)
         try:
             wav_bytes = await asyncio.to_thread(tts.synthesize_wav_bytes, text)
         except Exception as e:
             logger.error(f"/speak synthesis failed: {e}")
-            await interaction.followup.send("Couldn't synthesize that — check the logs.")
+            await interaction.followup.send("Couldn't synthesize that — check the logs.", ephemeral=True)
             return
-        await interaction.followup.send(file=discord.File(io.BytesIO(wav_bytes), filename="speech.wav"))
+        await interaction.followup.send(
+            file=discord.File(io.BytesIO(wav_bytes), filename="speech.wav"), ephemeral=True
+        )
 
     @tree.command(name="join", description="Join your voice channel for a live conversation (Vosk STT + Piper TTS)")
     async def join_command(interaction: discord.Interaction):
@@ -215,11 +217,11 @@ def create_discord_bot(
                 "Use /join in the chat channel.", ephemeral=True
             )
             return
-        await interaction.response.defer(thinking=True)
+        await interaction.response.defer(thinking=True, ephemeral=True)
         message = await voice_session.start(
             interaction, tasks_engine, briefing_engine, list_engine, scheduled_engine
         )
-        await interaction.followup.send(message)
+        await interaction.followup.send(message, ephemeral=True)
 
     @tree.command(name="leave", description="Leave the voice channel")
     async def leave_command(interaction: discord.Interaction):
@@ -228,9 +230,9 @@ def create_discord_bot(
                 "Use /leave in the chat channel.", ephemeral=True
             )
             return
-        await interaction.response.defer(thinking=True)
+        await interaction.response.defer(thinking=True, ephemeral=True)
         message = await voice_session.stop()
-        await interaction.followup.send(message)
+        await interaction.followup.send(message, ephemeral=True)
 
     async def _post_to(channel_id: int, text: str, fallback_channel_id: int = None):
         """Send `text` to `channel_id` if set, else to `fallback_channel_id` (typically
