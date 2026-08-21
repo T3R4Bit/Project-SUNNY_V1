@@ -37,6 +37,33 @@ def _params() -> Optional[dict]:
     }
 
 
+def location_resolves(location: str) -> bool:
+    """True if OpenWeatherMap can actually geocode this exact string right
+    now, else False (including on any network/API failure — treated as
+    "couldn't verify" rather than silently accepted). Used by
+    weather_routes.py to validate a new /console LOCATION card entry
+    *before* saving it, rather than accepting anything non-blank and
+    finding out days later from an OpenWeatherMap 404 buried in the log —
+    confirmed live, 2026-08-21: a location saved as "Milton GA" (missing
+    the required City,State,Country commas) 404'd on every single weather
+    call for days with zero user-facing indication anything was wrong."""
+    settings = get_settings()
+    if not looks_configured(settings.openweathermap_api_key):
+        # Can't verify without a key -- don't block saving the location
+        # itself over a separate, already-surfaced-elsewhere problem.
+        return True
+    try:
+        resp = requests.get(
+            f"{_BASE_URL}/weather",
+            params={"q": location, "appid": settings.openweathermap_api_key},
+            timeout=_TIMEOUT,
+        )
+    except requests.RequestException as e:
+        logger.error(f"OpenWeatherMap location-check request failed: {type(e).__name__}")
+        return True  # network hiccup, not proof the location is bad
+    return resp.ok
+
+
 def get_current() -> Optional[Dict]:
     """Today's conditions, or None if weather isn't usable right now."""
     params = _params()
