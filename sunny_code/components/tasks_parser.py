@@ -32,14 +32,28 @@ class TaskCommandParser:
     # Natural-language triggers — order matters, first match wins, so the specific
     # "X to my tasks" / "task: X" phrasings are tried before the bare "add X" catch-all.
     NATURAL_ADD_TRIGGERS = [
-        # "to my task list" (explicit) is a task; bare "to my list"/"to my X list"
-        # belongs to the separate Lists feature (see lists_parser.py) now that it's
-        # a real thing, not just a synonym for tasks.
-        re.compile(r'^add\s+(.+?)\s+to\s+(?:my\s+)?task\s+list$', re.IGNORECASE),
-        re.compile(r'^add\s+(.+?)\s+to\s+(?:my\s+)?tasks?$', re.IGNORECASE),
+        # "to my task list" / "to my tasks" (explicit) is a task; bare "to my
+        # list"/"to my X list" belongs to the separate Lists feature (see
+        # lists_parser.py) now that it's a real thing, not just a synonym
+        # for tasks. The leading "add" is optional here (or one of its
+        # confirmed real speech-to-text mishearings, "i'd"/"id" — heard
+        # live via /join, 2026-08-21: Vosk transcribed "add make pizza to
+        # my tasks" as "i'd make pizza to my tasks", which the old
+        # ^add-anchored pattern silently failed to recognize at all).
+        # The trailing "to my task(s)" is the reliable anchor here, not
+        # the leading word, which speech-to-text is far more likely to
+        # garble — a short word like "add" has few phonemes to distinguish
+        # it by. If the leading word is missing or isn't a recognized
+        # variant, it just becomes (harmless) extra text at the front of
+        # the title instead of failing the match outright.
+        re.compile(r'^(?:add\s+|i\'?d\s+|id\s+)?(.+?)\s+to\s+(?:my\s+)?task\s+list$', re.IGNORECASE),
+        re.compile(r'^(?:add\s+|i\'?d\s+|id\s+)?(.+?)\s+to\s+(?:my\s+)?tasks?$', re.IGNORECASE),
         # "add/create/make/new (a/an/me a) (new) task [title]" — title is optional
         # (`.*` not `.+`), so a bare "make a new task" is a valid empty-title
         # match too, which is what lets the assistant ask a follow-up for it.
+        # No trailing anchor to fall back on here, so the leading verb stays
+        # required — "make"/"create"/"new" are common enough words that
+        # making them optional would risk swallowing unrelated sentences.
         re.compile(r'^(?:add|create|make|new)\s+(?:a\s+|an\s+|me\s+a\s+)?(?:new\s+)?task[:\s]*(.*)$', re.IGNORECASE),
         re.compile(r'^add\s+(.+)$', re.IGNORECASE),  # bare "add X" catch-all
     ]
@@ -54,7 +68,13 @@ class TaskCommandParser:
     # or quoted). TaskEngine resolves it: exact ID match first, then title match.
     NATURAL_DONE_PATTERN = re.compile(
         r'^(?:mark|set)\s+(.+?)\s+(?:as\s+)?done$'
-        r'|^(?:complete|finish)\s+(.+)$',
+        r'|^(?:complete|finish)\s+(.+)$'
+        # "cross off my X task" — a real, natural way to say "mark X done"
+        # (crossing an item off a physical list), heard live via /join,
+        # 2026-08-21, and not recognized by any pattern above. Trailing
+        # " task" is stripped if present so the extracted identifier
+        # matches cleanly against the stored title either way.
+        r'|^cross\s+off\s+(?:my\s+)?(.+?)(?:\s+task)?$',
         re.IGNORECASE,
     )
     NATURAL_DELETE_PATTERN = re.compile(

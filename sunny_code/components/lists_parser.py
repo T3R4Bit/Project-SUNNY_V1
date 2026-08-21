@@ -24,8 +24,14 @@ class ListCommandParser:
     ]
 
     # Named ("add X to my Y list") tried before bare ("add X to my list" -> default list).
-    ADD_ITEM_NAMED = re.compile(r'^add\s+(.+?)\s+to\s+(?:my\s+)?(.+?)\s+list$', re.IGNORECASE)
-    ADD_ITEM_BARE = re.compile(r'^add\s+(.+?)\s+to\s+(?:my\s+)?list$', re.IGNORECASE)
+    # Leading "add" is optional (or one of its confirmed real speech-to-
+    # text mishearings, "i'd"/"id" -- same fix applied to tasks_parser.py
+    # after seeing it live via /join, 2026-08-21: "add" is short enough
+    # that STT engines confuse it with "I'd" easily, and this is the
+    # exact same trigger word hitting the exact same risk here). The
+    # trailing "to my ... list" is the reliable anchor either way.
+    ADD_ITEM_NAMED = re.compile(r'^(?:add\s+|i\'?d\s+|id\s+)?(.+?)\s+to\s+(?:my\s+)?(.+?)\s+list$', re.IGNORECASE)
+    ADD_ITEM_BARE = re.compile(r'^(?:add\s+|i\'?d\s+|id\s+)?(.+?)\s+to\s+(?:my\s+)?list$', re.IGNORECASE)
 
     QUERY_NAMED = [
         re.compile(r"^what(?:'s|s| is| are)\s+on\s+(?:my\s+)?(.+?)\s+list\??$", re.IGNORECASE),
