@@ -18,7 +18,9 @@ A short generated chime (~200ms, two rising tones) plays the instant the wake wo
 
 ## Status
 
-✅ Built — `sunny_code/components/stt.py`, `sunny_code/components/voice_session.py`, `/join`+`/leave` in `sunny_code/components/discord_bot.py`.
+✅ Built — `sunny_code/components/stt.py`, `sunny_code/components/voice_session.py`, `sunny_code/voice_worker.py`, `/join`+`/leave` in `sunny_code/components/discord_bot.py`.
+
+**2026-08-20, later the same night**: four separate native crashes (process-ending `SIGABRT`/`SIGSEGV`) during live testing, each taking the *entire bot* down — see "The Four Crashes" below for the full history, the verified root cause, and the two-layer fix (a real threading lock, plus moving the whole pipeline into an isolated worker process). Architecture diagram below reflects the post-fix design.
 
 ## Why This Is the Riskiest Feature Built This Session
 
@@ -26,33 +28,51 @@ Everything else in this app is request/response. This is the first live, bidirec
 
 ## Architecture
 
+**Process-isolated as of 2026-08-20** (see "The Four Crashes" below for why): the entire real-time audio pipeline runs in its own OS process, spawned fresh by each `/join` and torn down by `/leave`. Only recognized command text and reply text cross the process boundary — a native crash inside the worker can only end that one session, never the rest of the bot.
+
 ```
-Discord voice channel
+PARENT PROCESS (the main bot — web dashboard, Discord text commands, tasks, alarms)
+  sunny_code/components/voice_session.py
+  │
+  │  multiprocessing.Process(target=voice_worker.run_worker, ...)
+  ▼
+WORKER PROCESS (one per /join session — sunny_code/voice_worker.py)
+  Its own discord.Client, same bot token, a second independent gateway session
   │ (user speaks)
   ▼
 VoiceRecvClient + BasicSink  →  per-user 48kHz stereo PCM callback (sync, off-loop thread)
   │
-  ▼  (thread-safe handoff to the asyncio loop)
+  ▼  (thread-safe handoff to the worker's own asyncio loop)
 stt.py: audioop resample (48k stereo → 16k mono) → per-user KaldiRecognizer.AcceptWaveform()
   │  (True = segment finalized, Vosk's own internal silence-based endpointing)
   ▼
 Result() JSON → transcribed text
   │
   ▼
-wake-phrase gate (voice_session.py) — outside the listening window and no
-"Hey Sunny"? dropped here, never reaches the router below.
+wake-phrase gate (voice_worker.py) — outside the listening window and no
+"Hey Sunny"? dropped here, never crosses the process boundary at all.
   │  (awake, or wake phrase found — stripped from the text)
   ▼
-assistant.handle_message(command, ..., session_id=f"voice:{guild_id}:{user_id}")   ← same router as every other interface
+multiprocessing.Queue: {"type": "utterance", "text": ..., "user_id": ...}
+  │
+  ▼ ═══════════════ process boundary ═══════════════
+  ▼
+PARENT: assistant.handle_message(command, ..., session_id=f"voice:{user_id}")   ← same router as every other interface, needs the live engine objects that only exist here
   │
   ▼  response text
-tts.py: synthesize_wav_bytes() [already built for /speak] → audioop resample (22050 mono → 48k stereo)
+multiprocessing.Queue: {"type": "speak", "text": response}
+  │
+  ▼ ═══════════════ process boundary ═══════════════
+  ▼
+WORKER: tts.py: synthesize_discord_pcm() → audioop resample (22050 mono → 48k stereo)
   │
   ▼
 voice_client.play(discord.PCMAudio(pcm_stream))   ← spoken back into the channel
 ```
 
 **One session at a time.** Module-global state in `voice_session.py` (mirrors `tts.py`'s singleton pattern) — a second `/join` while one is active gets "Already in a voice call," not a second concurrent session. Matches this app's existing single-guild assumption (see [[discord-bot]]).
+
+**A second `discord.Client`, same token, connecting to voice while the main bot's own client is already connected — verified empirically live against the real bot** (not assumed): confirmed both that Discord allows a bot token to hold two simultaneous independent gateway sessions, and that the main bot's own connection is completely unaffected while the second one connects, speaks, and disconnects.
 
 **Wake phrase opens a listening window, not required per-utterance.** A fuzzy match on "sunny" anywhere in the first few words (not an exact `"hey sunny"` prefix — see the real-transcript examples above) arms (or re-arms) a `WAKE_WINDOW_SECONDS` (20s) window; a bare wake word with nothing after it just arms the window and waits for the next utterance. Everything Vosk transcribes still gets STT'd continuously the whole time you're joined (that part *is* "always listening," same as any Discord voice channel) — the gate is purely about what gets forwarded to the assistant router, so idle chatter in the channel doesn't trigger a response. Chosen over "joining is the only signal needed" (this doc's original design) and over "wake word required before every single sentence" (the physical-Clock design in [[clock]]/[[voice-io]]) specifically for natural back-and-forth: say it once, keep talking.
 
@@ -88,6 +108,33 @@ voice_client.play(discord.PCMAudio(pcm_stream))   ← spoken back into the chann
 - **The wake phrase only gates what reaches the assistant, not what gets transcribed.** Being in the channel means Sunny's STT is running on everyone in it continuously (same as any other bot/human in a Discord voice channel could theoretically be recording) — the wake phrase decides what gets *acted on*, not what gets *heard*. No wire-level privacy indicator beyond Discord's own. `/leave` is how you stop all of it.
 - **All three commands' responses are ephemeral** ("only you can see this message") — `/speak`'s audio attachment, `/join`'s and `/leave`'s confirmations all use Discord's ephemeral flag, so the chat channel doesn't fill up with bot command noise. Set at `defer(ephemeral=True)` time; Discord automatically keeps every `followup.send()` for that interaction ephemeral too. `/join`/`/leave`'s actual *side effect* (the bot visibly joining/leaving the voice channel) is still seen by everyone in the channel regardless, same as any human — only the text confirmations are private.
 
+## The Four Crashes (2026-08-20, later the same night)
+
+Live testing after the fixes above still shipped produced **four separate native crashes** — process-ending `SIGABRT`/`SIGSEGV`, not a catchable Python exception — each taking the *entire bot* down (web dashboard, all Discord text commands, tasks, alarms, everything) for the ~10s until systemd auto-restarted it:
+
+1. `free(): invalid size` — the `/join` pre-warm task and the first real speaker's on-demand recognizer creation both called `KaldiRecognizer(model, ...)` (native Kaldi construction) concurrently from two different threads off one shared Vosk `Model`. **Fixed**: `stt.py`'s `new_recognizer()` now serializes construction under `_model_lock`, not just model *loading* as before.
+2. `free(): invalid pointer` — Discord sends its own literal 3-byte Opus-silence marker (`b'\xf8\xff\xfe'`, see `rtp.py`'s `OPUS_SILENCE`) as a plain, deliberately *unencrypted* `RTPPacket` regardless of DAVE state — confirmed via `voice_recv`'s own `reader.py`, which checks `is_silence()` for an unrelated reason but proves these packets flow through the exact same pipeline as real audio. The DAVE-decrypt patch fed that non-ciphertext buffer into `DaveSession.decrypt()`, which expects real MLS-framed ciphertext far longer than 3 bytes. **Fixed**: skip decrypt when `packet.is_silence()`.
+3. `Segmentation fault` — Opus's forward-error-correction path (`_decode_packet`'s fake-packet branch) reads the *next* buffered packet directly via `self._buffer.peek_next()`, bypassing `_process_packet` (and therefore DAVE decrypt) entirely — so on any real packet loss, exactly when FEC recovery kicks in, still-encrypted ciphertext reached `opus_decode()` as if it were real audio. Zero preceding warning, since nothing here ever raised. **Fixed**: decrypt the peeked-ahead packet too, with a double-decrypt guard (DAVE decryption is a real AEAD cipher, not idempotent — a packet that reaches decrypt via both the FEC peek and its own later normal pop must only actually decrypt once, tracked via a small per-decoder set of recently-seen sequence numbers).
+4. **`Segmentation fault` again**, ~3.4s after joining, with **zero** preceding warnings, errors, or unusual packets in the log — none of the first three fixes touched this one, and its total lack of a preceding symptom ruled out "one more bad-input edge case" as a complete explanation.
+
+### Root cause of #4 (verified via source inspection, not guessed)
+
+`DaveSession` (the `davey` package, v0.1.6 — a young, pre-1.0, third-party Rust extension by "Snazzah") is touched by **three different OS threads** with **zero synchronization anywhere**, confirmed by direct inspection of the installed `discord.py` and this codebase:
+
+1. **`discord.player.AudioPlayer`** (its own dedicated `threading.Thread`) calls `dave_session.encrypt_opus()` for every outgoing packet — used whenever `/join` plays the wake chime or a spoken reply.
+2. **`voice_recv`'s packet-processing thread** calls `dave_session.decrypt()` for every incoming packet — added entirely by this feature's own monkey-patch. Confirmed via `grep` across the whole installed `discord` package: **`discord.py`'s own official code never calls `.decrypt()` anywhere** — voice receive isn't an officially supported `discord.py` feature yet, so this concurrent-with-encrypt access pattern was never part of what `davey` was built or tested against.
+3. **The asyncio event loop thread** manages the session's lifecycle (`reinit_dave_session`, key rotation/transitions) in `discord/voice_state.py`.
+
+Confirmed via `grep` for `Lock`/`RLock`/`asyncio.Lock` in `voice_state.py`: **no lock exists anywhere** protecting this shared native object. A data race explains what three sequential single-trigger fixes couldn't: every crash looked different (two distinct heap-corruption signatures, two distinct segfault circumstances) because a race manifests differently depending on timing, not deterministically from one bad input.
+
+### The fix — two layers ("always overdo your fixes")
+
+**Layer 1 — close the actual race**: one process-wide `threading.Lock()` (`voice_worker.py`'s `_dave_lock`), held around *every* call that touches the shared `DaveSession`, both directions — `_dave_decrypt`'s `session.decrypt(...)` call, and a new patch on `discord.VoiceClient._get_voice_packet` (the method that calls `dave_session.encrypt_opus()`) via `_patch_dave_encrypt_lock()`.
+
+**Layer 2 — contain the blast radius regardless**: even with the lock, `davey` 0.1.6 and `discord-ext-voice-recv` 0.5.2-alpha are both young/unofficial enough that no fix can *prove* no other native crash trigger exists. The entire voice pipeline now runs in an isolated child process (`voice_worker.py`, spawned by `voice_session.py` — see Architecture above) specifically so a native crash there can only end that `/join` session, never the rest of the bot. Verified empirically, not just architecturally reasoned: a real worker process was killed with `SIGSEGV` mid-session (`os.kill(pid, signal.SIGSEGV)`) while the main bot was live — `journalctl` showed zero trace of it in the main bot's logs, and the main bot kept running uninterrupted throughout. `process.exitcode` correctly came back `-11` (killed by signal 11), confirming the parent's crash-detection mechanic (`voice_session.py`'s `_watch_worker`) has the signal it needs.
+
+A real bug surfaced during this build, worth recording: the worker's `client.start(token)` call was only ever awaited as a background `asyncio.Task`, with the main coroutine separately `await`ing `stop_event.wait()` — meaning a login failure (or any fatal error from `client.start()` before `on_ready` ever fires) left that task's exception sitting unretrieved forever, and the whole worker process hung indefinitely instead of reporting failure. Found via a deliberate bad-token test, not live — fixed by racing `client_task` against `stop_event.wait()` with `asyncio.wait(..., return_when=FIRST_COMPLETED)` and reporting the failure if `client_task` finishes first.
+
 ## Not Included This Pass
 
 - **No persistent transcript log** — exchanges are logged via the normal Python app logger only, not a new `sunny-vault/log/` file. A natural addition later if wanted; not built ahead of an actual need.
@@ -111,11 +158,12 @@ Not addressed by this pass: the *fixed* `SILENCE_TIMEOUT` (1.2s) is a guess, not
 
 ## Files
 
-- `sunny_code/components/stt.py` — Vosk model loading, `new_recognizer()`, `resample_to_16k_mono()`, `feed()`
-- `sunny_code/components/tts.py` — `synthesize_discord_pcm()` (new, alongside the existing `synthesize_wav_bytes()` used by `/speak`)
-- `sunny_code/components/voice_session.py` — session orchestration: connect (with a `_connecting` guard against overlapping attempts, and clean disconnect-and-report-honestly if `.listen()` fails), per-user recognizers, the receive callback and its thread-safe handoff, wake-phrase gating (`_strip_wake_phrase()`, `WAKE_WINDOW_SECONDS`), the generated wake chime (`_get_chime_pcm()`), the `silence_watchdog()` coroutine (force-finalizes on no-packets-for-`SILENCE_TIMEOUT`, not just Vosk's own stream-based silence detection), assistant routing, response playback, disconnect; also patches `discord-ext-voice-recv`'s `PacketRouter._do_run` (skip corrupted packets) and `PacketDecoder._process_packet`/`_dave_decrypt` (decrypt DAVE frames before Opus) at import time (see Known Risks)
-- `sunny_code/components/discord_bot.py` — `/join`, `/leave` commands
-- `sunny_code/config.py` — `vosk_model_dir`, `vosk_lang`
+- `sunny_code/components/stt.py` — Vosk model loading (`_model_lock`-guarded, covering both model load *and* `KaldiRecognizer` construction — see crash #1 above), `new_recognizer()`, `resample_to_16k_mono()`, `feed()`
+- `sunny_code/components/tts.py` — `synthesize_discord_pcm()` (alongside the existing `synthesize_wav_bytes()` used by `/speak`)
+- `sunny_code/voice_worker.py` — the isolated worker process (see Architecture above): its own `discord.Client`/gateway session, the actual voice connect, all monkey-patches (`PacketRouter._do_run`, `PacketDecoder._process_packet`/`_dave_decrypt`/`_decode_packet`, `VoiceClient._get_voice_packet` — see Known Risks and "The Four Crashes"), per-user recognizers, wake-phrase gating, the generated wake chime, the `silence_watchdog()` coroutine, TTS playback, and the `multiprocessing.Queue`-based IPC with the parent (`run_worker()`, the process entry point)
+- `sunny_code/components/voice_session.py` — the parent-side coordinator: spawns/monitors the worker (`start()`/`_watch_worker()`), relays `"utterance"`/`"speak"` messages through `assistant.handle_message()` (`_relay_from_worker()`), tears it down (`stop()`)
+- `sunny_code/components/discord_bot.py` — `/join`, `/leave` commands; `/join` passes a `notify_fn` callback into `voice_session.start()` so a mid-session worker crash posts to the Discord warnings channel immediately, not just on the bot's next startup
+- `sunny_code/config.py` — `vosk_model_dir`, `vosk_lang`, `vosk_model_name`
 - `vosk_models/` (gitignored) — downloaded model files
 
 ## Dependencies
@@ -141,4 +189,12 @@ Not addressed by this pass: the *fixed* `SILENCE_TIMEOUT` (1.2s) is a guess, not
 - [x] All three commands' responses ephemeral (`defer(ephemeral=True)`) — verified via mocked tests
 - [x] Early wake-chime from partial results, not finalization — verified via mocked tests (fires once from a partial match, doesn't double-fire while still buffering, doesn't replay when the utterance finalizes)
 - [x] `silence_watchdog()` — no-packets-for-`SILENCE_TIMEOUT` force-finalization, since Discord's transport sends nothing at all during real silence rather than quiet audio Vosk could detect — verified via a mocked test reproducing the exact live failure (speak, go silent, response still arrives)
-- [ ] Re-verify with a live human voice now that the DAVE-decrypt fix, connect/listen robustness fixes, and the full latency chain (pre-warm, thread-safety, partial-based chime, silence watchdog) are all deployed
+- [x] Vosk `KaldiRecognizer` construction serialized under `_model_lock`, not just model loading (crash #1) — root-caused via exact crash timing correlation (a "free(): invalid size" abort ~1s after "Vosk model ready", before any transcript was ever heard), fixed and deployed
+- [x] DAVE-decrypt skipped for Discord's literal Opus-silence marker packets (crash #2) — root-caused by tracing exactly which packets reach `_dave_decrypt` and confirming `is_silence()` frames are genuinely unencrypted plaintext by design, fixed and deployed
+- [x] DAVE-decrypt applied to the Opus FEC peek-ahead packet too, with a double-decrypt guard (crash #3) — root-caused by reading `_decode_packet`'s fake-packet branch and finding it reads the jitter buffer directly, bypassing decrypt entirely, fixed and deployed
+- [x] The actual unifying root cause (crash #4) — a data race on `DaveSession`, called from 3 unsynchronized OS threads — found via direct source inspection (confirmed no lock exists anywhere in `discord.py`'s `voice_state.py`), not guessed
+- [x] Layer 1: `_dave_lock` serializing every `encrypt`/`decrypt` call on the shared `DaveSession` (`voice_worker.py`'s `_patch_dave_encrypt_lock()`)
+- [x] Layer 2: entire pipeline moved into an isolated worker process (`voice_worker.py`) spawned/monitored by `voice_session.py`, so a native crash can only end one `/join` session — verified empirically via a real `SIGSEGV` kill mid-session (main bot logs showed zero trace, kept running uninterrupted; `process.exitcode` correctly came back `-11`)
+- [x] A real bug found during this build (not live): `client.start()`'s exception was never observed when only awaited as a background task, hanging the whole worker forever on a login failure — found via a deliberate bad-token test, fixed with `asyncio.wait(..., return_when=FIRST_COMPLETED)` racing it against the shutdown signal
+- [x] The "second `discord.Client`, same token, joins voice while the main bot is already connected" assumption behind the whole worker-process design — verified live against the real bot before building the rest, not assumed
+- [ ] Re-verify with a live human voice now that all four crash fixes and the process-isolation rebuild are deployed — this is the one thing that categorically needs a real person talking, not a script

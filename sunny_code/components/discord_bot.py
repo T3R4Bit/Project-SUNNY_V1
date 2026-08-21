@@ -224,8 +224,17 @@ def create_discord_bot(
             )
             return
         await interaction.response.defer(thinking=True, ephemeral=True)
+
+        async def _notify_voice_crash(text: str):
+            # /join's voice pipeline now runs in an isolated worker
+            # process specifically so a native crash there can't take
+            # the rest of the bot down with it — this is how that still
+            # becomes visible in Discord right away, same channel as
+            # every other warning. See voice_session.py/voice_worker.py.
+            await _post_to(warnings_channel_id, text, fallback_channel_id=chat_channel_id)
+
         message = await voice_session.start(
-            interaction, tasks_engine, briefing_engine, list_engine, scheduled_engine
+            interaction, tasks_engine, briefing_engine, list_engine, scheduled_engine, notify_fn=_notify_voice_crash
         )
         await interaction.followup.send(message, ephemeral=True)
 
