@@ -66,6 +66,7 @@ voice_client.play(discord.PCMAudio(pcm_stream))   ← spoken back into the chann
 
 ## Known Risks
 
+- **Needs the system `libopus0` library installed on the host (`sudo apt-get install libopus0` on Ubuntu) — a native C library, not something pip can install.** `discord.py` bundles Opus for some platforms but not Linux; without it, both playback and incoming-audio decode fail with `OpusNotLoaded`. Found for real during send-side verification on the Lenovo (connect + `tree.sync()` + TTS synthesis all worked; the actual `voice_client.play()` call is what surfaced it) — not something pip installing `discord.py[voice]` alone catches, since that only covers the Python-level encryption/DAVE dependencies, not the audio codec itself.
 - **`discord-ext-voice-recv` is an unofficial, alpha-versioned (`0.5.2a179`) community extension, not part of `discord.py` core.** It could break on a future `discord.py` voice-protocol change (voice internals are exactly the kind of thing that shifts between versions) without warning. This is the one real structural risk in this feature — nothing else added this session carries this kind of risk (Piper, Vosk, and every prior dependency are either official or a stable 1.0+ release).
 - **Continuous CPU cost while a session is active.** Vosk decoding is real, ongoing work — unlike everything else in this app, which is pure request/response. Small model keeps this modest, but it's a genuinely different resource profile, worth watching if the Lenovo ever feels loaded during a long `/join` session.
 - **Vosk's small model trades accuracy for speed/size** — same tradeoff already accepted for Piper's default voice and Haiku-tier LLM defaults, in keeping with "local and free."
@@ -98,4 +99,6 @@ voice_client.play(discord.PCMAudio(pcm_stream))   ← spoken back into the chann
 - [x] `tts.py: synthesize_discord_pcm()` — verified PCM format/frame-padding math
 - [x] `voice_session.py` — connect/listen/dispatch/respond/disconnect, verified via mocked Discord objects (bot-user filtering, mid-utterance buffering, session_id construction, full response pipeline)
 - [x] `/join`/`/leave` slash commands, channel-restricted
+- [x] Connect + command registration verified live against the real Discord API (3 commands registered, `channel.connect()` succeeds)
+- [ ] **Blocked on `sudo apt-get install libopus0` on the Lenovo** — playback failed with `OpusNotLoaded` during send-side verification; needs a one-time manual install (no scoped sudoers rule covers `apt`, so this needs the account owner directly)
 - [ ] Real end-to-end verification with a live human voice in a real channel — the one thing that categorically can't be scripted
