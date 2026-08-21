@@ -50,6 +50,7 @@ async def ask_claude(
     max_tokens: int = 1024,
     system: Optional[str] = None,
     purpose: str = "unspecified",
+    temperature: Optional[float] = None,
 ) -> Optional[str]:
     """Ask Claude a question. Never raises — returns None on any failure
     (not configured, over budget, rate limited, API/network error) so a
@@ -59,6 +60,13 @@ async def ask_claude(
     If `system` isn't given, it's auto-loaded from
     sunny-vault/instructions/{purpose}.md — see instructions.py. A caller
     that passes `system` explicitly always wins.
+
+    temperature controls response randomness/variety (0.0 = deterministic,
+    1.0 = Anthropic's own default, higher = more varied). None (the
+    default) omits it entirely from the request so the API's own default
+    applies — deliberately not defaulted to a specific number here, so
+    "not configured" and "explicitly set to the API default" stay
+    distinguishable in the vault log below.
 
     Every exit point logs to the vault (see log_llm_call) — not just
     successful calls. That's deliberate: the point is to see everything
@@ -90,7 +98,7 @@ async def ask_claude(
     async with _concurrency_guard:
         try:
             response = await asyncio.to_thread(
-                _call_claude_sync, settings.claude_api_key, model_id, max_tokens, system, prompt
+                _call_claude_sync, settings.claude_api_key, model_id, max_tokens, system, prompt, temperature
             )
         except anthropic.AuthenticationError:
             _auth_disabled = True
@@ -126,7 +134,9 @@ async def ask_claude(
     return text
 
 
-def _call_claude_sync(api_key: str, model_id: str, max_tokens: int, system: Optional[str], prompt: str):
+def _call_claude_sync(
+    api_key: str, model_id: str, max_tokens: int, system: Optional[str], prompt: str, temperature: Optional[float] = None
+):
     """Runs in a thread via asyncio.to_thread — the anthropic SDK's client is
     sync/blocking, and this is a network call, so it must not run directly
     on the event loop (unlike vault_io's local file writes, which are fast
@@ -135,6 +145,8 @@ def _call_claude_sync(api_key: str, model_id: str, max_tokens: int, system: Opti
     kwargs = {"model": model_id, "max_tokens": max_tokens, "messages": [{"role": "user", "content": prompt}]}
     if system:
         kwargs["system"] = system
+    if temperature is not None:
+        kwargs["temperature"] = temperature
     return client.messages.create(**kwargs)
 
 

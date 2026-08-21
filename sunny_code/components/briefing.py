@@ -345,8 +345,19 @@ Total: {len(open_tasks) + len(in_progress)} tasks
         # for the data lookups above — those stay on real APIs or say so
         # honestly). ask_claude() never raises; None means not configured,
         # over budget, or a live API failure, all treated the same way.
+        # Model/length/temperature are all live-tunable via .env
+        # (LLM_CHAT_MODEL/LLM_CHAT_MAX_TOKENS/LLM_CHAT_TEMPERATURE) --
+        # the actual behavior/tone/persona tuning knob is the system
+        # prompt itself, sunny-vault/instructions/general-chat.md.
         else:
-            answer = await ask_claude(question, model="haiku", purpose="general_chat")
+            settings = get_settings()
+            answer = await ask_claude(
+                question,
+                model=settings.llm_chat_model,
+                max_tokens=settings.llm_chat_max_tokens,
+                temperature=settings.llm_chat_temperature,
+                purpose="general_chat",
+            )
             if answer:
                 return answer
             log_unfulfilled("qa_question", f'"{question}" — not understood, no matching topic')

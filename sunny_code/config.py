@@ -202,6 +202,36 @@ class Settings(BaseSettings):
     vosk_lang: str = "en-us"
     vosk_model_name: str = ""
 
+    # LLM freeform-conversation tuning (see briefing.py's custom_briefing()
+    # fallback and sunny_code/components/llm_client.py's ask_claude()) —
+    # the system prompt itself lives in sunny-vault/instructions/
+    # general-chat.md (hand-editable, no restart needed, see
+    # instructions.py); these three control everything ask_claude() takes
+    # besides the prompt text. All optional, all take effect on the very
+    # next call, no restart needed — same uncached-by-design pattern as
+    # every other setting here.
+    llm_chat_model: str = "haiku"  # "haiku" (fast/cheap), "sonnet"
+    # (more capable, slower/pricier), or "opus" (rarely worth it here) --
+    # see llm_client.MODELS for the full name->model-id mapping.
+    llm_chat_max_tokens: int = 300  # a hard cap on reply length. Kept
+    # well below ask_claude()'s own 1024 default since these replies are
+    # meant to be short and often spoken aloud (see general-chat.md's own
+    # "keep it to a few sentences" instruction) -- this is the backstop
+    # if a reply tries to run long anyway.
+    llm_chat_temperature: Optional[float] = None  # 0.0 = deterministic,
+    # 1.0 = Anthropic's own default, higher = more varied/less literal.
+    # None leaves it unset entirely (the API's own default applies).
+
+    @field_validator("llm_chat_temperature", mode="before")
+    @classmethod
+    def _coerce_optional_temperature(cls, v):
+        if v in (None, ""):
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
     # Logging
     log_level: str = "INFO"
     log_format: str = "json"  # json or text

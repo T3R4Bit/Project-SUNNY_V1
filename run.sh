@@ -125,6 +125,23 @@ VOSK_LANG=en-us
 # ~1.8GB) instead, not the lgraph one.
 VOSK_MODEL_NAME=
 
+# LLM freeform-conversation tuning — for genuinely open-ended questions
+# nothing else can answer (see briefing.py's custom_briefing()). The
+# actual behavior/tone/persona knob is the system prompt itself:
+# sunny-vault/docs/instructions/general-chat.md, hand-editable, no
+# restart needed. These three are optional and take effect on the very
+# next call, also no restart needed.
+LLM_CHAT_MODEL=haiku
+# haiku (fast/cheap), sonnet (more capable, slower/pricier), opus
+# (rarely worth it here) — see llm_client.py's MODELS dict.
+LLM_CHAT_MAX_TOKENS=300
+# Hard cap on reply length — kept short since these are meant to be
+# brief and are often spoken aloud.
+LLM_CHAT_TEMPERATURE=
+# 0.0 = deterministic, 1.0 = Anthropic's own default, higher = more
+# varied/less literal. Blank leaves it unset (the API's own default
+# applies).
+
 # Logging
 LOG_LEVEL=INFO
 LOG_FORMAT=json
