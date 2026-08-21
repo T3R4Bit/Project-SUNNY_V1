@@ -10,7 +10,7 @@ tags: [llm, claude, api, reasoning]
 
 Uses Claude API for judgment and reasoning tasks only. Never for information retrieval. All deterministic operations (weather, calendar, time) bypass LLM entirely.
 
-**Status**: The safety-rail infrastructure this doc describes (spend caps, error handling, usage logging) is built and tested — see [[llm-readiness]] for the full built-vs-not checklist. **None of the four tasks below are wired up yet** — that's a deliberate, separate decision from building the rails.
+**Status**: The safety-rail infrastructure this doc describes (spend caps, error handling, usage logging) is built and tested — see [[llm-readiness]] for the full built-vs-not checklist. Of the four tasks below, **Freeform Conversation is now partially wired** (2026-08-21) — see the note under that task. Email Triage, Task Interpretation, and Email Reply Drafting are still not wired up — that's a deliberate, separate decision from building the rails.
 
 ## Core Principle
 
@@ -89,6 +89,22 @@ response = claude.prompt(prompt, model="haiku")
 ```
 
 ### 3. Freeform Conversation (Phone)
+
+**Partially built, 2026-08-21** — a narrower "answer the question" slice of
+this exists today, reachable from both text chat and `/join` voice: when
+nothing else matches (no command, no known-topic keyword like weather/
+calendar), `briefing.py`'s `custom_briefing()` calls `ask_claude(purpose=
+"general_chat")` for a real answer instead of a canned "I don't know." The
+system prompt is `sunny-vault/instructions/general-chat.md` (hand-editable,
+no redeploy). Model/max_tokens/temperature are `.env`-configurable
+(`LLM_CHAT_MODEL`/`LLM_CHAT_MAX_TOKENS`/`LLM_CHAT_TEMPERATURE`, see
+config.py) — see [[voice-join]]'s latency chart for real, measured timing.
+
+**Not yet built**: the "execute action" half below — today's version only
+*answers*, it never creates/updates a task or calendar event on its own
+initiative. The original phone-call framing (Twilio) is also still fully
+unbuilt; what exists today is the same underlying mechanism reached via
+Discord voice/text instead.
 
 **When**: Phone call incoming, user talks freely
 **Input**: User speech transcript, call context
@@ -239,17 +255,17 @@ response = ask_local_llm(prompt)  # Llama 3, Mistral, etc. on TrueNAS
 
 ## Implementation Checklist
 
-- [ ] Anthropic API account setup — external, user action
-- [ ] API key in environment variables — external, user action (`CLAUDE_API_KEY` in `.env`)
+- [x] Anthropic API account setup + API key in `.env` — done, 2026-08-21
 - [x] anthropic SDK installed (`requirements.txt`)
 - [x] Token tracking integration (`token_tracker.py`, tested)
 - [x] Error handling + retries (`llm_client.py`: rate limit, timeout/connection, invalid key, budget — all tested against mocked failures)
+- [x] Freeform conversation (Q&A slice) system prompt — `sunny-vault/instructions/general-chat.md`, live, wired into `briefing.py`'s `custom_briefing()`
 - [ ] Email triage system prompt — not written, feature not built
 - [ ] Task interpretation system prompt — not written, feature not built
-- [ ] Phone conversation system prompt — not written, feature not built
+- [ ] Phone conversation (action-taking + Twilio) — not built; the answer-only Q&A slice above is live
 - [x] Hard spending cap enforced in-app (`token_tracker.check_budget()`, tested)
 - [ ] Hard spending cap at Anthropic account level — external, user action, separate from the in-app cap above
-- [ ] Test with sample emails — needs a real API key and the email-triage feature built
+- [ ] Test with sample emails — needs the email-triage feature built (API key itself is no longer the blocker)
 - [x] Monitor costs — `GET /api/dashboard/spend/today` and `/spend/month`, live and tested
 
 Full built-vs-not-vs-external breakdown, and what's still gated on this: [[llm-readiness]].

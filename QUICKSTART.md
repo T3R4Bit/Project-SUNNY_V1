@@ -41,7 +41,37 @@ what's on my grocery list → Show a list
 set an alarm for 7am → Create an alarm
 remind me to call Mom at 5pm → Create a reminder
 What's the weather? → Weather info
+Tell me a joke / what's the capital of France → Anything open-ended gets
+                                a real answer from Claude, not a canned reply
 ```
+
+Everything above also works as plain-text chat in Sunny's Discord channel — same router, same answers, no separate setup.
+
+## Talk to Sunny in Discord Voice
+
+Three real slash commands (not plain text) — see
+`sunny-vault/docs/architecture/voice-join.md` and `tts-piper.md` for how
+they work under the hood:
+
+```
+/speak <text>   → Sunny says it out loud in the channel (one-shot, no
+                  need to be in a voice channel)
+/join           → Sunny joins your current voice channel for a live
+                  back-and-forth conversation
+/leave          → Ends the voice session
+```
+
+Once you say `/join`, say **"Hey Sunny"** before every request — there's
+no listening window, each request needs its own wake word. A short chime
+confirms she heard the wake word before you keep talking. Everything you
+say routes through the exact same brain as text chat — tasks, lists,
+alarms, weather, calendar, and open-ended questions all work the same
+way, just spoken back instead of typed.
+
+Both are entirely local and free (Piper for speech out, Vosk for speech
+in) — no API cost either direction, only the LLM fallback for open-ended
+questions costs anything, and that's the same Claude Haiku call text
+chat already uses.
 
 ## Access from Phone
 

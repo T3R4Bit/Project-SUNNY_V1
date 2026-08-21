@@ -40,4 +40,7 @@ Items worth doing but not blocking the current phase. Pull items into [[phases.m
       *(built 2026-08-20: real Discord slash command via `discord.app_commands`, the bot's first — see [[architecture/tts-piper]].)*
 - [x] "later I want to be able to just talk to it in a discord vc with a /join command for the bot" — live, real-time voice conversation in a Discord voice channel, not one-shot `/speak` attachments
       *(built 2026-08-20: `/join`/`/leave`, live conversation via Vosk STT (free, local) + the existing Piper TTS, routed through the same `assistant.handle_message()` every other interface uses. See [[architecture/voice-join]].)*
-can you track claude usage and limits with the api
+- [x] Genuinely open-ended questions (text or voice) that don't match any real command/data topic get a real Claude answer instead of a canned "I don't have a real answer"
+      *(built 2026-08-21: `briefing.py`'s `custom_briefing()` fallback now calls `ask_claude(purpose="general_chat")` — the first real, user-facing feature to use the `llm_client.py` safety rails built earlier. System prompt: `sunny-vault/instructions/general-chat.md`, hand-editable. Model/length/creativity are `.env`-tunable (`LLM_CHAT_MODEL`/`LLM_CHAT_MAX_TOKENS`/`LLM_CHAT_TEMPERATURE`). See [[architecture/llm-integration]].)*
+- [ ] Can you track Claude usage and limits with the API — real-time rate-limit/usage data straight from Anthropic's own API response headers, not just this app's self-tracked cost estimate
+      *(different from the spend dashboard that already exists — `GET /api/dashboard/spend/today`/`/spend/month` reports `token_tracker.py`'s own local cost calculation, not Anthropic's authoritative usage/rate-limit numbers. Not yet built.)*

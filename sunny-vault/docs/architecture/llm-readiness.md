@@ -27,11 +27,11 @@ All of the above has real, automated tests (scratch-DB circuit-breaker behavior,
 
 ## Still needed before flipping on any specific feature
 
-- **An actual Claude API key** — `console.anthropic.com`, external, user action. Nothing above requires one to exist; everything degrades to an honest "not configured" without it.
-- **A second, account-level hard spend cap** — set at `console.anthropic.com`, external, user action. The in-app cap (`token_tracker.check_budget()`) is self-tracked from a local price table, not authoritative Anthropic billing — the account-level cap is the real backstop if the two ever diverge.
-- **Real system prompts** for whichever task ships first (Email Triage, Task Interpretation, Freeform Phone Conversation, or Email Reply Drafting — see [[llm-integration]] for each one's draft prompt). None are finalized/tested against a live model yet.
-- **Actually wiring `ask_claude()` into a feature's command path** — building the client is not the same as a feature using it. This is a deliberate, separate decision per task.
-- **Discord `#warnings` alerting** on the error paths in `llm_client.py` — today those only go to the app log, not Discord, unlike the rest of the app's alerting.
+- ~~An actual Claude API key~~ — **done, 2026-08-21.** `CLAUDE_API_KEY` is configured; `ask_claude()` is live.
+- **A second, account-level hard spend cap** — set at `console.anthropic.com`, external, user action. The in-app cap (`token_tracker.check_budget()`) is self-tracked from a local price table, not authoritative Anthropic billing — the account-level cap is the real backstop if the two ever diverge. Still outstanding.
+- **Real system prompts** for whichever task ships next (Email Triage, Task Interpretation, or Email Reply Drafting — see [[llm-integration]] for each one's draft prompt). Freeform Conversation's Q&A slice already has one (`sunny-vault/instructions/general-chat.md`, live) — the other three are still unwritten/untested against a live model.
+- **Actually wiring `ask_claude()` into a feature's command path** — done for Freeform Conversation's Q&A slice (`briefing.py`'s `custom_briefing()` fallback, live 2026-08-21). Still a deliberate, separate per-task decision for Email Triage, Task Interpretation, and Email Reply Drafting.
+- **Discord `#warnings` alerting** on the error paths in `llm_client.py` — today those only go to the app log, not Discord, unlike the rest of the app's alerting. Still outstanding.
 - A real Priority Scheduler, **only if** a genuine concurrent-LLM-caller scenario shows up (e.g. [[phone]] hardware interrupting a briefing mid-playback) — not needed today, the semaphore stand-in covers the current single-caller reality.
 
 ## Explicitly deferred — these ARE "adding an LLM," not prerequisites for it

@@ -25,7 +25,7 @@ from sunny_code.components.scheduled_parser import ScheduledCommandParser
 from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.tasks_parser import TaskCommandParser
 
-HELP_TEXT = """Here's what I can do — no LLM, plain pattern matching:
+HELP_TEXT = """Here's what I can do:
 
 TASKS (real data, stored in the vault)
   add <title> to my tasks — create a task
@@ -44,13 +44,19 @@ ALARMS & REMINDERS
   remind me to call Mom at 5pm / in 30 minutes
   what alarms are set / what are my reminders
   cancel my 7am alarm / delete my reminder to call Mom
-  Nothing sounds yet without hardware or a connected Discord bot — these
-  create real data and (once Discord is connected) ping the tasks channel
-  when they're due.
+  Nothing sounds yet without hardware — these create real data and (once
+  Discord is connected) ping the tasks channel when they're due.
 
 BRIEFINGS
   morning / evening — full briefing
   health check — latest weekly system report (runs Sunday 4am on its own)
+
+VOICE (Discord slash commands, not plain text)
+  /speak <text> — one-shot: Sunny says it out loud in the channel
+  /join — Sunny joins your voice channel for a live conversation; say
+    "Hey Sunny" before every request (no listening window — each request
+    needs its own wake word)
+  /leave — ends the voice session
 
 SERVER ADMIN (Discord only — needs a live server to act on)
   create/delete channel <name> — text channels
@@ -60,10 +66,11 @@ SERVER ADMIN (Discord only — needs a live server to act on)
   Deletions run immediately, no confirmation — same as everything else here.
 
 QUESTIONS
-  Ask about tasks and I'll answer for real.
-  Weather, calendar, email, commute, health, and news aren't connected to
-  a real API yet, so I'll say so instead of making something up — every
-  one of those gets logged to sunny-vault/log/requests.md.
+  Ask about tasks, weather, or your calendar and I'll answer with real
+  data once each is connected (see "setup" below) — I'll say so plainly
+  instead of making something up if one isn't. Anything else genuinely
+  open-ended — a question, a request, plain conversation — goes to
+  Claude for a real answer, not a canned "I don't know."
 
 SETUP
   setup — what's connected, what still needs setup
