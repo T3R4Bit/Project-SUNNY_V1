@@ -11,6 +11,8 @@ pattern. See sunny-vault/docs/architecture/voice-join.md.
 import asyncio
 import io
 import logging
+import math
+import struct
 import time
 from typing import Optional
 
@@ -28,6 +30,8 @@ WAKE_WINDOW_SECONDS = 20  # how long a session stays "awake" after a wake
 # "opens a window, doesn't need repeating every sentence" choice made
 # 2026-08-20 (a real back-and-forth, not a walkie-talkie).
 
+_chime_pcm: Optional[bytes] = None
+
 
 def _strip_wake_phrase(text: str) -> Optional[str]:
     """None if `text` doesn't start with a wake phrase. Otherwise the
@@ -40,6 +44,40 @@ def _strip_wake_phrase(text: str) -> Optional[str]:
         if lowered.startswith(phrase + " "):
             return text[len(phrase):].strip()
     return None
+
+
+def _get_chime_pcm() -> bytes:
+    """A short two-tone ascending chime (~200ms), played the instant the
+    wake word is heard — the same "I heard you" confirmation an Alexa/
+    Google Home gives, so there's audible feedback even before a spoken
+    reply is ready. Generated on the fly (a couple sine waves), not a
+    shipped audio file — no asset/licensing question, no new dependency.
+    Cached after the first call; the maths is cheap but there's no reason
+    to redo it every wake word."""
+    global _chime_pcm
+    if _chime_pcm is not None:
+        return _chime_pcm
+
+    from discord.opus import Encoder as OpusEncoder
+
+    rate = 48000
+    notes = [(880, 0.09), (1318, 0.11)]  # A5 then E6 — a short rising "ding"
+    fade_samples = int(rate * 0.01)  # 10ms fade in/out per note, avoids clicks
+    frames = bytearray()
+    for freq, duration in notes:
+        n = int(rate * duration)
+        for i in range(n):
+            fade = min(i / fade_samples, (n - i) / fade_samples, 1.0)
+            value = math.sin(2 * math.pi * freq * i / rate) * fade * 0.3
+            sample = int(value * 32767)
+            frames += struct.pack("<hh", sample, sample)  # mono value -> stereo frame
+
+    pad = (-len(frames)) % OpusEncoder.FRAME_SIZE
+    if pad:
+        frames += b"\x00" * pad
+
+    _chime_pcm = bytes(frames)
+    return _chime_pcm
 
 
 def _patch_voice_recv_packet_router() -> None:
@@ -115,6 +153,12 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
         if stripped is not None:
             command = stripped
             _awake_until = now + WAKE_WINDOW_SECONDS
+            try:
+                if _voice_client.is_playing():
+                    _voice_client.stop()
+                _voice_client.play(discord.PCMAudio(io.BytesIO(_get_chime_pcm())))
+            except Exception as e:
+                logger.error(f"voice_session: chime playback failed: {e}")
         elif now < _awake_until:
             command = text
         else:
