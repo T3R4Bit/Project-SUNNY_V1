@@ -9,6 +9,7 @@ pretending mock data is real — and every time that happens, it gets logged
 to sunny-vault/log/requests.md.
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -68,13 +69,18 @@ class BriefingTemplates:
         return f"Not connected — {missing_requirement(source)}"
 
     @staticmethod
-    def _calendar_text(day_offset: int = 0, unconfigured: Optional[List[str]] = None) -> str:
-        """Real events via Google Calendar if connected, else the standard 'not connected' note."""
+    async def _calendar_text(day_offset: int = 0, unconfigured: Optional[List[str]] = None) -> str:
+        """Real events via Google Calendar if connected, else the standard
+        'not connected' note. The actual API call is a real network
+        request through Google's (sync-only) client library — run off
+        the event loop via to_thread so it never blocks anything else
+        the app is doing (Discord, the web console, /join's voice
+        pipeline) for however long that call takes."""
         if not is_configured("calendar"):
             if unconfigured is not None:
                 unconfigured.append("calendar")
             return BriefingTemplates._note("calendar")
-        events = google_calendar.get_events(day_offset)
+        events = await asyncio.to_thread(google_calendar.get_events, day_offset)
         if events is None:
             return "Google Calendar temporarily unavailable — check logs"
         if not events:
@@ -82,13 +88,15 @@ class BriefingTemplates:
         return BriefingTemplates.format_time_list(events)
 
     @staticmethod
-    def _email_text(unconfigured: Optional[List[str]] = None) -> str:
-        """Real unread/urgent summary via Gmail if connected, else the standard 'not connected' note."""
+    async def _email_text(unconfigured: Optional[List[str]] = None) -> str:
+        """Real unread/urgent summary via Gmail if connected, else the
+        standard 'not connected' note. See _calendar_text's docstring for
+        why this runs via to_thread."""
         if not is_configured("email"):
             if unconfigured is not None:
                 unconfigured.append("email")
             return BriefingTemplates._note("email")
-        summary = google_gmail.get_summary()
+        summary = await asyncio.to_thread(google_gmail.get_summary)
         if summary is None:
             return "Gmail temporarily unavailable — check logs"
         lines = [f"{summary['unread_count']} unread ({summary['urgent_count']} marked important)"]
@@ -97,13 +105,16 @@ class BriefingTemplates:
         return "\n ".join(lines)
 
     @staticmethod
-    def _weather_text(tomorrow: bool = False, unconfigured: Optional[List[str]] = None) -> str:
-        """Real conditions via OpenWeatherMap if connected, else the standard 'not connected' note."""
+    async def _weather_text(tomorrow: bool = False, unconfigured: Optional[List[str]] = None) -> str:
+        """Real conditions via OpenWeatherMap if connected, else the
+        standard 'not connected' note. See _calendar_text's docstring for
+        why this runs via to_thread (weather.py uses the sync `requests`
+        library, same blocking-call concern)."""
         if not is_configured("weather"):
             if unconfigured is not None:
                 unconfigured.append("weather")
             return BriefingTemplates._note("weather")
-        data = weather.get_tomorrow() if tomorrow else weather.get_current()
+        data = await asyncio.to_thread(weather.get_tomorrow if tomorrow else weather.get_current)
         if data is None:
             return "Weather temporarily unavailable — check logs"
         line = f"{data['temp']}°F, {data['condition']}"
@@ -112,7 +123,7 @@ class BriefingTemplates:
         return line
 
     @staticmethod
-    def morning_briefing(tasks_db: TaskDB) -> str:
+    async def morning_briefing(tasks_db: TaskDB) -> str:
         """Morning briefing: real tasks, honest gaps everywhere else."""
         now = datetime.now()
         date_str = now.strftime("%A, %B %d, %Y")
@@ -126,9 +137,17 @@ class BriefingTemplates:
                 return n
             return ""
 
-        weather_note = BriefingTemplates._weather_text(False, unconfigured)
-        calendar_note = BriefingTemplates._calendar_text(0, unconfigured)
-        email_note = BriefingTemplates._email_text(unconfigured)
+        # Weather/calendar/email are three independent network calls --
+        # fetch them concurrently instead of one after another, so the
+        # briefing's total latency is roughly the slowest single call,
+        # not the sum of all three. Safe to share `unconfigured` across
+        # them: each one's own append happens synchronously before its
+        # first await, never interleaved with another's.
+        weather_note, calendar_note, email_note = await asyncio.gather(
+            BriefingTemplates._weather_text(False, unconfigured),
+            BriefingTemplates._calendar_text(0, unconfigured),
+            BriefingTemplates._email_text(unconfigured),
+        )
         commute_note = note("commute")
         health_note = note("health")
         news_note = note("news")
@@ -191,7 +210,7 @@ Have a productive day!
         return briefing
 
     @staticmethod
-    def evening_briefing(tasks_db: TaskDB) -> str:
+    async def evening_briefing(tasks_db: TaskDB) -> str:
         """Evening briefing: real tasks, honest gaps everywhere else."""
         now = datetime.now()
         date_str = now.strftime("%A, %B %d, %Y")
@@ -206,8 +225,11 @@ Have a productive day!
                 return n
             return ""
 
-        calendar_note = BriefingTemplates._calendar_text(1, unconfigured) # tomorrow preview
-        weather_note = BriefingTemplates._weather_text(True, unconfigured) # tomorrow's forecast
+        # Concurrent, not sequential -- see morning_briefing's comment.
+        calendar_note, weather_note = await asyncio.gather(
+            BriefingTemplates._calendar_text(1, unconfigured),  # tomorrow preview
+            BriefingTemplates._weather_text(True, unconfigured),  # tomorrow's forecast
+        )
         health_note = note("health")
 
         open_tasks = tasks_db.get_open_tasks()
@@ -266,19 +288,19 @@ Sleep well and rest up for tomorrow!
         if any(w in question_lower for w in ["weather", "forecast", "temperature", "rain", "sunny"]):
             if not is_configured("weather"):
                 return unconfigured_reply("weather")
-            return f"\n{_TOPIC_LABELS['weather']}\n\n{BriefingTemplates._weather_text()}\n"
+            return f"\n{_TOPIC_LABELS['weather']}\n\n{await BriefingTemplates._weather_text()}\n"
 
         # Calendar/Schedule questions
         elif any(s in question_lower for s in ["calendar", "schedule", "event", "meeting", "appointment", "when"]):
             if not is_configured("calendar"):
                 return unconfigured_reply("calendar")
-            return f"\n{_TOPIC_LABELS['calendar']}\n\n{BriefingTemplates._calendar_text()}\n"
+            return f"\n{_TOPIC_LABELS['calendar']}\n\n{await BriefingTemplates._calendar_text()}\n"
 
         # Email questions
         elif any(e in question_lower for e in ["email", "mail", "inbox", "message"]):
             if not is_configured("email"):
                 return unconfigured_reply("email")
-            return f"\n{_TOPIC_LABELS['email']}\n\n{BriefingTemplates._email_text()}\n"
+            return f"\n{_TOPIC_LABELS['email']}\n\n{await BriefingTemplates._email_text()}\n"
 
         # Task questions — real data
         elif any(t in question_lower for t in ["task", "todo", "checklist", "assignment"]):
@@ -316,7 +338,7 @@ Total: {len(open_tasks) + len(in_progress)} tasks
         elif "tomorrow" in question_lower:
             if not is_configured("calendar"):
                 return unconfigured_reply("calendar", label="TOMORROW'S PREVIEW")
-            return f"\nTOMORROW'S PREVIEW\n\n{BriefingTemplates._calendar_text(1)}\n"
+            return f"\nTOMORROW'S PREVIEW\n\n{await BriefingTemplates._calendar_text(1)}\n"
 
         # Default: nothing above matched — genuinely open-ended, hand it to
         # Claude for a real answer/conversation (judgment only, never used
@@ -342,12 +364,12 @@ class BriefingEngine:
     async def generate_morning_briefing(self) -> str:
         """Generate morning briefing."""
         self.logger.info("Generating morning briefing...")
-        return BriefingTemplates.morning_briefing(self.tasks_db)
+        return await BriefingTemplates.morning_briefing(self.tasks_db)
 
     async def generate_evening_briefing(self) -> str:
         """Generate evening briefing."""
         self.logger.info("Generating evening briefing...")
-        return BriefingTemplates.evening_briefing(self.tasks_db)
+        return await BriefingTemplates.evening_briefing(self.tasks_db)
 
     async def answer_question(self, question: str) -> str:
         """Answer a natural language question about today's data."""

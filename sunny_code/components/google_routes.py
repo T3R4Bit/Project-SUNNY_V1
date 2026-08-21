@@ -4,6 +4,7 @@ Kept separate from dashboard/console routes since this is the one place that
 talks to Google's OAuth endpoints directly, not Sunny's own data.
 """
 
+import asyncio
 import html
 import logging
 
@@ -140,7 +141,11 @@ def create_google_auth_router() -> APIRouter:
             )
 
         try:
-            email = google_auth.handle_callback(code, state)
+            # handle_callback() makes real, synchronous HTTP calls
+            # (Google's token endpoint, then the userinfo endpoint) --
+            # off the event loop via to_thread, same reasoning as
+            # briefing.py's weather/calendar/email calls.
+            email = await asyncio.to_thread(google_auth.handle_callback, code, state)
         except Exception as e:
             logger.error(f"Google sign-in failed: {e}", exc_info=True)
             return HTMLResponse(
