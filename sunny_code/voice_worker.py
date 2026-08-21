@@ -58,10 +58,24 @@ logger = logging.getLogger(__name__)
 WAKE_WORD = "sunny"
 WAKE_MATCH_THRESHOLD = 0.6  # fuzzy match, not exact -- see _strip_wake_phrase
 WAKE_SEARCH_WORDS = 4  # how many leading words to scan for the wake word
-# No listening window — the wake word is required before every single
-# utterance, not just to open a back-and-forth window (that was the
-# original 2026-08-20 design; reverted 2026-08-21 per direct request:
-# every request needs its own "Hey Sunny").
+# No conversational listening window — the wake word is required before
+# every separate request, not just to open a back-and-forth window (that
+# was the original 2026-08-20 design; reverted 2026-08-21 per direct
+# request: every request needs its own "Hey Sunny").
+WAKE_TO_COMMAND_GRACE = 4.0  # NOT the same thing as the window above --
+# this only bridges the natural pause between saying the wake word and
+# then saying the actual command (the same "Hey Google" -> beep -> THEN
+# your sentence pattern every real voice assistant uses), so a single
+# request doesn't get split into two disconnected utterances by
+# SILENCE_TIMEOUT finalizing "hey sunny" on its own the moment the
+# speaker takes a breath. Confirmed live, 2026-08-21: without this, the
+# very next utterance after a bare wake word had no "sunny" in it and
+# was silently dropped -- "not responding" with no error anywhere,
+# caused directly by combining the wake-window removal above with a
+# SILENCE_TIMEOUT (0.3s) short enough that this pause reliably finalizes
+# as its own utterance. This grace period is consumed by the next
+# utterance either way (used as the command, or expires) -- it never
+# extends into a general "keep talking" window like the old design did.
 SILENCE_TIMEOUT = 0.3  # seconds with no incoming audio before forcing Vosk
 # to finalize whatever it's buffered — Discord's voice transport doesn't
 # send "quiet" packets during real silence, it just stops sending
@@ -490,21 +504,33 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
             logger.error(f"voice_worker: chime playback failed: {e}")
         logger.info("voice_worker: wake chime play() call returned")
 
-    async def handle_utterance(user, text, already_chimed=False):
+    async def handle_utterance(state, text, already_chimed=False):
+        user = state["user"]
         t_heard = time.monotonic()
         logger.info(f"voice_worker: heard from {user}: {text!r}")
 
         command = _strip_wake_phrase(text)
         if command is None:
-            logger.info("voice_worker: ignored (no wake word)")
-            return
-        if not already_chimed:
+            # No wake word in *this* utterance -- but if the wake word was
+            # just heard alone (a natural pause before the actual sentence,
+            # not a second, separate request), treat this whole utterance
+            # as the command that was implicitly still coming.
+            if time.monotonic() < state.get("awaiting_command_until", 0.0):
+                command = text
+            else:
+                logger.info("voice_worker: ignored (no wake word)")
+                return
+        elif not already_chimed:
             await play_wake_chime()
 
         if not command:
-            # Wake word alone, nothing after it yet — nothing to do. The
-            # *next* utterance needs its own wake word too, same as this one.
+            # Wake word alone, nothing after it yet — stay briefly armed
+            # for the command that's probably about to follow (see
+            # WAKE_TO_COMMAND_GRACE), not a full re-arm for a later,
+            # unrelated request.
+            state["awaiting_command_until"] = time.monotonic() + WAKE_TO_COMMAND_GRACE
             return
+        state["awaiting_command_until"] = 0.0  # consumed
 
         from_worker.put({
             "type": "utterance",
@@ -571,7 +597,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         except Exception as e:
             logger.error(f"voice_worker: STT feed failed for {user}: {e}")
             return
-        asyncio.run_coroutine_threadsafe(handle_utterance(user, text, already_chimed), loop)
+        asyncio.run_coroutine_threadsafe(handle_utterance(state, text, already_chimed), loop)
 
     async def silence_watchdog():
         """Discord's voice transport doesn't send "quiet" audio packets
@@ -603,7 +629,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
                 if text:
                     already_chimed = state["chimed"]
                     state["chimed"] = False
-                    await handle_utterance(state["user"], text, already_chimed)
+                    await handle_utterance(state, text, already_chimed)
         stop_event.set()
 
     async def command_reader():
