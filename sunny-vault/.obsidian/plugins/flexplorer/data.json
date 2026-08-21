@@ -219,6 +219,7 @@
       "isPinned": false,
       "isHidden": false,
       "customOrder": [
+        "general-chat.md",
         "weekly-health-check.md",
         "README.md"
       ],
@@ -245,6 +246,10 @@
       "isHidden": false
     },
     "docs/architecture/voice-join.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "instructions/general-chat.md": {
       "isPinned": false,
       "isHidden": false
     }
