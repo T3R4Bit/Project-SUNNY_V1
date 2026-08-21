@@ -62,12 +62,26 @@ WAKE_SEARCH_WORDS = 4  # how many leading words to scan for the wake word
 # utterance, not just to open a back-and-forth window (that was the
 # original 2026-08-20 design; reverted 2026-08-21 per direct request:
 # every request needs its own "Hey Sunny").
-SILENCE_TIMEOUT = 1.2  # seconds with no incoming audio before forcing Vosk
+SILENCE_TIMEOUT = 0.3  # seconds with no incoming audio before forcing Vosk
 # to finalize whatever it's buffered — Discord's voice transport doesn't
 # send "quiet" packets during real silence, it just stops sending
 # anything, so AcceptWaveform()'s own stream-based silence detection can
 # never fire on its own; confirmed live, 2026-08-20 (see stt.finalize()).
-SILENCE_WATCHDOG_INTERVAL = 0.3
+# Lowered from 1.2s to hit a sub-0.3s post-speech target, 2026-08-21 --
+# this is the actual dominant cost in the pipeline's real, live latency
+# (measured: ~0.8s of raw Vosk compute per utterance is mostly hidden,
+# overlapped with the user still talking; this wait, which only starts
+# once they stop, was not). Real tradeoff, not a free win: 0.3s of true
+# silence is short enough that a natural mid-sentence pause (a breath,
+# an "um", thinking of a word) can plausibly get finalized as the end of
+# the utterance. If that starts happening in practice, raise this back
+# toward 0.5-0.6s (a more typical "fast" threshold for production voice
+# assistants) rather than all the way back to 1.2s.
+SILENCE_WATCHDOG_INTERVAL = 0.05  # polling granularity -- kept tight so
+# it doesn't stack meaningfully on top of SILENCE_TIMEOUT itself (worst
+# case wait is SILENCE_TIMEOUT + this, not just SILENCE_TIMEOUT alone).
+# Cheap: a dict iteration + a few time comparisons, 20x/sec is negligible
+# CPU cost.
 COMMAND_POLL_TIMEOUT = 1.0  # how often command_reader wakes to check for
 # shutdown even with no message waiting -- keeps the process from ever
 # blocking forever on an empty queue.
