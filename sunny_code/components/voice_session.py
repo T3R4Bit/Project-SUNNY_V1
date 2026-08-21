@@ -195,6 +195,30 @@ def _patch_dave_decrypt() -> None:
             # pick the right ratchet; leave the frame for normal handling.
             return
 
+        # _decode_packet's FEC branch (patched below) reads a packet's
+        # decrypted_data straight from the jitter buffer via peek_next(),
+        # bypassing _process_packet (and this decrypt call) entirely on
+        # the normal path -- so the same packet object can legitimately
+        # reach here twice: once early via that FEC peek, once later when
+        # it's actually popped and processed for real. DAVE decryption
+        # isn't idempotent (it's a real AEAD cipher over a ratcheting
+        # key) -- decrypting already-decrypted plaintext a second time
+        # produces garbage, not a no-op. Track recently-decrypted
+        # sequence numbers per decoder (RTPPacket/FakePacket both use
+        # __slots__ with no spare attribute to mark on the packet object
+        # itself) and skip the second attempt. Bounded and cleared well
+        # before RTP's 16-bit sequence number could ever wrap back
+        # around to a value still being tracked.
+        seen = getattr(self, "_dave_decrypted_seqs", None)
+        if seen is None:
+            seen = set()
+            self._dave_decrypted_seqs = seen
+        if packet.sequence in seen:
+            return
+        if len(seen) > 64:
+            seen.clear()
+        seen.add(packet.sequence)
+
         try:
             packet.decrypted_data = session.decrypt(
                 int(user_id), _davey.MediaType.audio, bytes(packet.decrypted_data)
@@ -222,8 +246,48 @@ def _patch_dave_decrypt() -> None:
         self._last_ts = packet.timestamp
         return data
 
+    def _patched_decode_packet(self, packet):
+        assert self._decoder is not None
+
+        if packet:
+            pcm = self._decoder.decode(packet.decrypted_data, fec=False)
+            return packet, pcm
+
+        # Fake packet (a known single-packet gap) — recover it via Opus
+        # FEC data embedded in the *next* buffered packet. That next
+        # packet is read straight out of the jitter buffer here, without
+        # ever passing through _process_packet/_dave_decrypt above —
+        # confirmed live, 2026-08-20: this was still-DAVE-encrypted
+        # ciphertext being handed to opus_decode() as if it were real
+        # Opus data, on every real packet-loss event. Crashed the whole
+        # process (a clean segfault this time, not the heap-corruption
+        # abort from the silence-packet bug) with zero preceding Python-
+        # level warning, since nothing here ever raised — libopus was
+        # simply reading a native buffer whose declared frame size (from
+        # ciphertext bytes it misread as an Opus TOC byte) didn't match
+        # its actual contents.
+        next_packet = self._buffer.peek_next()
+
+        if next_packet is not None:
+            self._dave_decrypt(next_packet)
+            nextdata: bytes = next_packet.decrypted_data  # type: ignore
+
+            logger.debug(
+                "Generating fec packet: fake=%s, fec=%s",
+                packet.sequence,
+                next_packet.sequence,
+            )
+            pcm = self._decoder.decode(nextdata, fec=True)
+
+        # Need to drop a packet
+        else:
+            pcm = self._decoder.decode(None, fec=False)
+
+        return packet, pcm
+
     _opus_mod.PacketDecoder._dave_decrypt = _dave_decrypt
     _opus_mod.PacketDecoder._process_packet = _patched_process_packet
+    _opus_mod.PacketDecoder._decode_packet = _patched_decode_packet
 
 
 _patch_voice_recv_packet_router()
