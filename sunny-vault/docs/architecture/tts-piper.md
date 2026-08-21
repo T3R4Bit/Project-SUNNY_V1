@@ -84,13 +84,13 @@ Registering a slash command requires the bot's Discord invite to include the `ap
 - **First call after a restart is slower** (~1s model load) than subsequent calls (cached, near-instant synthesis). Not user-visible thanks to `defer()`, but worth knowing if debugging latency.
 - **1000-character cap.** Longer text needs to be split into multiple `/speak` calls for now.
 
-## Deferred: `/join` — Live Voice Channel Conversation
+## `/join` — Live Voice Channel Conversation
 
-Explicitly requested by the user as a followup, not part of this build: a `/join` command that has the bot join a live Discord voice channel for real-time conversation, rather than posting one-shot audio attachments. Tracked in [[../BACKLOG.md]]. `tts.synthesize_wav_bytes()` is written to be reusable by that work — nothing here is one-shot-specific at the synthesis layer, only at the Discord-transport layer (`/speak`'s file-attachment reply vs. `/join`'s live audio stream into a `discord.VoiceClient`).
+✅ Built (2026-08-20) — see [[voice-join]]. The follow-up requested when `/speak` shipped: the bot joins a live Discord voice channel for real-time conversation (Vosk STT + this module's `synthesize_wav_bytes()`), rather than posting one-shot audio attachments. `tts.py` gained one new function for it, `synthesize_discord_pcm()` — everything else here (`synthesize_wav_bytes()`, voice/tuning config) is shared unchanged between `/speak` and `/join`.
 
 ## Files
 
-- `sunny_code/components/tts.py` — `synthesize_wav_bytes()`, `is_voice_downloaded()`
+- `sunny_code/components/tts.py` — `synthesize_wav_bytes()`, `is_voice_downloaded()`, `synthesize_discord_pcm()` (used by [[voice-join|/join]])
 - `sunny_code/components/discord_bot.py` — `/speak` command, `CommandTree` setup, guild sync
 - `sunny_code/components/setup_guides.py` — `"setup piper"`/`"setup speak"` guide
 - `sunny_code/config.py` — `piper_voice`, `piper_voices_dir`, `piper_length_scale`, `piper_noise_scale`, `piper_noise_w_scale`, `piper_speaker_id`
@@ -109,4 +109,4 @@ Explicitly requested by the user as a followup, not part of this build: a `/join
 - [x] Guild-scoped command sync, guarded against re-sync on reconnect
 - [x] `"setup piper"` guide + overview entry
 - [x] Voice/tuning knobs — `PIPER_VOICE`, `PIPER_LENGTH_SCALE`, `PIPER_NOISE_SCALE`, `PIPER_NOISE_W_SCALE`, `PIPER_SPEAKER_ID`, all live (no restart)
-- [ ] `/join` — live voice channel conversation (deferred, see BACKLOG.md)
+- [x] `/join` — live voice channel conversation, see [[voice-join]]

@@ -46,6 +46,7 @@
     "history": 17,
     "instructions": 87,
     "io": 18,
+    "join": 92,
     "later": 63,
     "lists": 68,
     "llm": 19,
@@ -91,6 +92,7 @@
     "vault": 84,
     "vision": 60,
     "voice": 35,
+    "vosk": 93,
     "warnings": 36,
     "weather": 80
   },

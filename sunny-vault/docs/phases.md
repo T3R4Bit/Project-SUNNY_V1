@@ -185,7 +185,7 @@ Tailscale: Clock accessible from Lenovo via mesh
   - "Hello Sunny"
   - "Sunny [command]"
 - [ ] Whisper API integration (STT)
-- [ ] Fallback: Vosk or local Whisper (offline option)
+- [x] Fallback: Vosk or local Whisper (offline option) — built ahead of the hardware, 2026-08-20, as `/join` in Discord (Vosk, not Whisper — free/local was the explicit choice, matching every other engine decision this session). No Clock device needed for this piece; see [[architecture/voice-join]]. Still needed here: Whisper API as the *primary* STT once the Clock hardware exists, per this section's original framing.
 - [ ] I2S audio streaming from Clock to Lenovo
 - [ ] Audio buffering + wake word detection loop
 

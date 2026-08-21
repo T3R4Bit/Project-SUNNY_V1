@@ -58,7 +58,7 @@ cancel my 7am alarm
 - **Setup status** — "setup" for the full connection overview, or "setup \<name\>" (e.g. "setup weather", "setup claude") for step-by-step instructions on one integration — same live-status output as typing it into `/console`.
 - **Help** — "help" (or blank/"commands"/"what can you do") prints the full command list.
 - **Server admin** (channels/roles) — see the dedicated section below; these are Discord-only and use different verbs (`create a channel called ...`) from everything above.
-- **Voice** — `/speak <text>`, a real Discord slash command (not plain-text), posts back a playable audio attachment via Piper TTS. See [[tts-piper]].
+- **Voice** — `/speak <text>` posts back a playable audio attachment (one-shot, Piper TTS, see [[tts-piper]]); `/join` has the bot join your voice channel for a real live conversation (Vosk STT + Piper TTS, see [[voice-join]]), `/leave` ends it. All three are real Discord slash commands, not plain-text.
 
 ## Server Admin (Channels & Roles)
 
@@ -188,7 +188,7 @@ Restart Sunny (`./run.sh`). Log line to confirm it connected: `Discord bot conne
 ## Known Limitations
 
 - **One chat channel.** Commands are only ever read from `DISCORD_CHAT_CHANNEL_ID` — every other channel (dashboard included) is output-only, the bot never listens on them. No per-guild/multi-server config either — fine for personal use, would need work for anything more.
-- **One real slash command (`/speak`), everything else is plain-text.** `/speak` (see [[tts-piper]]) is the bot's first `discord.app_commands` command, registered via a `CommandTree` bound directly to the bare `discord.Client` — no framework swap to `commands.Bot` needed. Tasks/lists/alarms/setup/help/server-admin are all still plain-message parsing via `handle_message()` — a future slash-command version of any of those would be a separate `@tree.command()` calling into the same `handle_message()`, not a rewrite.
+- **Three real slash commands (`/speak`, `/join`, `/leave`), everything else is plain-text.** `/speak` (see [[tts-piper]]) was the bot's first `discord.app_commands` command, registered via a `CommandTree` bound directly to the bare `discord.Client` — no framework swap to `commands.Bot` needed. `/join`/`/leave` (see [[voice-join]]) followed the same pattern for live voice conversation. Tasks/lists/alarms/setup/help/server-admin are all still plain-message parsing via `handle_message()` — a future slash-command version of any of those would be a separate `@tree.command()` calling into the same `handle_message()`, not a rewrite.
 - **Text channels only.** Channel creation doesn't support voice channels or categories — not asked for, easy to add later (`guild.create_voice_channel`/`create_category` alongside `create_text_channel` in `discord_bot.py`) if needed.
 - **No role color/permission customization on create.** `create role <name>` makes a plain role with no color and no permissions set — matches Discord's own default for a freshly created role. Edit color/permissions in Discord's UI after creating it, or ask to add `--color` support later if this comes up in practice.
 
@@ -215,6 +215,7 @@ Restart Sunny (`./run.sh`). Log line to confirm it connected: `Discord bot conne
 - [x] Multi-channel output routing: optional `#briefings`/`#warnings`/`#task-updates`/`#health` channels, each falling back to the chat channel if unset — routing + fallback unit-tested (mocked client)
 - [x] **Connected to a real live server** — 2026-08-20
 - [x] First slash command: `/speak` (Piper TTS) — see [[tts-piper]]
+- [x] `/join`/`/leave` — live voice conversation (Vosk STT + Piper TTS) — see [[voice-join]]
 - [ ] Multi-channel activity log (briefings, warnings, etc.) — separate, larger scope
-- [ ] More slash command variants (optional, nice-to-have) — `/join` (live voice channel, see [[tts-piper]] and BACKLOG.md) is the next planned one
+- [ ] More slash command variants (optional, nice-to-have)
 - [ ] Voice channels / categories / role color on create (optional, not asked for yet)

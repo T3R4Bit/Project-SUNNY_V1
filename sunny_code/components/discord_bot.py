@@ -20,11 +20,12 @@ Also the only real delivery mechanism for alarms/reminders today: there's no
 clock/speaker hardware yet, so "sounding" an alarm means posting a message in
 the chat channel when it's due (see the scheduled-items loop below).
 
-One real slash command, /speak (Piper TTS, see sunny_code/components/tts.py
-and sunny-vault/docs/architecture/tts-piper.md) — everything else here is
-plain-text via handle_message(). Registered via a discord.app_commands.
-CommandTree bound directly to this bare discord.Client (no commands.Bot
-needed), synced to this bot's one guild in on_ready.
+Three real slash commands — /speak (Piper TTS, one-shot text-to-audio
+attachment), /join and /leave (live voice-channel conversation via
+stt.py/voice_session.py — see sunny-vault/docs/architecture/voice-join.md).
+Everything else here is plain-text via handle_message(). Registered via a
+discord.app_commands.CommandTree bound directly to this bare discord.Client
+(no commands.Bot needed), synced to this bot's one guild in on_ready.
 
 Setup steps: see sunny-vault/docs/architecture/discord-bot.md
 """
@@ -37,7 +38,7 @@ from datetime import datetime
 import discord
 from discord.ext import tasks
 
-from sunny_code.components import tts
+from sunny_code.components import tts, voice_session
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.key_status import missing_api_keys, startup_summary
@@ -201,6 +202,35 @@ def create_discord_bot(
             await interaction.followup.send("Couldn't synthesize that — check the logs.")
             return
         await interaction.followup.send(file=discord.File(io.BytesIO(wav_bytes), filename="speech.wav"))
+
+    @tree.command(name="join", description="Join your voice channel for a live conversation (Vosk STT + Piper TTS)")
+    async def join_command(interaction: discord.Interaction):
+        """Live conversation, not one-shot like /speak — see
+        sunny-vault/docs/architecture/voice-join.md. Same channel
+        restriction as every other command (the command itself is typed
+        in the chat channel; the bot then joins whichever voice channel
+        the caller is currently in)."""
+        if interaction.channel_id != chat_channel_id:
+            await interaction.response.send_message(
+                "Use /join in the chat channel.", ephemeral=True
+            )
+            return
+        await interaction.response.defer(thinking=True)
+        message = await voice_session.start(
+            interaction, tasks_engine, briefing_engine, list_engine, scheduled_engine
+        )
+        await interaction.followup.send(message)
+
+    @tree.command(name="leave", description="Leave the voice channel")
+    async def leave_command(interaction: discord.Interaction):
+        if interaction.channel_id != chat_channel_id:
+            await interaction.response.send_message(
+                "Use /leave in the chat channel.", ephemeral=True
+            )
+            return
+        await interaction.response.defer(thinking=True)
+        message = await voice_session.stop()
+        await interaction.followup.send(message)
 
     async def _post_to(channel_id: int, text: str, fallback_channel_id: int = None):
         """Send `text` to `channel_id` if set, else to `fallback_channel_id` (typically

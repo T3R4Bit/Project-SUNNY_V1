@@ -191,18 +191,19 @@
   },
   "active": "1d01bc107c8fadf5",
   "lastOpenFiles": [
+    "docs/architecture/discord-bot.md.tmp.18212.1a87ca9d2481",
+    "docs/architecture/discord-bot.md.tmp.18212.e593147b4565",
+    "docs/architecture/discord-bot.md.tmp.18212.c20e9a288ee1",
+    "docs/BACKLOG.md.tmp.18212.946cc4f5aa26",
+    "docs/architecture/voice-join.md.tmp.18212.102216e3a556",
+    "docs/architecture/voice-join.md.tmp.18212.57ce440ee26a",
+    "docs/architecture/voice-join.md",
     "docs/architecture/tts-piper.md.tmp.18212.87690af549c2",
     "docs/architecture/tts-piper.md.tmp.18212.afdb37d60ed5",
     "docs/architecture/tts-piper.md.tmp.18212.4b72a658d9c2",
     "docs/architecture/tts-piper.md.tmp.18212.c0b488b996d8",
     "docs/phases.md.tmp.18212.f05bb3db5c4b",
-    "docs/BACKLOG.md.tmp.18212.64b5af7ace96",
-    "docs/architecture/discord-bot.md.tmp.18212.c8b5bd713bcb",
-    "docs/architecture/discord-bot.md.tmp.18212.3f279dda1afd",
-    "docs/architecture/discord-bot.md.tmp.18212.7f8e27019f12",
-    "docs/architecture/voice-io.md.tmp.18212.c0c24229998b",
     "docs/architecture/tts-piper.md",
-    "docs/architecture/tts-piper.md.tmp.18212.62b1927eb167",
     "docs/architecture/health-check.md",
     "log/llm-usage.md",
     "docs/architecture/llm-instructions.md",
@@ -225,7 +226,6 @@
     "state/tasks/concurrency-chat-task-1.md",
     "state/tasks/concurrency-web-task-5.md",
     "state/tasks/concurrency-web-task-4.md",
-    "state/tasks/concurrency-web-task-3.md",
-    "state/tasks/concurrency-web-task-2.md"
+    "state/tasks/concurrency-web-task-3.md"
   ]
 }

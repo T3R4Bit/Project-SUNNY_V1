@@ -9,6 +9,7 @@ this differs from the full Sonic/Piper voice-io.md pipeline, which is gated
 on physical Clock hardware that doesn't exist yet.
 """
 
+import audioop
 import io
 import logging
 import subprocess
@@ -105,3 +106,32 @@ def is_voice_downloaded() -> bool:
     setup_guides.py to report connection status without side effects."""
     settings = get_settings()
     return (settings.piper_voices_dir / f"{settings.piper_voice}.onnx").exists()
+
+
+def synthesize_discord_pcm(text: str) -> bytes:
+    """synthesize_wav_bytes()'s output (22050Hz mono, per Piper's default
+    voice) converted to Discord's required playback format for
+    discord.PCMAudio: raw 16-bit 48kHz stereo PCM, no WAV header. Reads the
+    actual rate/width/channel count from the WAV rather than assuming
+    Piper's current defaults, so this stays correct if PIPER_VOICE ever
+    changes to a voice with different specs."""
+    from discord.opus import Encoder as OpusEncoder
+
+    wav_bytes = synthesize_wav_bytes(text)
+    with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+        raw = wf.readframes(wf.getnframes())
+        rate = wf.getframerate()
+        width = wf.getsampwidth()
+        channels = wf.getnchannels()
+
+    resampled, _ = audioop.ratecv(raw, width, channels, rate, 48000, None)
+    if channels == 1:
+        resampled = audioop.tostereo(resampled, width, 1, 1)
+
+    # discord.PCMAudio.read() drops any final chunk shorter than
+    # FRAME_SIZE (treats it as end-of-stream) — pad with silence to a
+    # full frame boundary so the last ~20ms of speech never gets cut.
+    pad = (-len(resampled)) % OpusEncoder.FRAME_SIZE
+    if pad:
+        resampled += b"\x00" * pad
+    return resampled

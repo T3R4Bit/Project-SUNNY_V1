@@ -113,6 +113,10 @@ PIPER_NOISE_SCALE=
 PIPER_NOISE_W_SCALE=
 PIPER_SPEAKER_ID=
 
+# Vosk STT (/join in Discord) — free, local, no API key needed. Model
+# downloads automatically on first use. See sunny-vault/docs/architecture/voice-join.md.
+VOSK_LANG=en-us
+
 # Logging
 LOG_LEVEL=INFO
 LOG_FORMAT=json

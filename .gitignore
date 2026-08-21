@@ -33,6 +33,9 @@ certs/
 # Piper TTS voice model — downloaded automatically on first use (~60MB), not source
 piper_voices/
 
+# Vosk STT model — downloaded automatically on first use, not source
+vosk_models/
+
 # Database
 *.db
 *.sqlite

@@ -174,6 +174,12 @@ class Settings(BaseSettings):
         except (TypeError, ValueError):
             return None
 
+    # Vosk STT (see sunny_code/components/stt.py) — free, fully local, no
+    # API cost. Model downloads automatically to vosk_model_dir on first
+    # use if not already present.
+    vosk_model_dir: Path = project_root / "vosk_models"
+    vosk_lang: str = "en-us"
+
     # Logging
     log_level: str = "INFO"
     log_format: str = "json"  # json or text
