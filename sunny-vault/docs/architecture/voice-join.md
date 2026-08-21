@@ -10,6 +10,8 @@ tags: [voice, stt, tts, vosk, piper, discord, join]
 
 `/join` has Sunny join your current Discord voice channel and have a real spoken conversation: your speech gets transcribed locally (Vosk), routed through the exact same `assistant.handle_message()` router every other interface (console, terminal, Discord text) already uses, and the reply is spoken back (Piper — see [[tts-piper]]). `/leave` ends it. No API key, no per-minute cost, either direction.
 
+Say **"Hey Sunny"** (or "Hello Sunny", or just "Sunny") to open a listening window — everything you say after that gets processed normally, no need to repeat it every sentence. The window stays open for `WAKE_WINDOW_SECONDS` (20s) after the wake phrase or after Sunny's last reply, whichever is more recent; after that long with no follow-up, it closes and the wake phrase is needed again. Outside the window, speech is transcribed (still real CPU work — see Known Risks) but never reaches the assistant router at all.
+
 ## Status
 
 ✅ Built — `sunny_code/components/stt.py`, `sunny_code/components/voice_session.py`, `/join`+`/leave` in `sunny_code/components/discord_bot.py`.
@@ -33,7 +35,11 @@ stt.py: audioop resample (48k stereo → 16k mono) → per-user KaldiRecognizer.
 Result() JSON → transcribed text
   │
   ▼
-assistant.handle_message(text, ..., session_id=f"voice:{guild_id}:{user_id}")   ← same router as every other interface
+wake-phrase gate (voice_session.py) — outside the listening window and no
+"Hey Sunny"? dropped here, never reaches the router below.
+  │  (awake, or wake phrase found — stripped from the text)
+  ▼
+assistant.handle_message(command, ..., session_id=f"voice:{guild_id}:{user_id}")   ← same router as every other interface
   │
   ▼  response text
 tts.py: synthesize_wav_bytes() [already built for /speak] → audioop resample (22050 mono → 48k stereo)
@@ -44,7 +50,7 @@ voice_client.play(discord.PCMAudio(pcm_stream))   ← spoken back into the chann
 
 **One session at a time.** Module-global state in `voice_session.py` (mirrors `tts.py`'s singleton pattern) — a second `/join` while one is active gets "Already in a voice call," not a second concurrent session. Matches this app's existing single-guild assumption (see [[discord-bot]]).
 
-**No wake word.** Joining the channel *is* the "start listening" signal — the same way a real Discord voice channel already works (everyone in it can be heard). `/leave` is "stop listening." This is a deliberate difference from the wake-word design in [[clock]]/[[voice-io]] (built for an always-on physical device); a Discord `/join` you invoke on demand doesn't need one.
+**Wake phrase opens a listening window, not required per-utterance.** `"hey sunny"` / `"hello sunny"` / bare `"sunny"` as a prefix arms (or re-arms) a `WAKE_WINDOW_SECONDS` (20s) window; a bare wake word with nothing after it just arms the window and waits for the next utterance. Everything Vosk transcribes still gets STT'd continuously the whole time you're joined (that part *is* "always listening," same as any Discord voice channel) — the gate is purely about what gets forwarded to the assistant router, so idle chatter in the channel doesn't trigger a response. Chosen over "joining is the only signal needed" (this doc's original design) and over "wake word required before every single sentence" (the physical-Clock design in [[clock]]/[[voice-io]]) specifically for natural back-and-forth: say it once, keep talking.
 
 **No multi-speaker handling.** One recognizer per speaker (keyed by Discord user ID) so the common case (you, alone, talking) works cleanly, but there's no diarization — if two people talk over each other, both streams still get fed independently and could produce garbled/interleaved responses. Accepted, given the actual single-user use case.
 
@@ -71,7 +77,7 @@ voice_client.play(discord.PCMAudio(pcm_stream))   ← spoken back into the chann
 - **Confirmed, hit for real**: a single corrupted/lost Opus packet (routine on real UDP voice traffic — packet loss, jitter, nothing actually wrong) crashed the library's `PacketRouter` thread entirely and silently ended the whole listening session (`stop_listening()` fires in a `finally` block on any decode error). A real user's very first `/join` test went unresponsive after exactly one `OpusError: corrupted stream`, ~2 seconds after joining — matches known upstream reports (GitHub issues #43/#49/#53/#61 on `discord-ext-voice-recv`, several referencing DAVE-encrypted packets specifically). No PyPI release fixes this; there's a matching **open, unmerged** upstream PR (#57) that catches the decode error per-packet instead of letting it kill the thread. **Fixed**: `voice_session.py` monkey-patches `PacketRouter._do_run` at import time with the same one-method fix the PR proposes (skip the bad packet, keep the router running), rather than depending on an unofficial fork as a pip dependency. Documented here in detail since this is exactly the kind of alpha-library fragility the previous bullet warned about in the abstract — now a concrete, worked example of it.
 - **Continuous CPU cost while a session is active.** Vosk decoding is real, ongoing work — unlike everything else in this app, which is pure request/response. Small model keeps this modest, but it's a genuinely different resource profile, worth watching if the Lenovo ever feels loaded during a long `/join` session.
 - **Vosk's small model trades accuracy for speed/size** — same tradeoff already accepted for Piper's default voice and Haiku-tier LLM defaults, in keeping with "local and free."
-- **No wake word, no wire-level privacy indicator beyond Discord's own** — being in the channel means Sunny is listening to everyone in it, same as any other bot/human in a Discord voice channel. `/leave` is how you stop that.
+- **The wake phrase only gates what reaches the assistant, not what gets transcribed.** Being in the channel means Sunny's STT is running on everyone in it continuously (same as any other bot/human in a Discord voice channel could theoretically be recording) — the wake phrase decides what gets *acted on*, not what gets *heard*. No wire-level privacy indicator beyond Discord's own. `/leave` is how you stop all of it.
 
 ## Not Included This Pass
 
@@ -82,7 +88,7 @@ voice_client.play(discord.PCMAudio(pcm_stream))   ← spoken back into the chann
 
 - `sunny_code/components/stt.py` — Vosk model loading, `new_recognizer()`, `resample_to_16k_mono()`, `feed()`
 - `sunny_code/components/tts.py` — `synthesize_discord_pcm()` (new, alongside the existing `synthesize_wav_bytes()` used by `/speak`)
-- `sunny_code/components/voice_session.py` — session orchestration: connect, per-user recognizers, the receive callback and its thread-safe handoff, assistant routing, response playback, disconnect; also patches `discord-ext-voice-recv`'s `PacketRouter._do_run` at import time (see Known Risks)
+- `sunny_code/components/voice_session.py` — session orchestration: connect, per-user recognizers, the receive callback and its thread-safe handoff, wake-phrase gating (`_strip_wake_phrase()`, `WAKE_WINDOW_SECONDS`), assistant routing, response playback, disconnect; also patches `discord-ext-voice-recv`'s `PacketRouter._do_run` at import time (see Known Risks)
 - `sunny_code/components/discord_bot.py` — `/join`, `/leave` commands
 - `sunny_code/config.py` — `vosk_model_dir`, `vosk_lang`
 - `vosk_models/` (gitignored) — downloaded model files
@@ -103,4 +109,5 @@ voice_client.play(discord.PCMAudio(pcm_stream))   ← spoken back into the chann
 - [x] Connect + command registration verified live against the real Discord API (3 commands registered, `channel.connect()` succeeds)
 - [x] `libopus0` installed on the Lenovo (`sudo apt-get install -y libopus0`) — send-side re-verified after: real connect → real Piper synthesis → real Opus encode → real playback → clean disconnect, all against the live bot
 - [x] Real end-to-end attempt with a live human voice — caught the `PacketRouter` crash-on-single-decode-error bug for real (a genuine bug this specific test could only ever have found live, not scripted); patched, deployed, awaiting re-test
-- [ ] Re-verify with a live human voice now that the patch is deployed
+- [x] Wake phrase ("Hey Sunny"/"Hello Sunny"/"Sunny") opens a listening window (`WAKE_WINDOW_SECONDS`, 20s) rather than gating every utterance — verified via mocked session tests (ignored outside the window, processed + stripped on wake, follow-ups within the window need no repeat, re-closes after expiry, bare wake word arms without a false command)
+- [ ] Re-verify with a live human voice now that the packet-router patch and wake phrase are both deployed

@@ -11,6 +11,7 @@ pattern. See sunny-vault/docs/architecture/voice-join.md.
 import asyncio
 import io
 import logging
+import time
 from typing import Optional
 
 import discord
@@ -20,6 +21,25 @@ from sunny_code.components import stt, tts
 from sunny_code.components.assistant import handle_message
 
 logger = logging.getLogger(__name__)
+
+WAKE_PHRASES = ("hey sunny", "hello sunny", "sunny")
+WAKE_WINDOW_SECONDS = 20  # how long a session stays "awake" after a wake
+# word or a response, before requiring the wake word again — matches the
+# "opens a window, doesn't need repeating every sentence" choice made
+# 2026-08-20 (a real back-and-forth, not a walkie-talkie).
+
+
+def _strip_wake_phrase(text: str) -> Optional[str]:
+    """None if `text` doesn't start with a wake phrase. Otherwise the
+    remaining command text with the phrase stripped — "" if it was just
+    the wake word alone with nothing after it yet."""
+    lowered = text.lower().strip()
+    for phrase in WAKE_PHRASES:
+        if lowered == phrase:
+            return ""
+        if lowered.startswith(phrase + " "):
+            return text[len(phrase):].strip()
+    return None
 
 
 def _patch_voice_recv_packet_router() -> None:
@@ -58,6 +78,7 @@ def _patch_voice_recv_packet_router() -> None:
 _patch_voice_recv_packet_router()
 
 _voice_client: Optional[voice_recv.VoiceRecvClient] = None
+_awake_until: float = 0.0
 
 
 def is_active() -> bool:
@@ -69,7 +90,7 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
     listening. Fails with an honest message (not a crash) if the user
     isn't in a channel, a session is already active, or the connect
     itself fails (missing permissions, etc.)."""
-    global _voice_client
+    global _voice_client, _awake_until
 
     if is_active():
         return "Already in a voice call — use /leave first."
@@ -83,13 +104,32 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
     recognizers = {}  # user_id -> KaldiRecognizer, one per speaker this session
 
     async def handle_utterance(user, text):
+        global _awake_until
+
         logger.info(f"voice_session: heard from {user}: {text!r}")
         if _voice_client is None or not _voice_client.is_connected():
             return
+
+        now = time.monotonic()
+        stripped = _strip_wake_phrase(text)
+        if stripped is not None:
+            command = stripped
+            _awake_until = now + WAKE_WINDOW_SECONDS
+        elif now < _awake_until:
+            command = text
+        else:
+            logger.info("voice_session: ignored (no wake word, outside listening window)")
+            return
+
+        if not command:
+            # Wake word alone, nothing after it yet — stay armed, wait for
+            # the actual command on a later utterance.
+            return
+
         session_id = f"voice:{channel.guild.id}:{user.id}"
         try:
             response = await handle_message(
-                text, tasks_engine, briefing_engine, list_engine, scheduled_engine, session_id=session_id
+                command, tasks_engine, briefing_engine, list_engine, scheduled_engine, session_id=session_id
             )
         except Exception as e:
             logger.error(f"voice_session: assistant router failed: {e}")
@@ -106,6 +146,7 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
         if _voice_client.is_playing():
             _voice_client.stop()
         _voice_client.play(discord.PCMAudio(io.BytesIO(pcm)))
+        _awake_until = time.monotonic() + WAKE_WINDOW_SECONDS  # extend the window after responding
 
     def on_audio(user, data):
         """Sync callback — fires on voice_recv's own audio-decode thread,
@@ -126,6 +167,7 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
         if text:
             asyncio.run_coroutine_threadsafe(handle_utterance(user, text), loop)
 
+    _awake_until = 0.0
     try:
         _voice_client = await channel.connect(cls=voice_recv.VoiceRecvClient)
     except Exception as e:
@@ -134,19 +176,20 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
 
     _voice_client.listen(voice_recv.BasicSink(on_audio))
     logger.info(f"voice_session: joined #{channel.name} ({channel.id})")
-    return f"Joined {channel.name} — go ahead and talk."
+    return f'Joined {channel.name} — say "Hey Sunny" to start.'
 
 
 async def stop() -> str:
     """Disconnects and clears session state. Safe to call even if nothing
     is active."""
-    global _voice_client
+    global _voice_client, _awake_until
 
     if not is_active():
         return "Not in a voice call."
 
     voice_client = _voice_client
     _voice_client = None
+    _awake_until = 0.0
     try:
         await voice_client.disconnect()
     except Exception as e:
