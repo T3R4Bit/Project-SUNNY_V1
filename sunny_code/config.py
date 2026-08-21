@@ -181,9 +181,26 @@ class Settings(BaseSettings):
     # see the real model list at alphacephei.com/vosk/models, verified
     # 2026-08-20, not guessed); blank falls back to vosk_lang's small
     # model (the original default, ~39MB vs. lgraph's ~125MB).
+    #
+    # Reverted from "vosk-model-en-us-0.22-lgraph" back to blank
+    # (small model), 2026-08-21: root-caused via faulthandler catching a
+    # live native abort mid-crash -- a Kaldi assertion deep inside
+    # LatticeIncrementalDecoderTpl::ProcessNonemitting()
+    # ("Assertion failed: (queue_.empty())"), specifically inside
+    # FinalResult()'s own internal flush logic, not anything reachable
+    # or fixable from this codebase (it's inside libvosk.so's compiled
+    # Kaldi internals, no source available to patch). This is the
+    # "incremental lattice decoder" -- exactly the graph structure the
+    # "-lgraph" model name refers to. The small model ran for hours
+    # earlier this same session with zero native crashes; every crash
+    # chased all evening (several real, independently-fixed bugs along
+    # the way, all worth keeping) only started after this specific model
+    # was switched to. Revisit if a non-"-lgraph" bigger model
+    # (vosk-model-en-us-0.22) turns out not to share this decoder path,
+    # or if upstream Vosk/Kaldi fixes this assertion.
     vosk_model_dir: Path = project_root / "vosk_models"
     vosk_lang: str = "en-us"
-    vosk_model_name: str = "vosk-model-en-us-0.22-lgraph"
+    vosk_model_name: str = ""
 
     # Logging
     log_level: str = "INFO"

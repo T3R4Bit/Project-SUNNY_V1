@@ -116,11 +116,14 @@ PIPER_SPEAKER_ID=
 # Vosk STT (/join in Discord) — free, local, no API key needed. Model
 # downloads automatically on first use. See sunny-vault/docs/architecture/voice-join.md.
 VOSK_LANG=en-us
-# Specific model by name, bigger vocabulary than VOSK_LANG's small default
-# — leave as-is unless accuracy still isn't good enough, then try
-# vosk-model-en-us-0.22 (~1.8GB, real CPU/RAM cost, best accuracy).
-# Blank falls back to VOSK_LANG's small model.
-VOSK_MODEL_NAME=vosk-model-en-us-0.22-lgraph
+# Specific model by name, bigger vocabulary than VOSK_LANG's small default.
+# Leave blank (small model) — vosk-model-en-us-0.22-lgraph crashes /join
+# outright (a real Kaldi assertion failure inside its own incremental
+# lattice decoder, not fixable from this app — see config.py and
+# sunny-vault/docs/architecture/voice-join.md). If accuracy ever needs
+# revisiting, try vosk-model-en-us-0.22 (the non-"-lgraph" big model,
+# ~1.8GB) instead, not the lgraph one.
+VOSK_MODEL_NAME=
 
 # Logging
 LOG_LEVEL=INFO
