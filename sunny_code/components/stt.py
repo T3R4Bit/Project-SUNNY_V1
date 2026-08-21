@@ -11,6 +11,7 @@ import audioop
 import json
 import logging
 import os
+import threading
 import time
 from typing import Optional
 
@@ -19,6 +20,11 @@ from sunny_code.config import get_settings
 logger = logging.getLogger(__name__)
 
 _model = None
+_model_lock = threading.Lock()  # new_recognizer() can be called concurrently
+# (the /join pre-warm task and voice_recv's own audio-decode thread both call
+# it) — without this, both could see _model is None at once and each build a
+# separate Model, which is exactly what happened the first time this ran live
+# (two "Vosk model ready" log lines, back to back).
 
 DISCORD_SAMPLE_RATE = 48000
 VOSK_SAMPLE_RATE = 16000
@@ -32,18 +38,21 @@ def _get_model():
     settings.vosk_model_dir (confirmed via reading vosk.Model's own source
     — no custom download step needed here, unlike Piper)."""
     global _model
-    if _model is None:
-        settings = get_settings()
-        settings.vosk_model_dir.mkdir(parents=True, exist_ok=True)
-        os.environ["VOSK_MODEL_PATH"] = str(settings.vosk_model_dir)
+    if _model is not None:
+        return _model
+    with _model_lock:
+        if _model is None:
+            settings = get_settings()
+            settings.vosk_model_dir.mkdir(parents=True, exist_ok=True)
+            os.environ["VOSK_MODEL_PATH"] = str(settings.vosk_model_dir)
 
-        from vosk import Model, SetLogLevel
+            from vosk import Model, SetLogLevel
 
-        SetLogLevel(-1)  # Vosk's own C-level logging is noisy; this app has its own
-        logger.info(f"Loading Vosk model (lang={settings.vosk_lang}), downloading if needed...")
-        t0 = time.monotonic()
-        _model = Model(lang=settings.vosk_lang)
-        logger.info(f"Vosk model ready in {time.monotonic() - t0:.2f}s")
+            SetLogLevel(-1)  # Vosk's own C-level logging is noisy; this app has its own
+            logger.info(f"Loading Vosk model (lang={settings.vosk_lang}), downloading if needed...")
+            t0 = time.monotonic()
+            _model = Model(lang=settings.vosk_lang)
+            logger.info(f"Vosk model ready in {time.monotonic() - t0:.2f}s")
     return _model
 
 
@@ -77,10 +86,30 @@ def feed(recognizer, pcm_48k_stereo_chunk: bytes) -> Optional[str]:
     Returns the finalized transcript text once Vosk's own silence-based
     endpointing completes a segment, else None (still buffering — caller
     just keeps calling this with the same recognizer as more audio
-    arrives). Empty/silent segments resolve to None too, not ""."""
+    arrives). Empty/silent segments resolve to None too, not "".
+
+    Finalizing a segment this way is slow in practice — confirmed live,
+    2026-08-20: multiple seconds between one utterance finishing and the
+    next being "heard", well past the ~2s the actual response pipeline
+    (route+TTS+play) takes once text is in hand. Vosk's simple Python API
+    doesn't expose a tunable endpoint/silence-timeout (checked directly:
+    KaldiRecognizer has no such method), so that finalization delay can't
+    be shortened here — see partial() below for the actual mitigation
+    (early wake-word detection from in-progress hypotheses, not waiting
+    on this)."""
     chunk = resample_to_16k_mono(pcm_48k_stereo_chunk)
     if recognizer.AcceptWaveform(chunk):
         result = json.loads(recognizer.Result())
         text = result.get("text", "").strip()
         return text or None
     return None
+
+
+def partial(recognizer) -> str:
+    """The recognizer's current in-progress hypothesis — updates fast,
+    well before AcceptWaveform() finalizes a segment. Cheap: just reads
+    the decoder's current best guess, no new decode work. Used for early
+    wake-word detection (play the confirmation chime as soon as "sunny"
+    is heard, without waiting for the whole utterance — including the
+    trailing silence Vosk wants — to finish)."""
+    return json.loads(recognizer.PartialResult()).get("partial", "").strip()

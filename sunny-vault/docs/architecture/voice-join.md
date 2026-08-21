@@ -95,12 +95,15 @@ voice_client.play(discord.PCMAudio(pcm_stream))   ← spoken back into the chann
 
 ## Latency
 
-Reported "very very bad" delay on a live test, 2026-08-20 — not yet root-caused with hard data. Two things went in immediately as a first pass, both real and low-risk regardless of what the actual bottleneck turns out to be:
+Reported "very very bad" delay on a live test, 2026-08-20. Root-caused with real data from the timing instrumentation below, not guessed:
 
-- **Vosk model pre-warmed during `/join`'s connect**, in parallel with the voice handshake (`asyncio.create_task(asyncio.to_thread(stt.new_recognizer))`, awaited before returning). Loading the model (not re-downloading — it's cached after the first-ever run, but still real work: reading the files, building the decoder graph) was previously happening lazily on the *first real audio packet*, synchronously inside `on_audio`'s callback — which blocks `discord-ext-voice-recv`'s own audio-decode thread for however long that takes, delaying or dropping whatever's said first.
-- **Timing instrumentation added** — `voice_session.py` now logs `route=`/`tts=`/`total(heard→playing)=` for every response, and `stt.py` logs how long the Vosk model actually took to load. No prior run had this data; next `/join` will.
+- **The response pipeline itself is fast** — first real numbers: `route=0.19s tts=2.00s total(heard→playing)=2.20s` (the `tts` figure includes Piper's one-time first-call model load, same ~1.2–2s cost `/speak` already has). Not the problem.
+- **The actual bottleneck: the gap between one utterance finishing and the next being "heard"** — 5+ seconds observed between consecutive `heard from` log lines for what was continuous, back-to-back speech. That gap happens entirely *before* any of the instrumented timing starts, inside Vosk's own `AcceptWaveform()` — which only finalizes a segment once it decides there's been enough trailing silence. Confirmed directly (`KaldiRecognizer` has no `SetEndpointerMode`/silence-timeout method — checked the actual class, not guessed) that the simple Vosk Python API exposes no way to shorten this. A synthetic loopback test with exactly 2s of true digital silence appended finalized promptly; real Discord audio — room tone, mic hiss, never *quite* silent — likely needs much longer to read as "silence" to Vosk's endpoint detector, explaining the gap between that clean test and the live numbers.
+- **Fix: stopped waiting on finalization for the wake-word chime.** Vosk's `PartialResult()` (new `stt.partial()`) gives the decoder's in-progress hypothesis with far lower latency — confirmed in the same loopback test, the wake word showed up in a partial at 0.34s into processing, well before the segment finalized. `on_audio` now checks partials for the wake word and fires the chime immediately on a match, per user, once per utterance (`chimed` flag, reset when the segment finally finalizes) — `handle_utterance` skips replaying it if the early check already did. The *command* itself still waits for the final, complete text (partials are a hypothesis, not final — using them for the wake word only, not the command content, keeps this safe: worst case on a flickering partial is a stray chime with nothing following, never a wrong action).
+- **Also fixed**: `_get_model()` had a real thread-safety bug the pre-warm change exposed — the pre-warm task and the first real audio packet could both see the model as unloaded at once and each build a separate `Model` instance (confirmed live: two "Vosk model ready" log lines back to back). Now guarded with a `threading.Lock`; verified with 5 concurrent callers producing exactly 1 load.
+- **Vosk model pre-warmed during `/join`'s connect**, in parallel with the voice handshake, so the first real utterance doesn't pay the model-load cost while blocking `discord-ext-voice-recv`'s own audio-decode thread.
 
-Known, not-yet-measured candidates once real numbers come in: Vosk's own utterance-finalization delay (time from speech ending to `AcceptWaveform()` returning `True` — governed by the decoder's internal silence detection, not something the simple Python API exposes a knob for, so a real fix here may mean accepting it or switching endpointing strategy); Piper's first-call model load (~1.2s, one-time per process, same as `/speak`); and ordinary Discord/network jitter on a call already carrying real audio both directions.
+Not addressed by this pass, and likely can't be without a different STT engine or a custom endpoint detector: the finalization delay itself (still real, just no longer blocks the wake-word chime). If it's still felt as "bad" after this — now for the *command* portion specifically, not the initial acknowledgment — that's the next thing to dig into.
 
 ## Files
 
@@ -120,7 +123,7 @@ Known, not-yet-measured candidates once real numbers come in: Vosk's own utteran
 
 ## Implementation Checklist
 
-- [x] `stt.py` — Vosk wrapper, verified via an automated loopback test (Piper → resample → Vosk → exact transcript match)
+- [x] `stt.py` — Vosk wrapper, verified via an automated loopback test (Piper → resample → Vosk → exact transcript match); `partial()` for low-latency wake detection, `_get_model()` thread-safety verified with 5 concurrent callers
 - [x] `tts.py: synthesize_discord_pcm()` — verified PCM format/frame-padding math
 - [x] `voice_session.py` — connect/listen/dispatch/respond/disconnect, verified via mocked Discord objects (bot-user filtering, mid-utterance buffering, session_id construction, full response pipeline)
 - [x] `/join`/`/leave` slash commands, channel-restricted
@@ -132,4 +135,5 @@ Known, not-yet-measured candidates once real numbers come in: Vosk's own utteran
 - [x] Generated wake-confirmation chime (`_get_chime_pcm()`, ~200ms two-tone), plays immediately on wake-word detection — verified via mocked session tests (plays on a bare wake word, plays before the response on wake+command)
 - [x] `_connecting` guard against overlapping `/join` attempts, and guaranteed-honest-response error handling around connect/listen — verified via mocked tests (listen() failure cleans up and reports instead of crashing; a second /join mid-connect is rejected)
 - [x] All three commands' responses ephemeral (`defer(ephemeral=True)`) — verified via mocked tests
-- [ ] Re-verify with a live human voice now that the DAVE-decrypt fix, the connect/listen robustness fixes, and the wake chime are all deployed
+- [x] Early wake-chime from partial results, not finalization — verified via mocked tests (fires once from a partial match, doesn't double-fire while still buffering, doesn't replay when the utterance finalizes)
+- [ ] Re-verify with a live human voice now that the DAVE-decrypt fix, connect/listen robustness fixes, and the latency work (pre-warm, thread-safety, partial-based chime) are all deployed

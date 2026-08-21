@@ -240,9 +240,22 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
 
     channel = voice_state.channel
     loop = asyncio.get_running_loop()
-    recognizers = {}  # user_id -> KaldiRecognizer, one per speaker this session
+    recognizers = {}  # user_id -> {"rec": KaldiRecognizer, "chimed": bool}, one per speaker this session
 
-    async def handle_utterance(user, text):
+    async def play_wake_chime():
+        """Standalone so it can fire both from a fast partial-result match
+        (on_audio, below) and from handle_utterance's own final-text check
+        — whichever notices the wake word first."""
+        if _voice_client is None or not _voice_client.is_connected():
+            return
+        try:
+            if _voice_client.is_playing():
+                _voice_client.stop()
+            _voice_client.play(discord.PCMAudio(io.BytesIO(_get_chime_pcm())))
+        except Exception as e:
+            logger.error(f"voice_session: chime playback failed: {e}")
+
+    async def handle_utterance(user, text, already_chimed=False):
         global _awake_until
 
         t_heard = time.monotonic()
@@ -255,12 +268,8 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
         if stripped is not None:
             command = stripped
             _awake_until = now + WAKE_WINDOW_SECONDS
-            try:
-                if _voice_client.is_playing():
-                    _voice_client.stop()
-                _voice_client.play(discord.PCMAudio(io.BytesIO(_get_chime_pcm())))
-            except Exception as e:
-                logger.error(f"voice_session: chime playback failed: {e}")
+            if not already_chimed:
+                await play_wake_chime()
         elif now < _awake_until:
             command = text
         else:
@@ -310,20 +319,37 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
         """Sync callback — fires on voice_recv's own audio-decode thread,
         off the asyncio event loop (confirmed via the library's own
         source: this callback cannot be a coroutine). Never awaits
-        directly; hands off to the loop via run_coroutine_threadsafe."""
+        directly; hands off to the loop via run_coroutine_threadsafe.
+
+        Checks Vosk's in-progress partial hypothesis for the wake word
+        and fires the chime immediately on a match, rather than waiting
+        for the segment to fully finalize (AcceptWaveform() returning
+        True needs real trailing silence, confirmed live 2026-08-20 to
+        sometimes take several seconds — well past what the response
+        pipeline itself takes once it has text in hand)."""
         if user is None or user.bot or not data.pcm:
             return
         try:
-            rec = recognizers.get(user.id)
-            if rec is None:
-                rec = stt.new_recognizer()
-                recognizers[user.id] = rec
+            state = recognizers.get(user.id)
+            if state is None:
+                state = {"rec": stt.new_recognizer(), "chimed": False}
+                recognizers[user.id] = state
+            rec = state["rec"]
+
             text = stt.feed(rec, data.pcm)
+            if text is None:
+                if not state["chimed"]:
+                    partial_text = stt.partial(rec)
+                    if partial_text and _strip_wake_phrase(partial_text) is not None:
+                        state["chimed"] = True
+                        asyncio.run_coroutine_threadsafe(play_wake_chime(), loop)
+                return
+            already_chimed = state["chimed"]
+            state["chimed"] = False  # reset for the next utterance
         except Exception as e:
             logger.error(f"voice_session: STT feed failed for {user}: {e}")
             return
-        if text:
-            asyncio.run_coroutine_threadsafe(handle_utterance(user, text), loop)
+        asyncio.run_coroutine_threadsafe(handle_utterance(user, text, already_chimed), loop)
 
     _awake_until = 0.0
     _connecting = True
