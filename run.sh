@@ -116,6 +116,11 @@ PIPER_SPEAKER_ID=
 # Vosk STT (/join in Discord) — free, local, no API key needed. Model
 # downloads automatically on first use. See sunny-vault/docs/architecture/voice-join.md.
 VOSK_LANG=en-us
+# Specific model by name, bigger vocabulary than VOSK_LANG's small default
+# — leave as-is unless accuracy still isn't good enough, then try
+# vosk-model-en-us-0.22 (~1.8GB, real CPU/RAM cost, best accuracy).
+# Blank falls back to VOSK_LANG's small model.
+VOSK_MODEL_NAME=vosk-model-en-us-0.22-lgraph
 
 # Logging
 LOG_LEVEL=INFO

@@ -34,9 +34,17 @@ SAMPLE_WIDTH = 2  # 16-bit PCM, both Discord and Vosk
 def _get_model():
     """Lazily loads and caches the Vosk Model for the process lifetime —
     same "load once, cache in a module global" idea as tts.py's PiperVoice
-    cache. Model(lang=...) auto-downloads if not already in
+    cache. Model(...) auto-downloads if not already in
     settings.vosk_model_dir (confirmed via reading vosk.Model's own source
-    — no custom download step needed here, unlike Piper)."""
+    — no custom download step needed here, unlike Piper).
+
+    settings.vosk_model_name (set, by name — get_model_by_name()) takes
+    priority over settings.vosk_lang (a lang code — get_model_by_lang(),
+    which only ever picks that language's smallest "type": "small"
+    model). The default model was the tiny ~39MB one and had real
+    accuracy problems in practice (confirmed live, 2026-08-20); the
+    default vosk_model_name now points at a real, verified-to-exist
+    bigger-vocabulary model instead — see config.py."""
     global _model
     if _model is not None:
         return _model
@@ -49,9 +57,13 @@ def _get_model():
             from vosk import Model, SetLogLevel
 
             SetLogLevel(-1)  # Vosk's own C-level logging is noisy; this app has its own
-            logger.info(f"Loading Vosk model (lang={settings.vosk_lang}), downloading if needed...")
             t0 = time.monotonic()
-            _model = Model(lang=settings.vosk_lang)
+            if settings.vosk_model_name:
+                logger.info(f"Loading Vosk model '{settings.vosk_model_name}', downloading if needed...")
+                _model = Model(model_name=settings.vosk_model_name)
+            else:
+                logger.info(f"Loading Vosk model (lang={settings.vosk_lang}), downloading if needed...")
+                _model = Model(lang=settings.vosk_lang)
             logger.info(f"Vosk model ready in {time.monotonic() - t0:.2f}s")
     return _model
 

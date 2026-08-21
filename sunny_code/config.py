@@ -176,9 +176,14 @@ class Settings(BaseSettings):
 
     # Vosk STT (see sunny_code/components/stt.py) — free, fully local, no
     # API cost. Model downloads automatically to vosk_model_dir on first
-    # use if not already present.
+    # use if not already present. vosk_model_name picks a specific named
+    # model (bigger vocabulary/better accuracy than the tiny default —
+    # see the real model list at alphacephei.com/vosk/models, verified
+    # 2026-08-20, not guessed); blank falls back to vosk_lang's small
+    # model (the original default, ~39MB vs. lgraph's ~125MB).
     vosk_model_dir: Path = project_root / "vosk_models"
     vosk_lang: str = "en-us"
+    vosk_model_name: str = "vosk-model-en-us-0.22-lgraph"
 
     # Logging
     log_level: str = "INFO"
