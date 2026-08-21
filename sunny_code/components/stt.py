@@ -74,11 +74,27 @@ def new_recognizer():
     callers on an event loop should run this via asyncio.to_thread. Keep
     feeding the same recognizer instance across multiple audio chunks —
     Vosk handles segmenting one utterance from the next internally, no
-    need to create a new one per utterance."""
+    need to create a new one per utterance.
+
+    KaldiRecognizer(model, ...) construction is itself serialized under
+    _model_lock, not just the model load above — confirmed live,
+    2026-08-20: /join's pre-warm task and the first real speaker's
+    on-demand recognizer creation in on_audio both call this, from two
+    different threads, within about a second of each other by design
+    (pre-warm exists specifically to race the model load against
+    connecting). That concurrent, unguarded KaldiRecognizer() construction
+    crashed the entire process — glibc "free(): invalid size", full abort
+    — on the very first real /join after the bigger model shipped;
+    reproduced nowhere else in this app because nothing else constructs
+    this native object from more than one thread at a time. Holding the
+    lock here is cheap (construction is fast, unlike the model load) and
+    removes the race regardless of the exact internal cause in Kaldi's
+    native code."""
     from vosk import KaldiRecognizer
 
     model = _get_model()
-    return KaldiRecognizer(model, VOSK_SAMPLE_RATE)
+    with _model_lock:
+        return KaldiRecognizer(model, VOSK_SAMPLE_RATE)
 
 
 def resample_to_16k_mono(pcm_48k_stereo: bytes) -> bytes:
