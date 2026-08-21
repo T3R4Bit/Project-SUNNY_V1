@@ -16,6 +16,7 @@ from typing import Dict, List, Optional
 from sunny_code.config import get_settings
 from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.data_sources import is_configured, missing_requirement
+from sunny_code.components.llm_client import ask_claude
 from sunny_code.components.request_log import log_unfulfilled
 from sunny_code.components import google_calendar, google_gmail, health_check, weather
 
@@ -249,7 +250,7 @@ Sleep well and rest up for tomorrow!
         return briefing
 
     @staticmethod
-    def custom_briefing(question: str, tasks_db: TaskDB) -> str:
+    async def custom_briefing(question: str, tasks_db: TaskDB) -> str:
         """Answer a question with real data if we have it, an honest gap if we don't."""
         question_lower = question.lower().strip()
 
@@ -317,20 +318,17 @@ Total: {len(open_tasks) + len(in_progress)} tasks
                 return unconfigured_reply("calendar", label="TOMORROW'S PREVIEW")
             return f"\nTOMORROW'S PREVIEW\n\n{BriefingTemplates._calendar_text(1)}\n"
 
-        # Default response — genuinely don't understand the question
+        # Default: nothing above matched — genuinely open-ended, hand it to
+        # Claude for a real answer/conversation (judgment only, never used
+        # for the data lookups above — those stay on real APIs or say so
+        # honestly). ask_claude() never raises; None means not configured,
+        # over budget, or a live API failure, all treated the same way.
         else:
+            answer = await ask_claude(question, model="haiku", purpose="general_chat")
+            if answer:
+                return answer
             log_unfulfilled("qa_question", f'"{question}" — not understood, no matching topic')
-            return f"""
-I don't have a real answer for: "{question}"
-
-I can give you real data on:
-• Tasks (open, in progress, due soon)
-
-These need a data source connected before I can answer for real:
-• Weather, calendar, email, commute, health, motorsports, news
-
-Try asking about tasks — or check sunny-vault/log/requests.md, every question I can't answer for real gets logged there.
-"""
+            return f'No good answer for "{question}" — try asking about tasks, or say "help".'
 
 
 class BriefingEngine:
@@ -354,4 +352,4 @@ class BriefingEngine:
     async def answer_question(self, question: str) -> str:
         """Answer a natural language question about today's data."""
         self.logger.info(f"Processing question: {question}")
-        return BriefingTemplates.custom_briefing(question, self.tasks_db)
+        return await BriefingTemplates.custom_briefing(question, self.tasks_db)

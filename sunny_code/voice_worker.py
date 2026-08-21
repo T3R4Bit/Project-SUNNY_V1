@@ -58,10 +58,10 @@ logger = logging.getLogger(__name__)
 WAKE_WORD = "sunny"
 WAKE_MATCH_THRESHOLD = 0.6  # fuzzy match, not exact -- see _strip_wake_phrase
 WAKE_SEARCH_WORDS = 4  # how many leading words to scan for the wake word
-WAKE_WINDOW_SECONDS = 20  # how long a session stays "awake" after a wake
-# word or a response, before requiring the wake word again — matches the
-# "opens a window, doesn't need repeating every sentence" choice made
-# 2026-08-20 (a real back-and-forth, not a walkie-talkie).
+# No listening window — the wake word is required before every single
+# utterance, not just to open a back-and-forth window (that was the
+# original 2026-08-20 design; reverted 2026-08-21 per direct request:
+# every request needs its own "Hey Sunny").
 SILENCE_TIMEOUT = 1.2  # seconds with no incoming audio before forcing Vosk
 # to finalize whatever it's buffered — Discord's voice transport doesn't
 # send "quiet" packets during real silence, it just stops sending
@@ -461,7 +461,6 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
     client = discord.Client(intents=intents)
 
     voice_client: Optional[voice_recv.VoiceRecvClient] = None
-    awake_until = 0.0
     recognizers = {}  # user_id -> {"rec": KaldiRecognizer, "chimed": bool, "pending": bool}
     stop_event = asyncio.Event()
 
@@ -478,27 +477,19 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         logger.info("voice_worker: wake chime play() call returned")
 
     async def handle_utterance(user, text, already_chimed=False):
-        nonlocal awake_until
-
         t_heard = time.monotonic()
         logger.info(f"voice_worker: heard from {user}: {text!r}")
 
-        now = time.monotonic()
-        stripped = _strip_wake_phrase(text)
-        if stripped is not None:
-            command = stripped
-            awake_until = now + WAKE_WINDOW_SECONDS
-            if not already_chimed:
-                await play_wake_chime()
-        elif now < awake_until:
-            command = text
-        else:
-            logger.info("voice_worker: ignored (no wake word, outside listening window)")
+        command = _strip_wake_phrase(text)
+        if command is None:
+            logger.info("voice_worker: ignored (no wake word)")
             return
+        if not already_chimed:
+            await play_wake_chime()
 
         if not command:
-            # Wake word alone, nothing after it yet — stay armed, wait for
-            # the actual command on a later utterance.
+            # Wake word alone, nothing after it yet — nothing to do. The
+            # *next* utterance needs its own wake word too, same as this one.
             return
 
         from_worker.put({
@@ -510,7 +501,6 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         })
 
     async def speak(text: str) -> None:
-        nonlocal awake_until
         if voice_client is None or not voice_client.is_connected():
             return
         try:
@@ -525,7 +515,6 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         except Exception as e:
             logger.error(f"voice_worker: response playback failed: {e}")
             return
-        awake_until = time.monotonic() + WAKE_WINDOW_SECONDS  # extend the window after responding
 
     def on_audio(user, data):
         """Sync callback — fires on voice_recv's own audio-decode thread,
