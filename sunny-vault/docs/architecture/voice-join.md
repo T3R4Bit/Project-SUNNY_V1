@@ -103,13 +103,17 @@ Reported "very very bad" delay on a live test, 2026-08-20. Root-caused with real
 - **Also fixed**: `_get_model()` had a real thread-safety bug the pre-warm change exposed — the pre-warm task and the first real audio packet could both see the model as unloaded at once and each build a separate `Model` instance (confirmed live: two "Vosk model ready" log lines back to back). Now guarded with a `threading.Lock`; verified with 5 concurrent callers producing exactly 1 load.
 - **Vosk model pre-warmed during `/join`'s connect**, in parallel with the voice handshake, so the first real utterance doesn't pay the model-load cost while blocking `discord-ext-voice-recv`'s own audio-decode thread.
 
-Not addressed by this pass, and likely can't be without a different STT engine or a custom endpoint detector: the finalization delay itself (still real, just no longer blocks the wake-word chime). If it's still felt as "bad" after this — now for the *command* portion specifically, not the initial acknowledgment — that's the next thing to dig into.
+**The real root cause, found on the very next live test**: after the chime fix, the chime fired fast — but no response ever followed. Logs showed why: after one brief burst of packets at the very start, **zero audio packets arrived for the remaining ~50 seconds** of the session, just Discord's once-a-second RTCP keepalive. Discord's voice transport doesn't send "quiet" audio packets during real silence — it simply stops sending anything. That's the actual reason `AcceptWaveform()` was never finalizing: it's stream-based silence detection, and once the speaker pauses, there's no more stream at all for it to detect silence *in*. Confirmed directly: `stt.finalize()` (new, wraps `FinalResult()`) correctly recovered the complete buffered text from a recognizer that `AcceptWaveform()` had never once finalized, in a loopback test with no trailing silence fed at all.
+
+**Fix**: a `silence_watchdog()` coroutine (started alongside the session) polls every `SILENCE_WATCHDOG_INTERVAL` (0.3s) for any user whose last audio packet was more than `SILENCE_TIMEOUT` (1.2s) ago while their recognizer still has unfinalized buffered audio (`pending` flag, set in `on_audio`, cleared on natural or forced finalization) — and force-finalizes via `stt.finalize()`, using the *absence* of packets as the actual end-of-utterance signal instead of waiting on Vosk to notice silence it's never fed. Verified via a mocked test reproducing the exact failure: speak (chime fires from partial, buffering continues), go silent (no more `on_audio` calls at all), watchdog fires and the response follows.
+
+Not addressed by this pass: the *fixed* `SILENCE_TIMEOUT` (1.2s) is a guess, not tuned against real usage — too short and it could cut off a normal mid-sentence pause; too long and it re-introduces some of the original delay. Worth adjusting once there's a feel for how it plays in practice.
 
 ## Files
 
 - `sunny_code/components/stt.py` — Vosk model loading, `new_recognizer()`, `resample_to_16k_mono()`, `feed()`
 - `sunny_code/components/tts.py` — `synthesize_discord_pcm()` (new, alongside the existing `synthesize_wav_bytes()` used by `/speak`)
-- `sunny_code/components/voice_session.py` — session orchestration: connect (with a `_connecting` guard against overlapping attempts, and clean disconnect-and-report-honestly if `.listen()` fails), per-user recognizers, the receive callback and its thread-safe handoff, wake-phrase gating (`_strip_wake_phrase()`, `WAKE_WINDOW_SECONDS`), the generated wake chime (`_get_chime_pcm()`), assistant routing, response playback, disconnect; also patches `discord-ext-voice-recv`'s `PacketRouter._do_run` (skip corrupted packets) and `PacketDecoder._process_packet`/`_dave_decrypt` (decrypt DAVE frames before Opus) at import time (see Known Risks)
+- `sunny_code/components/voice_session.py` — session orchestration: connect (with a `_connecting` guard against overlapping attempts, and clean disconnect-and-report-honestly if `.listen()` fails), per-user recognizers, the receive callback and its thread-safe handoff, wake-phrase gating (`_strip_wake_phrase()`, `WAKE_WINDOW_SECONDS`), the generated wake chime (`_get_chime_pcm()`), the `silence_watchdog()` coroutine (force-finalizes on no-packets-for-`SILENCE_TIMEOUT`, not just Vosk's own stream-based silence detection), assistant routing, response playback, disconnect; also patches `discord-ext-voice-recv`'s `PacketRouter._do_run` (skip corrupted packets) and `PacketDecoder._process_packet`/`_dave_decrypt` (decrypt DAVE frames before Opus) at import time (see Known Risks)
 - `sunny_code/components/discord_bot.py` — `/join`, `/leave` commands
 - `sunny_code/config.py` — `vosk_model_dir`, `vosk_lang`
 - `vosk_models/` (gitignored) — downloaded model files
@@ -123,7 +127,7 @@ Not addressed by this pass, and likely can't be without a different STT engine o
 
 ## Implementation Checklist
 
-- [x] `stt.py` — Vosk wrapper, verified via an automated loopback test (Piper → resample → Vosk → exact transcript match); `partial()` for low-latency wake detection, `_get_model()` thread-safety verified with 5 concurrent callers
+- [x] `stt.py` — Vosk wrapper, verified via an automated loopback test (Piper → resample → Vosk → exact transcript match); `partial()` for low-latency wake detection, `finalize()` for the silence watchdog, `_get_model()` thread-safety verified with 5 concurrent callers
 - [x] `tts.py: synthesize_discord_pcm()` — verified PCM format/frame-padding math
 - [x] `voice_session.py` — connect/listen/dispatch/respond/disconnect, verified via mocked Discord objects (bot-user filtering, mid-utterance buffering, session_id construction, full response pipeline)
 - [x] `/join`/`/leave` slash commands, channel-restricted
@@ -136,4 +140,5 @@ Not addressed by this pass, and likely can't be without a different STT engine o
 - [x] `_connecting` guard against overlapping `/join` attempts, and guaranteed-honest-response error handling around connect/listen — verified via mocked tests (listen() failure cleans up and reports instead of crashing; a second /join mid-connect is rejected)
 - [x] All three commands' responses ephemeral (`defer(ephemeral=True)`) — verified via mocked tests
 - [x] Early wake-chime from partial results, not finalization — verified via mocked tests (fires once from a partial match, doesn't double-fire while still buffering, doesn't replay when the utterance finalizes)
-- [ ] Re-verify with a live human voice now that the DAVE-decrypt fix, connect/listen robustness fixes, and the latency work (pre-warm, thread-safety, partial-based chime) are all deployed
+- [x] `silence_watchdog()` — no-packets-for-`SILENCE_TIMEOUT` force-finalization, since Discord's transport sends nothing at all during real silence rather than quiet audio Vosk could detect — verified via a mocked test reproducing the exact live failure (speak, go silent, response still arrives)
+- [ ] Re-verify with a live human voice now that the DAVE-decrypt fix, connect/listen robustness fixes, and the full latency chain (pre-warm, thread-safety, partial-based chime, silence watchdog) are all deployed

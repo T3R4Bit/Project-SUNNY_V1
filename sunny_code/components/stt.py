@@ -113,3 +113,20 @@ def partial(recognizer) -> str:
     is heard, without waiting for the whole utterance — including the
     trailing silence Vosk wants — to finish)."""
     return json.loads(recognizer.PartialResult()).get("partial", "").strip()
+
+
+def finalize(recognizer) -> Optional[str]:
+    """Forces whatever's been buffered so far to finalize, without
+    feeding more audio. Needed because AcceptWaveform() may never return
+    True on its own: Discord's voice transport doesn't send "quiet" audio
+    packets during real silence, it simply stops sending packets — so
+    Vosk's own stream-based silence detection never sees the silence it
+    needs to finalize (confirmed live, 2026-08-20: a real session never
+    finalized a single utterance across 50+ seconds once the speaker
+    paused after their first sentence). voice_session.py's silence
+    watchdog calls this once no new packets have arrived for a while,
+    using the *absence* of packets as the actual end-of-utterance signal
+    instead."""
+    result = json.loads(recognizer.FinalResult())
+    text = result.get("text", "").strip()
+    return text or None

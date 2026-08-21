@@ -32,6 +32,12 @@ WAKE_WINDOW_SECONDS = 20  # how long a session stays "awake" after a wake
 # word or a response, before requiring the wake word again — matches the
 # "opens a window, doesn't need repeating every sentence" choice made
 # 2026-08-20 (a real back-and-forth, not a walkie-talkie).
+SILENCE_TIMEOUT = 1.2  # seconds with no incoming audio before forcing Vosk
+# to finalize whatever it's buffered — Discord's voice transport doesn't
+# send "quiet" packets during real silence, it just stops sending
+# anything, so AcceptWaveform()'s own stream-based silence detection can
+# never fire on its own; confirmed live, 2026-08-20 (see stt.finalize()).
+SILENCE_WATCHDOG_INTERVAL = 0.3
 
 _chime_pcm: Optional[bytes] = None
 
@@ -324,32 +330,64 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
         Checks Vosk's in-progress partial hypothesis for the wake word
         and fires the chime immediately on a match, rather than waiting
         for the segment to fully finalize (AcceptWaveform() returning
-        True needs real trailing silence, confirmed live 2026-08-20 to
-        sometimes take several seconds — well past what the response
-        pipeline itself takes once it has text in hand)."""
+        True needs real trailing silence — see the silence_watchdog
+        coroutine below for why that alone isn't enough)."""
         if user is None or user.bot or not data.pcm:
             return
         try:
             state = recognizers.get(user.id)
             if state is None:
-                state = {"rec": stt.new_recognizer(), "chimed": False}
+                state = {"rec": stt.new_recognizer(), "chimed": False, "pending": False}
                 recognizers[user.id] = state
+            state["user"] = user
+            state["last_packet_at"] = time.monotonic()
             rec = state["rec"]
 
             text = stt.feed(rec, data.pcm)
             if text is None:
+                state["pending"] = True  # there's buffered audio Vosk hasn't finalized yet
                 if not state["chimed"]:
                     partial_text = stt.partial(rec)
                     if partial_text and _strip_wake_phrase(partial_text) is not None:
                         state["chimed"] = True
                         asyncio.run_coroutine_threadsafe(play_wake_chime(), loop)
                 return
+            state["pending"] = False
             already_chimed = state["chimed"]
             state["chimed"] = False  # reset for the next utterance
         except Exception as e:
             logger.error(f"voice_session: STT feed failed for {user}: {e}")
             return
         asyncio.run_coroutine_threadsafe(handle_utterance(user, text, already_chimed), loop)
+
+    async def silence_watchdog():
+        """Discord's voice transport doesn't send "quiet" audio packets
+        during real silence, it just stops sending anything — so
+        AcceptWaveform() may never return True on its own once someone
+        stops talking (confirmed live, 2026-08-20: a real session never
+        finalized a single utterance across 50+ seconds after the first
+        sentence, because there was simply no more audio arriving to
+        eventually trigger Vosk's internal silence detection). This polls
+        for "no new packets in SILENCE_TIMEOUT" as the actual end-of-
+        utterance signal instead, and force-finalizes via stt.finalize()."""
+        while _voice_client is not None and _voice_client.is_connected():
+            await asyncio.sleep(SILENCE_WATCHDOG_INTERVAL)
+            now = time.monotonic()
+            for state in list(recognizers.values()):
+                if not state.get("pending"):
+                    continue
+                if now - state.get("last_packet_at", now) < SILENCE_TIMEOUT:
+                    continue
+                state["pending"] = False
+                try:
+                    text = stt.finalize(state["rec"])
+                except Exception as e:
+                    logger.error(f"voice_session: forced finalize failed: {e}")
+                    continue
+                if text:
+                    already_chimed = state["chimed"]
+                    state["chimed"] = False
+                    await handle_utterance(state["user"], text, already_chimed)
 
     _awake_until = 0.0
     _connecting = True
@@ -380,6 +418,7 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
 
         _voice_client = new_client
         logger.info(f"voice_session: joined #{channel.name} ({channel.id})")
+        asyncio.create_task(silence_watchdog())
 
         try:
             await warm_task  # make sure the model's actually ready before returning
