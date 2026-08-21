@@ -154,7 +154,30 @@ def finalize(recognizer) -> Optional[str]:
     paused after their first sentence). voice_session.py's silence
     watchdog calls this once no new packets have arrived for a while,
     using the *absence* of packets as the actual end-of-utterance signal
-    instead."""
+    instead.
+
+    Calling Reset() after FinalResult() here is not optional -- confirmed
+    via Vosk's own C API docs (vosk_api.h):
+    vosk_recognizer_final_result() ends that recognition cycle,
+    vosk_recognizer_reset() is what "prepares the recognizer for the
+    next round of audio input". This codebase's own recognizers are
+    long-lived, reused across an entire /join session (one per speaker,
+    kept in voice_session.py's `recognizers` dict) -- every utterance
+    after the first one that got force-finalized this way was feeding
+    AcceptWaveform() into a recognizer whose stream had already been
+    ended without ever being reset. Root-caused live, 2026-08-20, via
+    Python's faulthandler catching a native abort mid-crash: a Kaldi
+    assertion deep in its incremental lattice decoder
+    (ProcessNonemitting(): "Assertion failed: (queue_.empty())") --
+    exactly the kind of internal state-machine violation this leaves
+    behind. This crashed the whole worker process (see
+    sunny_code/voice_worker.py) on every session that had a real pause
+    followed by more speech from the same person, which is effectively
+    every real conversation -- unrelated to and unfixable by any of the
+    DAVE-encryption-threading work done earlier the same night, despite
+    presenting identically (a silent, sourceless native crash) until
+    this specific assertion message was finally captured."""
     result = json.loads(recognizer.FinalResult())
     text = result.get("text", "").strip()
+    recognizer.Reset()
     return text or None
