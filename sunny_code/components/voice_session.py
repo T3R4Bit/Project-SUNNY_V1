@@ -21,6 +21,42 @@ from sunny_code.components.assistant import handle_message
 
 logger = logging.getLogger(__name__)
 
+
+def _patch_voice_recv_packet_router() -> None:
+    """discord-ext-voice-recv 0.5.2a179 has a real, unreleased-fix bug:
+    PacketRouter._do_run() lets ANY single decode error (a corrupted or
+    lost packet — routine on real UDP voice traffic, not a sign of an
+    actual problem) propagate out of its loop entirely; PacketRouter.run()
+    then calls voice_client.stop_listening() in a finally block, silently
+    and permanently ending the whole /join session after the very first
+    bad packet. Confirmed live on 2026-08-20 — a real user's first /join
+    test went unresponsive after exactly one `OpusError: corrupted stream`.
+    No PyPI release fixes this yet; there's a matching *open, unmerged*
+    upstream PR (#57, "catch OpusError in PacketRouter to prevent thread
+    crash") — this patches the exact same one method the same way,
+    applied at import time so every voice_session.py caller gets it
+    automatically, without depending on an unofficial fork/branch as a
+    pip dependency. See sunny-vault/docs/architecture/voice-join.md."""
+    from discord.ext.voice_recv import router as _router_mod
+
+    def _patched_do_run(self):
+        while not self._end_thread.is_set():
+            self.waiter.wait()
+            with self._lock:
+                for decoder in self.waiter.items:
+                    try:
+                        data = decoder.pop_data()
+                    except Exception:
+                        logger.warning("voice_session: skipped a corrupted/undecodable audio packet")
+                        continue
+                    if data is not None:
+                        self.sink.write(data.source, data)
+
+    _router_mod.PacketRouter._do_run = _patched_do_run
+
+
+_patch_voice_recv_packet_router()
+
 _voice_client: Optional[voice_recv.VoiceRecvClient] = None
 
 
