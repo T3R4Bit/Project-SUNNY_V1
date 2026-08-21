@@ -88,7 +88,7 @@ Project SUNNY is a self-hosted voice assistant for personal productivity and aut
 ### Software Stack
 - **Voice**: Piper TTS (`/speak`, `/join`), Vosk STT (`/join`) — both fully local, CPU-only, free. Fast enough that TTS runs at roughly 16x real-time on this hardware (verified live, 2026-08-21) — real-world benchmarks for larger/GPU-oriented alternatives (Qwen3-TTS, Kokoro) don't hold up on this specific CPU, tested directly rather than assumed.
 - **Backend**: FastAPI, SQLite, Python asyncio
-- **UI**: Console-style web dashboard (green-on-black terminal aesthetic)
+- **UI**: Console-style web dashboard
 - **Communication**: Twilio (planned), Discord bot (live — text + voice), Tailscale mesh network
 - **Data**: Google Calendar + Gmail (Sign-In), OpenWeatherMap, Traffic APIs (planned)
 - **Brain**: Claude API (Haiku, judgment/freeform-conversation fallback only — never for data lookups), Notion, Obsidian vault, TrueNAS
