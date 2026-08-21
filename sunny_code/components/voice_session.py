@@ -9,6 +9,7 @@ pattern. See sunny-vault/docs/architecture/voice-join.md.
 """
 
 import asyncio
+import difflib
 import io
 import logging
 import math
@@ -24,7 +25,9 @@ from sunny_code.components.assistant import handle_message
 
 logger = logging.getLogger(__name__)
 
-WAKE_PHRASES = ("hey sunny", "hello sunny", "sunny")
+WAKE_WORD = "sunny"
+WAKE_MATCH_THRESHOLD = 0.6  # fuzzy match, not exact -- see _strip_wake_phrase
+WAKE_SEARCH_WORDS = 4  # how many leading words to scan for the wake word
 WAKE_WINDOW_SECONDS = 20  # how long a session stays "awake" after a wake
 # word or a response, before requiring the wake word again — matches the
 # "opens a window, doesn't need repeating every sentence" choice made
@@ -34,15 +37,21 @@ _chime_pcm: Optional[bytes] = None
 
 
 def _strip_wake_phrase(text: str) -> Optional[str]:
-    """None if `text` doesn't start with a wake phrase. Otherwise the
-    remaining command text with the phrase stripped — "" if it was just
-    the wake word alone with nothing after it yet."""
-    lowered = text.lower().strip()
-    for phrase in WAKE_PHRASES:
-        if lowered == phrase:
-            return ""
-        if lowered.startswith(phrase + " "):
-            return text[len(phrase):].strip()
+    """None if no word among the first few looks close enough to "sunny".
+    Fuzzy, not exact — Vosk's small model reliably mis-hears "Hey Sunny"
+    ("the sunny it up", "a sony what's the one", plain "sonny"/"sun"),
+    confirmed against real /join transcripts on 2026-08-20; an exact
+    prefix match meant the wake word essentially never fired for real
+    speech. Doesn't require "hey"/"hello" to also match — Vosk garbles
+    that lead-in unpredictably ("the", "a") in every real example seen,
+    so the wake word itself, wherever it lands in the first few words,
+    is the one reliable anchor. Returns the remaining command text after
+    the matched word — "" if nothing follows yet."""
+    words = text.split()
+    for i, word in enumerate(words[:WAKE_SEARCH_WORDS]):
+        cleaned = word.lower().strip(".,!?\"'")
+        if difflib.SequenceMatcher(None, cleaned, WAKE_WORD).ratio() >= WAKE_MATCH_THRESHOLD:
+            return " ".join(words[i + 1:]).strip()
     return None
 
 

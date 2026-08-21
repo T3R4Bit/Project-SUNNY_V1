@@ -40,3 +40,4 @@ Items worth doing but not blocking the current phase. Pull items into [[phases.m
       *(built 2026-08-20: real Discord slash command via `discord.app_commands`, the bot's first — see [[architecture/tts-piper]].)*
 - [x] "later I want to be able to just talk to it in a discord vc with a /join command for the bot" — live, real-time voice conversation in a Discord voice channel, not one-shot `/speak` attachments
       *(built 2026-08-20: `/join`/`/leave`, live conversation via Vosk STT (free, local) + the existing Piper TTS, routed through the same `assistant.handle_message()` every other interface uses. See [[architecture/voice-join]].)*
+can you track claude usage and limits with the api
