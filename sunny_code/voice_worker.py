@@ -241,20 +241,19 @@ def _patch_dave_decrypt() -> None:
             seen.clear()
         seen.add(packet.sequence)
 
-        # The actual root cause behind all four native crashes this
-        # pipeline has had (see _patch_dave_encrypt_lock below for the
-        # full explanation): DaveSession has zero internal synchronization
-        # and is called from multiple OS threads. This lock is the fix.
-        with _dave_lock:
-            try:
-                packet.decrypted_data = session.decrypt(
-                    int(user_id), _davey.MediaType.audio, bytes(packet.decrypted_data)
-                )
-            except Exception as e:
-                # Expected for passthrough (unencrypted) frames, e.g.
-                # keepalive — those arrive as plaintext and fall through
-                # unchanged, decoding fine as-is.
-                logger.debug(f"voice_worker: DAVE decrypt skipped for ssrc {self.ssrc}: {e}")
+        # session.decrypt() itself is thread-safety-locked at the source
+        # by _patch_dave_session_locking() below (every native
+        # DaveSession method is, not just this one) -- no lock needed
+        # here too, and adding one would self-deadlock against it.
+        try:
+            packet.decrypted_data = session.decrypt(
+                int(user_id), _davey.MediaType.audio, bytes(packet.decrypted_data)
+            )
+        except Exception as e:
+            # Expected for passthrough (unencrypted) frames, e.g.
+            # keepalive — those arrive as plaintext and fall through
+            # unchanged, decoding fine as-is.
+            logger.debug(f"voice_worker: DAVE decrypt skipped for ssrc {self.ssrc}: {e}")
 
     def _patched_process_packet(self, packet):
         pcm = None
@@ -317,56 +316,74 @@ def _patch_dave_decrypt() -> None:
     _opus_mod.PacketDecoder._decode_packet = _patched_decode_packet
 
 
-def _patch_dave_encrypt_lock() -> None:
+def _patch_dave_session_locking() -> None:
     """The actual root cause behind all four native crashes this
-    pipeline has had (two distinct glibc heap-corruption aborts, two
-    distinct segfaults — see sunny-vault/docs/architecture/voice-join.md
-    for the full history). Confirmed via direct source inspection,
-    2026-08-20: DaveSession (the `davey` package, v0.1.6 — a young,
-    pre-1.0, third-party Rust extension) is touched by at least three OS
-    threads with zero internal synchronization anywhere in discord.py or
-    this codebase —
+    pipeline had by the end of 2026-08-20 (two glibc heap-corruption
+    aborts, two segfaults — see sunny-vault/docs/architecture/voice-join.md
+    for the full history), and — a crucial correction found on the FIFTH
+    crash, after an earlier version of this patch only locked
+    encrypt/decrypt and still wasn't enough: DaveSession (the `davey`
+    package, v0.1.6, a young pre-1.0 third-party Rust extension) is
+    touched by far more than just those two calls, all with zero
+    internal synchronization anywhere in discord.py or this codebase —
       1. discord.player.AudioPlayer, discord.py's own dedicated
          threading.Thread for outgoing audio, calls
-         dave_session.encrypt_opus() for every packet sent (this bot's
-         wake chime and every spoken reply).
+         dave_session.encrypt_opus() for every packet sent.
       2. voice_recv's own packet-processing thread calls
          dave_session.decrypt() for every incoming packet — added
-         entirely by _patch_dave_decrypt above. Confirmed via grep
-         across the whole installed discord.py package: discord.py's own
-         official code never calls .decrypt() anywhere, since voice
-         receive isn't an officially supported feature yet — meaning
-         this concurrent-with-encrypt access pattern was never part of
-         what `davey` was built or tested against.
-      3. The asyncio event loop thread manages the session's lifecycle
-         (reinit, key rotation/transitions) in discord/voice_state.py.
-    Confirmed via grep for Lock/RLock/asyncio.Lock in voice_state.py: no
-    lock exists anywhere protecting this shared object. A native
-    extension with zero synchronization, called concurrently from
-    multiple OS threads, is a textbook data race — and explains what
-    three sequential single-bad-input fixes couldn't: every crash looked
-    different (two distinct corruption signatures, two distinct segfault
-    circumstances) because a race manifests differently depending on
-    timing, not deterministically from one bad input. This closes it by
-    serializing every encrypt call on the exact same lock
-    _patch_dave_decrypt already uses for every decrypt call, so the
-    native session object is never touched by two threads at once."""
-    original = discord.VoiceClient._get_voice_packet
+         entirely by _patch_dave_decrypt above; discord.py's own
+         official code never calls .decrypt() anywhere, confirmed via
+         grep, since voice receive isn't an officially supported
+         feature yet.
+      3. **The asyncio event loop thread does far more than "manage
+         lifecycle"** — confirmed via grep of discord/gateway.py:
+         set_external_sender(), process_proposals(), process_commit(),
+         and process_welcome() are the actual MLS protocol handlers for
+         incoming key-rotation/commit messages from Discord's voice
+         gateway, called every time the group's cryptographic state
+         updates — which happens periodically during a normal call, not
+         just at connect. reinit()/reset()/set_passthrough_mode() in
+         discord/voice_state.py run on this same thread. The first
+         version of this fix only wrapped encrypt_opus/decrypt and
+         missed all of this entirely — confirmed live: a session still
+         segfaulted a few seconds in, with zero preceding warning, well
+         after that first (incomplete) lock was already deployed.
+    Rather than keep enumerating individual call sites scattered across
+    two discord.py files (exactly how the FEC-peek bug and now this one
+    both slipped through), this locks the shared object itself: every
+    real (non-property) method on DaveSession is wrapped to hold
+    _dave_lock for its duration, so it is now structurally impossible
+    for this native object to be entered by two threads at once,
+    regardless of which discord.py code path calls it or whether a
+    future discord.py version adds more call sites. Deliberately
+    excludes plain attribute reads (ready, status, epoch, ... —
+    getset_descriptor in davey.DaveSession's own type, confirmed via
+    inspecting the class dict directly, not method_descriptor like the
+    real methods below) since those aren't callables and wrapping them
+    would break every existing `session.ready`-style read in both
+    discord.py and this file."""
+    try:
+        import davey as _davey
+    except ImportError:
+        return
 
-    def _locked_get_voice_packet(self, data: bytes):
-        with _dave_lock:
-            return original(self, data)
+    for name, attr in list(vars(_davey.DaveSession).items()):
+        if name.startswith("_") or type(attr).__name__ != "method_descriptor":
+            continue
 
-    discord.VoiceClient._get_voice_packet = _locked_get_voice_packet
-    # VoiceRecvClient (used for this bot's actual voice connections)
-    # subclasses discord.VoiceClient and doesn't override
-    # _get_voice_packet — confirmed via grep of the installed package —
-    # so patching the base class method covers it too.
+        def _make_locked(original):
+            def _locked(self, *args, **kwargs):
+                with _dave_lock:
+                    return original(self, *args, **kwargs)
+
+            return _locked
+
+        setattr(_davey.DaveSession, name, _make_locked(attr))
 
 
 _patch_voice_recv_packet_router()
 _patch_dave_decrypt()
-_patch_dave_encrypt_lock()
+_patch_dave_session_locking()
 
 
 def run_worker(to_worker, from_worker, token: str, guild_id: int, channel_id: int) -> None:
