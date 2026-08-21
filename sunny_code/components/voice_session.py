@@ -113,7 +113,35 @@ def _patch_voice_recv_packet_router() -> None:
     _router_mod.PacketRouter._do_run = _patched_do_run
 
 
+def _disable_dave() -> None:
+    """Force discord.py to negotiate classic (pre-DAVE) voice encryption
+    instead of Discord's newer end-to-end DAVE protocol. Whether DAVE gets
+    used is decided entirely client-side, by whether the `davey` package
+    is importable (see discord/voice_state.py's `has_dave` and
+    `max_dave_protocol_version`, and gateway.py, which sends that value
+    straight to Discord as part of the voice-connect handshake).
+
+    discord-ext-voice-recv's decode path predates DAVE and can't decrypt
+    DAVE-encrypted frames before handing them to the Opus decoder — with
+    DAVE active, every single incoming packet failed with "corrupted
+    stream" (confirmed live, 2026-08-20 — not occasional loss, 100% of
+    packets). `davey` only got installed in the first place as part of
+    `discord.py[voice]` while fixing a separate libopus issue.
+
+    Uninstalling the `davey` package doesn't stick: discord-ext-voice-recv
+    itself declares `discord.py[voice]>=2.5` as its own dependency, so any
+    full `pip install -r requirements.txt` (which run.sh does on every
+    start) reinstalls it regardless of what this project's own
+    requirements.txt says. This patches the actual flag discord.py checks
+    instead — robust regardless of whether davey happens to be
+    importable. See sunny-vault/docs/architecture/voice-join.md."""
+    import discord.voice_state as _voice_state_mod
+
+    _voice_state_mod.has_dave = False
+
+
 _patch_voice_recv_packet_router()
+_disable_dave()
 
 _voice_client: Optional[voice_recv.VoiceRecvClient] = None
 _awake_until: float = 0.0
