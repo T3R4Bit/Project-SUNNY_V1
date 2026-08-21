@@ -245,6 +245,7 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
     async def handle_utterance(user, text):
         global _awake_until
 
+        t_heard = time.monotonic()
         logger.info(f"voice_session: heard from {user}: {text!r}")
         if _voice_client is None or not _voice_client.is_connected():
             return
@@ -272,6 +273,7 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
             return
 
         session_id = f"voice:{channel.guild.id}:{user.id}"
+        t_route_start = time.monotonic()
         try:
             response = await handle_message(
                 command, tasks_engine, briefing_engine, list_engine, scheduled_engine, session_id=session_id
@@ -279,6 +281,7 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
         except Exception as e:
             logger.error(f"voice_session: assistant router failed: {e}")
             return
+        t_route_done = time.monotonic()
         if not response:
             return
         try:
@@ -286,12 +289,22 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
         except Exception as e:
             logger.error(f"voice_session: TTS synthesis failed: {e}")
             return
+        t_tts_done = time.monotonic()
         if _voice_client is None or not _voice_client.is_connected():
             return
-        if _voice_client.is_playing():
-            _voice_client.stop()
-        _voice_client.play(discord.PCMAudio(io.BytesIO(pcm)))
+        try:
+            if _voice_client.is_playing():
+                _voice_client.stop()
+            _voice_client.play(discord.PCMAudio(io.BytesIO(pcm)))
+        except Exception as e:
+            logger.error(f"voice_session: response playback failed: {e}")
+            return
         _awake_until = time.monotonic() + WAKE_WINDOW_SECONDS  # extend the window after responding
+        logger.info(
+            "voice_session: timing — route={:.2f}s tts={:.2f}s total(heard→playing)={:.2f}s".format(
+                t_route_done - t_route_start, t_tts_done - t_route_done, time.monotonic() - t_heard
+            )
+        )
 
     def on_audio(user, data):
         """Sync callback — fires on voice_recv's own audio-decode thread,
@@ -315,6 +328,14 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
     _awake_until = 0.0
     _connecting = True
     try:
+        # Pre-warm the Vosk model in parallel with connecting, so it's
+        # already loaded by the time real audio starts flowing — otherwise
+        # the model load (a real, multi-second cost the first time this
+        # process does it) happens lazily inside on_audio's sync callback,
+        # blocking voice_recv's own audio-decode thread and delaying/
+        # dropping whatever's said first.
+        warm_task = asyncio.create_task(asyncio.to_thread(stt.new_recognizer))
+
         try:
             new_client = await channel.connect(cls=voice_recv.VoiceRecvClient)
         except Exception as e:
@@ -333,6 +354,12 @@ async def start(interaction, tasks_engine, briefing_engine, list_engine, schedul
 
         _voice_client = new_client
         logger.info(f"voice_session: joined #{channel.name} ({channel.id})")
+
+        try:
+            await warm_task  # make sure the model's actually ready before returning
+        except Exception as e:
+            logger.error(f"voice_session: Vosk pre-warm failed (will retry lazily): {e}")
+
         return f'Joined {channel.name} — say "Hey Sunny" to start.'
     finally:
         _connecting = False

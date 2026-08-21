@@ -11,6 +11,7 @@ import audioop
 import json
 import logging
 import os
+import time
 from typing import Optional
 
 from sunny_code.config import get_settings
@@ -40,7 +41,9 @@ def _get_model():
 
         SetLogLevel(-1)  # Vosk's own C-level logging is noisy; this app has its own
         logger.info(f"Loading Vosk model (lang={settings.vosk_lang}), downloading if needed...")
+        t0 = time.monotonic()
         _model = Model(lang=settings.vosk_lang)
+        logger.info(f"Vosk model ready in {time.monotonic() - t0:.2f}s")
     return _model
 
 

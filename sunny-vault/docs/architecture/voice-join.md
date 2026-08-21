@@ -93,6 +93,15 @@ voice_client.play(discord.PCMAudio(pcm_stream))   ← spoken back into the chann
 - **No persistent transcript log** — exchanges are logged via the normal Python app logger only, not a new `sunny-vault/log/` file. A natural addition later if wanted; not built ahead of an actual need.
 - **No STT/TTS tuning for the voice pipeline specifically** — Piper's existing tuning knobs (`PIPER_LENGTH_SCALE` etc., see [[tts-piper]]) still apply to spoken replies. No equivalent Vosk knobs (bigger model, different language) yet — natural follow-up if accuracy needs it.
 
+## Latency
+
+Reported "very very bad" delay on a live test, 2026-08-20 — not yet root-caused with hard data. Two things went in immediately as a first pass, both real and low-risk regardless of what the actual bottleneck turns out to be:
+
+- **Vosk model pre-warmed during `/join`'s connect**, in parallel with the voice handshake (`asyncio.create_task(asyncio.to_thread(stt.new_recognizer))`, awaited before returning). Loading the model (not re-downloading — it's cached after the first-ever run, but still real work: reading the files, building the decoder graph) was previously happening lazily on the *first real audio packet*, synchronously inside `on_audio`'s callback — which blocks `discord-ext-voice-recv`'s own audio-decode thread for however long that takes, delaying or dropping whatever's said first.
+- **Timing instrumentation added** — `voice_session.py` now logs `route=`/`tts=`/`total(heard→playing)=` for every response, and `stt.py` logs how long the Vosk model actually took to load. No prior run had this data; next `/join` will.
+
+Known, not-yet-measured candidates once real numbers come in: Vosk's own utterance-finalization delay (time from speech ending to `AcceptWaveform()` returning `True` — governed by the decoder's internal silence detection, not something the simple Python API exposes a knob for, so a real fix here may mean accepting it or switching endpointing strategy); Piper's first-call model load (~1.2s, one-time per process, same as `/speak`); and ordinary Discord/network jitter on a call already carrying real audio both directions.
+
 ## Files
 
 - `sunny_code/components/stt.py` — Vosk model loading, `new_recognizer()`, `resample_to_16k_mono()`, `feed()`
