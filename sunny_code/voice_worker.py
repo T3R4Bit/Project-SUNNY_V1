@@ -5,11 +5,11 @@ process (see sunny_code/components/voice_session.py, the parent-side
 coordinator that spawns this via multiprocessing.Process).
 
 Why a separate process: this pipeline crashed the *entire* bot process
-four separate times in one evening (2026-08-20) — two distinct native
-heap-corruption aborts, two distinct segfaults, root-caused to a data
-race on DaveSession finally closed by _patch_dave_encrypt_lock() below.
-Even with that fixed, davey 0.1.6 and discord-ext-voice-recv 0.5.2-alpha
-are both young/unofficial enough that no fix can *prove* no other native
+repeatedly in one evening (2026-08-20) — native heap-corruption aborts
+and segfaults, most root-caused to real bugs (see _patch_dave_decrypt and
+_patch_dave_session_locking below) but not all fully explained yet even
+after those fixes. davey 0.1.6 and discord-ext-voice-recv 0.5.2-alpha are
+both young/unofficial enough that no fix can *prove* no other native
 crash trigger exists. Running this in its own OS process means a native
 crash here can only end this one /join session — the rest of the bot
 (Discord text commands, the web dashboard, tasks, alarms) is
@@ -25,11 +25,13 @@ and the spoken-reply text crosses back.
 
 import asyncio
 import difflib
+import faulthandler
 import io
 import logging
 import math
 import queue as queue_module
 import struct
+import sys
 import threading
 import time
 from typing import Optional
@@ -38,6 +40,18 @@ import discord
 from discord.ext import voice_recv
 
 from sunny_code.components import stt, tts
+
+# A native crash here (SIGSEGV/SIGABRT) has, every time so far, left
+# zero preceding Python-level warning -- nothing raised, nothing logged,
+# just gone. faulthandler is the standard tool for exactly this: it
+# installs a signal handler that dumps every thread's Python-level stack
+# trace to stderr in the instant before a fatal signal actually kills
+# the process, which a plain try/except can never do (there's no
+# exception to catch). Zero overhead during normal operation -- it only
+# does anything at the moment of a fatal signal. This is what should
+# finally show *which* thread was doing *what* the next time this
+# happens, instead of guessing from silence.
+faulthandler.enable(file=sys.stderr, all_threads=True)
 
 logger = logging.getLogger(__name__)
 
