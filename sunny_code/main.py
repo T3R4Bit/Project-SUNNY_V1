@@ -27,6 +27,7 @@ from sunny_code.components.chatbot_ui import create_chatbot_router
 from sunny_code.components.console_stats import create_console_router
 from sunny_code.components.discord_bot import create_discord_bot
 from sunny_code.components.google_routes import create_google_auth_router
+from sunny_code.components.crash_check import check_previous_crash
 from sunny_code.components.health_check import run_weekly_health_check
 from sunny_code.components.weather_routes import create_weather_router
 from sunny_code.components.location_routes import create_location_router
@@ -227,6 +228,14 @@ class SunnyCore:
         )
         for line in startup_summary().split("\n"):
             self.logger.info(line)
+
+        # A native crash (segfault, glibc heap corruption, OOM-kill) never
+        # reaches sunny.log — the process dies before Python logging runs.
+        # This is the one place that gap is closed, so it's logged locally
+        # even when Discord isn't configured — see crash_check.py.
+        crash_signature = check_previous_crash()
+        if crash_signature:
+            self.logger.warning(f"Previous run crashed: {crash_signature}")
 
         # Run FastAPI server. The Discord bot (if configured) starts from the
         # FastAPI lifespan hook in _create_app(), not here — see the comment

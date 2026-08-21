@@ -41,6 +41,7 @@ from discord.ext import tasks
 from sunny_code.components import tts, voice_session
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
+from sunny_code.components.crash_check import check_previous_crash
 from sunny_code.components.key_status import missing_api_keys, startup_summary
 from sunny_code.components.lists_engine import ListEngine
 from sunny_code.components.scheduled_engine import ScheduledEngine
@@ -174,7 +175,12 @@ def create_discord_bot(
     client = discord.Client(intents=intents)
     tree = discord.app_commands.CommandTree(client)
     client.tree = tree # exposed for introspection/testing, and for future slash commands (e.g. /join) to extend
-    state = {"dashboard_message_id": None, "posted_key_status": False, "commands_synced": False}
+    state = {
+        "dashboard_message_id": None,
+        "posted_key_status": False,
+        "commands_synced": False,
+        "posted_crash_notice": False,
+    }
 
     @tree.command(name="speak", description="Speak this text out loud (Piper TTS, posted as an audio attachment)")
     async def speak_command(interaction: discord.Interaction, text: str):
@@ -381,6 +387,21 @@ def create_discord_bot(
             missing = missing_api_keys()
             if missing:
                 await _post_to(warnings_channel_id, startup_summary(), fallback_channel_id=chat_channel_id)
+
+        # A crash (native abort, segfault, OOM-kill) leaves no trace in
+        # sunny.log or anywhere else the app already looks — see
+        # crash_check.py for why. Surfacing it here means an actual crash
+        # is visible in Discord on the very next startup, not only by
+        # someone reading journalctl by hand.
+        if not state["posted_crash_notice"]:
+            state["posted_crash_notice"] = True
+            crash_signature = check_previous_crash()
+            if crash_signature:
+                await _post_to(
+                    warnings_channel_id,
+                    f"I crashed and restarted. Last run ended with: `{crash_signature}`",
+                    fallback_channel_id=chat_channel_id,
+                )
 
     @client.event
     async def on_message(message: discord.Message):

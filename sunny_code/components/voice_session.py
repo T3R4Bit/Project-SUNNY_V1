@@ -164,6 +164,25 @@ def _patch_dave_decrypt() -> None:
     def _dave_decrypt(self, packet) -> None:
         if _davey is None or not packet or not packet.decrypted_data:
             return
+        if packet.is_silence():
+            # Discord sends its own literal Opus-silence marker
+            # (b'\xf8\xff\xfe', see rtp.py's OPUS_SILENCE) as a plain,
+            # deliberately unencrypted RTPPacket regardless of DAVE state
+            # — confirmed via voice_recv's own reader.py, which checks
+            # is_silence() for an unrelated reason (dropping silence from
+            # unmapped ssrcs) but proves these packets flow through the
+            # exact same pipeline as real audio, reaching here too.
+            # Feeding that 3-byte non-ciphertext buffer into
+            # DaveSession.decrypt() -- which expects real MLS-framed
+            # ciphertext, far longer than 3 bytes -- crashed the entire
+            # process (glibc "free(): invalid size" / "free(): invalid
+            # pointer", full abort), confirmed live 2026-08-20 in a burst
+            # right as a speaker stopped talking, exactly when Discord
+            # clients emit these. Skipping decrypt here leaves
+            # decrypted_data as the real, valid, already-plaintext-by-
+            # design silence bytes, which the Opus decoder handles fine
+            # on its own -- no decryption was ever needed for these.
+            return
 
         state = getattr(self.sink.voice_client, "_connection", None)
         session = getattr(state, "dave_session", None)
