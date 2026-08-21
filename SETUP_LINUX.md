@@ -52,21 +52,32 @@ brew install python3
 python3 --version
 ```
 
-### 2. Clone Repository
+### 2. Voice Support (Optional — /speak and /join in Discord)
+
+`discord.py` needs the system Opus codec library for voice playback and receive — not something `pip`/`requirements.txt` can install. Skip this if you don't need Discord voice features; every other part of Sunny works fine without it.
+
+**Ubuntu/Debian:**
+```bash
+sudo apt install -y libopus0
+```
+
+Found the hard way (2026-08-20): everything else about `/join` — connecting, command registration, Piper synthesis — worked without this installed; only the actual `voice_client.play()` call failed, with `OpusNotLoaded`. See `sunny-vault/docs/architecture/voice-join.md`.
+
+### 3. Clone Repository
 
 ```bash
 git clone https://github.com/T3R4Bit/Project-SUNNY.git
 cd Project-SUNNY
 ```
 
-### 3. Make Launcher Executable
+### 4. Make Launcher Executable
 
 ```bash
 chmod +x run.sh
 ls -la run.sh # Verify it has 'x' permission
 ```
 
-### 4. Start the App
+### 5. Start the App
 
 ```bash
 ./run.sh
