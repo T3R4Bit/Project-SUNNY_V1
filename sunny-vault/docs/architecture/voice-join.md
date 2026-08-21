@@ -135,6 +135,16 @@ Confirmed via `grep` for `Lock`/`RLock`/`asyncio.Lock` in `voice_state.py`: **no
 
 A real bug surfaced during this build, worth recording: the worker's `client.start(token)` call was only ever awaited as a background `asyncio.Task`, with the main coroutine separately `await`ing `stop_event.wait()` — meaning a login failure (or any fatal error from `client.start()` before `on_ready` ever fires) left that task's exception sitting unretrieved forever, and the whole worker process hung indefinitely instead of reporting failure. Found via a deliberate bad-token test, not live — fixed by racing `client_task` against `stop_event.wait()` with `asyncio.wait(..., return_when=FIRST_COMPLETED)` and reporting the failure if `client_task` finishes first.
 
+### Crash #5 — the first lock was incomplete
+
+Deployed the Layer 1 lock above (encrypt_opus/decrypt only) and Layer 2 (process isolation) together. Process isolation worked exactly as intended — a worker crash no longer took the whole bot down, confirmed live: `voice_session: worker process ended unexpectedly (exitcode=-11)` logged cleanly while the main bot kept running, zero disruption to text commands or the dashboard. But the worker itself still segfaulted, ~9s into a session, with **no one even speaking in the channel** — ruling out real-speech-triggered activity as a precondition and proving the first lock's scope was wrong, not just its presence.
+
+`grep dave_session discord/gateway.py` found the actual gap: `set_external_sender()`, `process_proposals()`, `process_commit()`, and `process_welcome()` are the real MLS protocol handlers for incoming key-rotation/commit messages from Discord's voice gateway — called on the asyncio loop thread as the group's cryptographic state updates, which happens periodically during a normal call, not just at connect. The first lock never touched any of these.
+
+**Fix**: stopped trying to enumerate individual call sites scattered across `gateway.py` and `voice_state.py` (exactly how the FEC-peek bug and this one both slipped through) and instead locked `DaveSession` itself — `_patch_dave_session_locking()` wraps every real (`method_descriptor`) method on the class with `_dave_lock`, verified via inspecting `vars(DaveSession)` directly to correctly skip plain attribute reads (`ready`, `status`, `epoch`, ... — `getset_descriptor`, not callable) since wrapping those would silently turn every existing `session.ready`-style boolean read in both `discord.py` and this file into a bound method object instead.
+
+**Verified against the real bot, not just reasoned about**: an automated test joined the real voice channel and held for 2 minutes with a spoken message every 5s (23 encrypt-path calls) — 4 consecutive clean runs post-fix, versus consistent ~9s crashes on the same test before it. The one thing this can't cover is the decrypt side under real, sustained human speech (packet loss, real MLS traffic patterns) — that still needs a live test.
+
 ## Not Included This Pass
 
 - **No persistent transcript log** — exchanges are logged via the normal Python app logger only, not a new `sunny-vault/log/` file. A natural addition later if wanted; not built ahead of an actual need.
