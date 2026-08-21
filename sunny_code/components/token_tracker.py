@@ -16,6 +16,7 @@ import sqlite3
 from datetime import date
 from typing import Dict, Tuple
 
+from sunny_code.components.db_connection import closing_transaction
 from sunny_code.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,7 @@ def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> fl
 def record_usage(model: str, prompt_tokens: int, completion_tokens: int, cost: float) -> None:
     """Add usage to today's rollup row, upserting the by_model breakdown."""
     today = date.today().isoformat()
-    with _connect() as conn:
+    with closing_transaction(_connect()) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             "SELECT prompt_tokens, completion_tokens, total_cost, by_model FROM token_usage WHERE date = ?",
@@ -93,7 +94,7 @@ def record_usage(model: str, prompt_tokens: int, completion_tokens: int, cost: f
 
 def get_today_usage() -> Dict:
     today = date.today().isoformat()
-    with _connect() as conn:
+    with closing_transaction(_connect()) as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             "SELECT prompt_tokens, completion_tokens, total_cost, by_model FROM token_usage WHERE date = ?",
@@ -122,7 +123,7 @@ def get_today_usage() -> Dict:
 
 def get_month_cost() -> float:
     month_prefix = date.today().isoformat()[:7]  # YYYY-MM
-    with _connect() as conn:
+    with closing_transaction(_connect()) as conn:
         result = conn.execute(
             "SELECT COALESCE(SUM(total_cost), 0) FROM token_usage WHERE date LIKE ?",
             (f"{month_prefix}-%",),

@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter
 
 from sunny_code.components import token_tracker
+from sunny_code.components.db_connection import closing_transaction
 from sunny_code.config import get_settings
 
 
@@ -23,7 +24,7 @@ class DashboardDB:
 
     def _init_db(self):
         """Initialize database schema."""
-        with sqlite3.connect(self.db_path) as conn:
+        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
             cursor = conn.cursor()
 
             # Metrics table (30-second samples)
@@ -80,7 +81,7 @@ class DashboardDB:
         cost: float = 0.0,
     ):
         """Record a metrics snapshot."""
-        with sqlite3.connect(self.db_path) as conn:
+        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -93,7 +94,7 @@ class DashboardDB:
 
     def update_service_health(self, service: str, success: bool, error: str = None):
         """Update service health status."""
-        with sqlite3.connect(self.db_path) as conn:
+        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
             cursor = conn.cursor()
             if success:
                 cursor.execute(
@@ -123,7 +124,7 @@ class DashboardDB:
 
     def get_health_status(self) -> dict:
         """Get current service health."""
-        with sqlite3.connect(self.db_path) as conn:
+        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM service_health ORDER BY service_name")
@@ -151,7 +152,7 @@ class DashboardAPI:
         @self.router.get("/metrics/latest")
         async def latest_metrics():
             """Get latest metrics snapshot."""
-            with sqlite3.connect(self.db.db_path) as conn:
+            with closing_transaction(sqlite3.connect(self.db.db_path)) as conn:
                 conn.row_factory = sqlite3.Row
                 cursor = conn.cursor()
                 cursor.execute(

@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import logging
 
+from sunny_code.components.db_connection import closing_transaction
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +29,7 @@ class ScheduledDB:
         self._init_db()
 
     def _init_db(self):
-        with sqlite3.connect(self.db_path) as conn:
+        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -62,7 +64,7 @@ class ScheduledDB:
             raise ValueError("Label cannot be empty")
 
         item_id = str(uuid.uuid4())[:8]
-        with sqlite3.connect(self.db_path) as conn:
+        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -76,7 +78,7 @@ class ScheduledDB:
         return item_id
 
     def get_item(self, item_id: str) -> Optional[Dict]:
-        with sqlite3.connect(self.db_path) as conn:
+        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM scheduled_items WHERE id = ?", (item_id,))
@@ -91,7 +93,7 @@ class ScheduledDB:
             params.append(kind)
         query += " ORDER BY trigger_at ASC"
 
-        with sqlite3.connect(self.db_path) as conn:
+        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute(query, params)
@@ -104,7 +106,7 @@ class ScheduledDB:
             query += " AND kind = ?"
             params.append(kind)
 
-        with sqlite3.connect(self.db_path) as conn:
+        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute(query, params)
@@ -122,7 +124,7 @@ class ScheduledDB:
 
     def reschedule(self, item_id: str, next_trigger_at: datetime) -> bool:
         """Advance a recurring item to its next trigger time (stays active)."""
-        with sqlite3.connect(self.db_path) as conn:
+        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 "UPDATE scheduled_items SET trigger_at = ? WHERE id = ?",
@@ -132,14 +134,14 @@ class ScheduledDB:
             return cursor.rowcount > 0
 
     def deactivate(self, item_id: str) -> bool:
-        with sqlite3.connect(self.db_path) as conn:
+        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
             cursor = conn.cursor()
             cursor.execute("UPDATE scheduled_items SET active = 0 WHERE id = ?", (item_id,))
             conn.commit()
             return cursor.rowcount > 0
 
     def deactivate_all(self, kind: str) -> int:
-        with sqlite3.connect(self.db_path) as conn:
+        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
             cursor = conn.cursor()
             cursor.execute("UPDATE scheduled_items SET active = 0 WHERE kind = ? AND active = 1", (kind,))
             conn.commit()
