@@ -73,8 +73,11 @@ COMMAND_POLL_TIMEOUT = 1.0  # how often command_reader wakes to check for
 # blocking forever on an empty queue.
 
 _chime_pcm: Optional[bytes] = None
-_dave_lock = threading.Lock()  # see _patch_dave_encrypt_lock — the actual
-# root cause behind all four crashes this pipeline has had.
+_dave_lock = threading.Lock()  # see _patch_dave_session_locking — the
+# actual root cause behind most of the crashes this pipeline has had.
+_dave_active = [0]  # temporary overlap-detection instrumentation, see
+# _patch_dave_session_locking — should never exceed 1.
+_dave_call_guard = threading.Lock()
 
 
 def _strip_wake_phrase(text: str) -> Optional[str]:
@@ -381,18 +384,47 @@ def _patch_dave_session_locking() -> None:
     except ImportError:
         return
 
+    # Rare methods (only fire on real key-rotation/session-lifecycle
+    # events, not per-packet) are always worth knowing about by name if
+    # they run near a crash -- cheap to log every time, unlike
+    # encrypt_opus/decrypt which fire ~50x/sec each.
+    _rare_methods = {
+        "process_commit", "process_proposals", "process_welcome",
+        "set_external_sender", "reinit", "reset", "set_passthrough_mode",
+    }
+
     for name, attr in list(vars(_davey.DaveSession).items()):
         if name.startswith("_") or type(attr).__name__ != "method_descriptor":
             continue
 
-        def _make_locked(original):
+        def _make_locked(original, method_name):
             def _locked(self, *args, **kwargs):
-                with _dave_lock:
-                    return original(self, *args, **kwargs)
+                if method_name in _rare_methods:
+                    logger.info(f"voice_worker: DaveSession.{method_name}() starting (thread={threading.get_ident()})")
+                # Overlap detector: proves (or disproves) that the lock
+                # is actually excluding concurrent entry in the real,
+                # deployed process -- not just in an isolated local test.
+                # Should never fire; if it does, that's the smoking gun
+                # this whole investigation has been missing.
+                with _dave_call_guard:
+                    _dave_active[0] += 1
+                    if _dave_active[0] > 1:
+                        logger.critical(
+                            f"voice_worker: DAVE LOCK OVERLAP DETECTED calling {method_name} "
+                            f"(active={_dave_active[0]}, thread={threading.get_ident()})"
+                        )
+                try:
+                    with _dave_lock:
+                        return original(self, *args, **kwargs)
+                finally:
+                    with _dave_call_guard:
+                        _dave_active[0] -= 1
+                    if method_name in _rare_methods:
+                        logger.info(f"voice_worker: DaveSession.{method_name}() finished")
 
             return _locked
 
-        setattr(_davey.DaveSession, name, _make_locked(attr))
+        setattr(_davey.DaveSession, name, _make_locked(attr, name))
 
 
 _patch_voice_recv_packet_router()
@@ -436,12 +468,14 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
     async def play_wake_chime():
         if voice_client is None or not voice_client.is_connected():
             return
+        logger.info(f"voice_worker: playing wake chime (thread={threading.get_ident()})")
         try:
             if voice_client.is_playing():
                 voice_client.stop()
             voice_client.play(discord.PCMAudio(io.BytesIO(_get_chime_pcm())))
         except Exception as e:
             logger.error(f"voice_worker: chime playback failed: {e}")
+        logger.info("voice_worker: wake chime play() call returned")
 
     async def handle_utterance(user, text, already_chimed=False):
         nonlocal awake_until
@@ -522,6 +556,10 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
                     partial_text = stt.partial(rec)
                     if partial_text and _strip_wake_phrase(partial_text) is not None:
                         state["chimed"] = True
+                        logger.info(
+                            f"voice_worker: wake word matched in partial {partial_text!r}, "
+                            f"scheduling chime (thread={threading.get_ident()})"
+                        )
                         asyncio.run_coroutine_threadsafe(play_wake_chime(), loop)
                 return
             state["pending"] = False
