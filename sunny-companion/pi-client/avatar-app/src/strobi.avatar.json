@@ -13,8 +13,8 @@
     "nodes": []
   },
   "colors": {
-    "body": "#5b7fe5",
-    "eyes": "#111316"
+    "body": "#ffc93c",
+    "eyes": "#1a1200"
   },
   "expressions": {
     "neutral": {
@@ -931,14 +931,26 @@
       "steps": [
         {
           "expression": "upward-side-glance",
-          "holdMs": 5200,
-          "transitionMs": 500,
+          "holdMs": 4600,
+          "transitionMs": 600,
           "transition": "smooth"
         },
         {
           "expression": "curious-left",
-          "holdMs": 5200,
-          "transitionMs": 500,
+          "holdMs": 4600,
+          "transitionMs": 600,
+          "transition": "smooth"
+        },
+        {
+          "expression": "small-attentive",
+          "holdMs": 4600,
+          "transitionMs": 600,
+          "transition": "smooth"
+        },
+        {
+          "expression": "gentle-downward-gaze",
+          "holdMs": 4600,
+          "transitionMs": 600,
           "transition": "smooth"
         }
       ],
@@ -972,6 +984,18 @@
         },
         {
           "expression": "gentle-downward-gaze",
+          "holdMs": 2300,
+          "transitionMs": 500,
+          "transition": "smooth"
+        },
+        {
+          "expression": "small-attentive",
+          "holdMs": 2300,
+          "transitionMs": 500,
+          "transition": "smooth"
+        },
+        {
+          "expression": "wide-downward-gaze",
           "holdMs": 2300,
           "transitionMs": 500,
           "transition": "smooth"
@@ -1019,6 +1043,18 @@
         },
         {
           "expression": "skeptical-right",
+          "holdMs": 2300,
+          "transitionMs": 500,
+          "transition": "smooth"
+        },
+        {
+          "expression": "asymmetric-up-left",
+          "holdMs": 2300,
+          "transitionMs": 500,
+          "transition": "smooth"
+        },
+        {
+          "expression": "far-right-glance",
           "holdMs": 2300,
           "transitionMs": 500,
           "transition": "smooth"
@@ -1153,8 +1189,20 @@
           "transition": "smooth"
         },
         {
+          "expression": "joyful-down-right",
+          "holdMs": 130,
+          "transitionMs": 300,
+          "transition": "smooth"
+        },
+        {
           "expression": "neutral",
           "holdMs": 120,
+          "transitionMs": 300,
+          "transition": "smooth"
+        },
+        {
+          "expression": "small-attentive",
+          "holdMs": 130,
           "transitionMs": 300,
           "transition": "smooth"
         }

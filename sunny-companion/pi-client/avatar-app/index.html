@@ -7,7 +7,21 @@
   </head>
   <body>
     <main>
-      <div id="avatar"></div>
+      <div class="sun-wrap">
+        <svg class="sun-rays" viewBox="0 0 100 100" aria-hidden="true">
+          <g fill="#ffc93c">
+            <polygon points="50,2 55,18 45,18" />
+            <polygon points="50,98 55,82 45,82" />
+            <polygon points="2,50 18,55 18,45" />
+            <polygon points="98,50 82,55 82,45" />
+            <polygon points="14.6,14.6 26.5,22.5 22.5,26.5" />
+            <polygon points="85.4,85.4 73.5,77.5 77.5,73.5" />
+            <polygon points="14.6,85.4 22.5,73.5 26.5,77.5" />
+            <polygon points="85.4,14.6 77.5,26.5 73.5,22.5" />
+          </g>
+        </svg>
+        <div id="avatar"></div>
+      </div>
       <p class="state-label">state: <span id="state-readout">idle</span></p>
       <div class="controls">
         <button type="button" data-state="idle">Idle</button>
