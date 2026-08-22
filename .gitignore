@@ -66,6 +66,12 @@ dist/
 build/
 *.egg-info/
 
+# Node.js (avatar app)
+node_modules/
+# ...except the avatar app's built static bundle, which IS committed on
+# purpose — the Pi deploys it via `git pull` and never runs Node/Vite itself
+!sunny-companion/pi-client/avatar-app/dist/
+
 # Obsidian Vault temp
 .obsidian/
 Project-SUNNY/
