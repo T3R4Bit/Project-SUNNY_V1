@@ -2,6 +2,27 @@
 
 Step-by-step, in dependency order. Check items off as they're done. Each phase assumes the previous one works before moving on — don't build the avatar app against a kiosk stack that hasn't been proven to boot yet.
 
+## Repo layout
+
+Everything lives in this one repo (Project-SUNNY) — no separate repo for the Pi side. The Pi gets a plain `git clone` of the whole thing (the tracked repo is ~7MB; all the bulky stuff — `venv/`, `piper_voices/`, `vosk_models/`, `*.db` — is gitignored, so cloning it onto the Pi doesn't pull any of that):
+
+```text
+sunny-companion/
+├── README.md / BUILD_PLAN.md
+└── pi-client/                          ← everything that runs ON the Pi
+    ├── wake_word_client.py             (Phase 5)
+    ├── systemd/
+    │   ├── sunny-face.service          (Phase 2 — Cog kiosk)
+    │   └── sunny-client.service        (Phase 5 — wake-word + network client)
+    └── avatar-app/
+        ├── src/                        (edited on a dev machine)
+        └── dist/                       (built static bundle, committed — Pi never runs Node/Vite)
+```
+
+The new server-side endpoint (Phase 6) stays in `sunny_code/`, alongside the existing `stt.py`/`tts.py`/`voice_worker.py` — not in `sunny-companion/`.
+
+Updating the device going forward is just `git pull` on the Pi + restarting the two systemd services below. Set up a dedicated read-only deploy key / fine-grained PAT for the Pi to clone and pull with (same pattern as the existing Lenovo server SSH key) rather than putting personal GitHub credentials on a physically-accessible embedded device.
+
 ## Phase 0 — Parts arrival
 
 - [x] Board bought (Pi 3 Model B, $32)
@@ -14,14 +35,15 @@ Step-by-step, in dependency order. Check items off as they're done. Each phase a
 - [ ] First boot: enable SSH, set WiFi credentials, set hostname (e.g. `sunny-companion.local` via avahi) so the server can find it by name
 - [ ] `sudo apt update && sudo apt upgrade`
 - [ ] Confirm the board is reachable over SSH on the home WiFi network before doing anything else
+- [ ] Set up a dedicated read-only deploy key / fine-grained PAT, `git clone` this repo onto the Pi (see Repo layout above)
 
 ## Phase 2 — Kiosk display stack
 
 - [ ] `sudo apt install cog libwpewebkit-1.1-0`
 - [ ] Test: `cog --platform=drm https://example.com` renders full-screen with no X11/Wayland compositor running — confirms the screen (once attached) and DRM/KMS path work
 - [ ] Attach the Waveshare screen (GPIO + HDMI direct-connect) and repeat the test on real hardware
-- [ ] Write a systemd unit that launches `cog --platform=drm <local avatar app URL>` at boot, restarts on crash
-- [ ] Confirm boot-to-face works with no login prompt, no manual steps
+- [ ] Write `pi-client/systemd/sunny-face.service`: launches `cog --platform=drm <local avatar app URL>`, `WantedBy=multi-user.target` (no network dependency — static files are already on disk, so the face should appear immediately on boot rather than waiting on WiFi), `Restart=on-failure`
+- [ ] `systemctl enable sunny-face.service` — confirm boot-to-face works with no login prompt, no manual steps, and that it survives a crash (kill the process, confirm systemd restarts it)
 
 ## Phase 3 — Audio I/O
 
@@ -47,7 +69,8 @@ Step-by-step, in dependency order. Check items off as they're done. Each phase a
 - [ ] On wake-word trigger: immediately push a `listening` state to the avatar app (local, no network wait), then start streaming mic audio to the new server endpoint (Phase 6)
 - [ ] Receive state events + TTS audio back from the server; forward state events to the avatar app's WebSocket, play TTS audio through ALSA/3.5mm out
 - [ ] Wake-on-LAN: small script sending a UDP magic packet to the desktop PC's MAC address, triggered by a specific recognized command from the server
-- [ ] Wire this client into its own systemd unit, started after `network-online.target` (needs WiFi up first)
+- [ ] Write `pi-client/systemd/sunny-client.service`: `After=network-online.target`, `Wants=network-online.target` (this one genuinely needs WiFi up before it can reach the server, unlike the face service), `Restart=on-failure`
+- [ ] `systemctl enable sunny-client.service` — confirm it waits for network before starting, and that a killed process gets restarted automatically
 
 ## Phase 6 — Server-side endpoint (new code in `sunny_code`)
 
