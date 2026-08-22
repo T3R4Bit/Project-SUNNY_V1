@@ -3,6 +3,33 @@ import { createAvatar } from '@bible-strong/avatar-web'
 import definition from './strobi.avatar.json'
 import './styles.css'
 
+// avatar-web reads window.matchMedia('(prefers-reduced-motion: reduce)') on
+// every frame and, when it matches, skips ALL transition easing and hard-cuts
+// between expressions instead of tweening -- that's very likely why this
+// looked "framy" rather than smooth. There's no option on createAvatar() to
+// override it directly, so we shim matchMedia for just that one query before
+// createAvatar ever reads it. Deliberate for this project: it's a dedicated
+// always-on face display, not a page that should defer to a system-wide
+// accessibility toggle.
+const realMatchMedia = window.matchMedia?.bind(window)
+if (realMatchMedia) {
+  window.matchMedia = (query: string): MediaQueryList => {
+    if (query.includes('prefers-reduced-motion')) {
+      return {
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener() {},
+        removeListener() {},
+        addEventListener() {},
+        removeEventListener() {},
+        dispatchEvent: () => false,
+      }
+    }
+    return realMatchMedia(query)
+  }
+}
+
 // Placeholder character ("Strobi", from the bible-strong-avatar-lab repo's own
 // example) until a custom character is designed in the visual editor. Real
 // state names to build/test the state machine against, not the final look.
