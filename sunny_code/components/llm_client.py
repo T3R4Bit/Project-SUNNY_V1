@@ -8,14 +8,17 @@ by the time a real feature needs them: honest "not configured" handling
 (matches the rest of the app's pattern for every other integration), a hard
 spend-cap circuit breaker (token_tracker.py), an auth-failure latch, and a
 complete vault usage log (every call attempt, not just successes — see
-log_llm_call below). Nothing in the app calls ask_claude() yet — wiring a
-real feature to it is a deliberate, separate decision.
+log_llm_call below). briefing.py's custom_briefing() Q&A fallback (wired
+2026-08-21) is the first real feature calling ask_claude(); ask_claude_stream()
+is the streaming variant built for /join specifically, so speech can start
+on the first sentence instead of waiting for the whole reply.
 """
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Tuple
 
 import anthropic
 
@@ -42,6 +45,71 @@ _concurrency_guard = asyncio.Semaphore(1)
 # require manual restart") — deliberately not auto-cleared, since a bad key
 # won't fix itself without the user editing .env and restarting anyway.
 _auth_disabled = False
+
+# Cached client, keyed by the API key it was built with — reused across
+# calls so consecutive requests get a warm HTTP connection instead of
+# paying a fresh TCP+TLS handshake every time (constructing a new
+# anthropic.Anthropic() per call, as this used to do, throws that away).
+# Keyed rather than a single cached instance so a live .env key rotation
+# (no restart needed, matching get_settings()'s own uncached-by-design
+# pattern) still picks up the new key on the very next call instead of
+# silently continuing to use a stale one.
+_client_cache: tuple[Optional[str], Optional["anthropic.Anthropic"]] = (None, None)
+
+
+def _get_client(api_key: str) -> "anthropic.Anthropic":
+    global _client_cache
+    cached_key, cached_client = _client_cache
+    if cached_key == api_key and cached_client is not None:
+        return cached_client
+    client = anthropic.Anthropic(api_key=api_key)
+    _client_cache = (api_key, client)
+    return client
+
+
+# Same reuse-with-key-invalidation approach as _get_client, for the async
+# client ask_claude_stream() needs -- streaming uses AsyncAnthropic
+# directly (native `async for` over stream.text_stream) rather than
+# running the sync client through asyncio.to_thread, since bridging a
+# blocking generator across that boundary would need its own thread+
+# queue plumbing for no benefit when an async-native client already does
+# the same job.
+_async_client_cache: tuple[Optional[str], Optional["anthropic.AsyncAnthropic"]] = (None, None)
+
+
+def _get_async_client(api_key: str) -> "anthropic.AsyncAnthropic":
+    global _async_client_cache
+    cached_key, cached_client = _async_client_cache
+    if cached_key == api_key and cached_client is not None:
+        return cached_client
+    client = anthropic.AsyncAnthropic(api_key=api_key)
+    _async_client_cache = (api_key, client)
+    return client
+
+
+def _preflight_refusal(purpose: str, model_id: str, prompt: str) -> Optional[str]:
+    """Checks shared by ask_claude() and ask_claude_stream() so the two
+    never drift out of sync on when a call gets refused before it's even
+    attempted. Returns the refusal status string (also what gets logged)
+    if the call should be refused, else None."""
+    settings = get_settings()
+    if not looks_configured(settings.claude_api_key):
+        logger.info("ask_claude: no Claude API key configured, skipping")
+        log_llm_call(purpose, model_id, prompt, status="not_configured")
+        return "not_configured"
+
+    if _auth_disabled:
+        logger.warning("ask_claude: disabled after an invalid API key error earlier this run — restart required")
+        log_llm_call(purpose, model_id, prompt, status="auth_disabled")
+        return "auth_disabled"
+
+    ok, reason = token_tracker.check_budget()
+    if not ok:
+        logger.warning(f"ask_claude: refusing call, {reason}")
+        log_llm_call(purpose, model_id, prompt, status="budget_exceeded", detail=reason)
+        return "budget_exceeded"
+
+    return None
 
 
 async def ask_claude(
@@ -79,20 +147,7 @@ async def ask_claude(
     if system is None:
         system = instructions.load_instructions(purpose)
 
-    if not looks_configured(settings.claude_api_key):
-        logger.info("ask_claude: no Claude API key configured, skipping")
-        log_llm_call(purpose, model_id, prompt, status="not_configured")
-        return None
-
-    if _auth_disabled:
-        logger.warning("ask_claude: disabled after an invalid API key error earlier this run — restart required")
-        log_llm_call(purpose, model_id, prompt, status="auth_disabled")
-        return None
-
-    ok, reason = token_tracker.check_budget()
-    if not ok:
-        logger.warning(f"ask_claude: refusing call, {reason}")
-        log_llm_call(purpose, model_id, prompt, status="budget_exceeded", detail=reason)
+    if _preflight_refusal(purpose, model_id, prompt) is not None:
         return None
 
     async with _concurrency_guard:
@@ -134,14 +189,129 @@ async def ask_claude(
     return text
 
 
+_SENTENCE_BREAK_RE = re.compile(r"[.!?]+(?=\s|$)")
+
+
+def _next_sentence(buffer: str) -> Optional[Tuple[str, str]]:
+    """(sentence, remainder) for the first complete sentence in buffer,
+    or None if nothing's complete yet (still mid-sentence). A "complete
+    sentence" is just "ends in ./!/? followed by whitespace or end of
+    string" -- not real NLP segmentation, so it'll occasionally split on
+    an abbreviation ("Mr. Smith") too early. Accepted: the only consumer
+    is streamed TTS playback, where a false split just costs one tiny
+    extra pause mid-sentence, not a functional bug worth a real sentence
+    tokenizer for."""
+    match = _SENTENCE_BREAK_RE.search(buffer)
+    if match is None:
+        return None
+    return buffer[: match.end()].strip(), buffer[match.end() :]
+
+
+async def ask_claude_stream(
+    prompt: str,
+    model: str = "haiku",
+    max_tokens: int = 1024,
+    system: Optional[str] = None,
+    purpose: str = "unspecified",
+    temperature: Optional[float] = None,
+):
+    """Same safety contract as ask_claude() (never raises; an honest
+    refusal reason logged to the vault either way) but yields the
+    response sentence-by-sentence as it's generated, instead of waiting
+    for the whole thing -- built specifically so /join can start
+    speaking the first sentence while Claude is still writing the rest,
+    the single biggest real latency win available in the voice pipeline
+    (see the 2026-08-21 latency chart: the LLM call itself is the
+    largest chunk of total response time). Yields nothing at all on any
+    refusal or failure -- callers should treat "nothing was yielded" the
+    same way they'd treat ask_claude() returning None, and fall back
+    accordingly (this file has no opinion on what that fallback is).
+
+    Uses AsyncAnthropic directly (native `async for` over
+    stream.text_stream) rather than running the sync client through
+    asyncio.to_thread like ask_claude() does -- bridging a blocking
+    generator across that boundary would need its own thread+queue
+    plumbing for no benefit when an async-native client already does
+    exactly this job."""
+    global _auth_disabled
+
+    settings = get_settings()
+    model_id = MODELS.get(model, MODELS["haiku"])
+    if system is None:
+        system = instructions.load_instructions(purpose)
+
+    if _preflight_refusal(purpose, model_id, prompt) is not None:
+        return
+
+    kwargs = {"model": model_id, "max_tokens": max_tokens, "messages": [{"role": "user", "content": prompt}]}
+    if system:
+        kwargs["system"] = system
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+
+    full_text_parts = []
+    final_usage = None
+    async with _concurrency_guard:
+        try:
+            client = _get_async_client(settings.claude_api_key)
+            async with client.messages.stream(**kwargs) as stream:
+                buffer = ""
+                async for delta in stream.text_stream:
+                    buffer += delta
+                    full_text_parts.append(delta)
+                    while True:
+                        split = _next_sentence(buffer)
+                        if split is None:
+                            break
+                        sentence, buffer = split
+                        if sentence:
+                            yield sentence
+                if buffer.strip():
+                    yield buffer.strip()
+                final = await stream.get_final_message()
+                final_usage = final.usage
+        except anthropic.AuthenticationError:
+            _auth_disabled = True
+            logger.error("ask_claude: invalid Claude API key — disabling further calls until restart")
+            log_llm_call(purpose, model_id, prompt, status="auth_error")
+            return
+        except anthropic.RateLimitError:
+            logger.warning("ask_claude: rate limited — failing this call, a later message can retry")
+            log_llm_call(purpose, model_id, prompt, status="rate_limited")
+            return
+        except anthropic.APIStatusError as e:
+            logger.error(f"ask_claude: Claude API error ({e.status_code}): {e.message}")
+            log_llm_call(purpose, model_id, prompt, status="api_error", detail=f"HTTP {e.status_code}: {e.message}")
+            return
+        except anthropic.APIConnectionError as e:
+            logger.error(f"ask_claude: connection error: {e}")
+            log_llm_call(purpose, model_id, prompt, status="connection_error", detail=type(e).__name__)
+            return
+
+    if final_usage is not None:
+        token_tracker.record_usage(
+            model=model_id,
+            prompt_tokens=final_usage.input_tokens,
+            completion_tokens=final_usage.output_tokens,
+            cost=token_tracker.calculate_cost(model_id, final_usage.input_tokens, final_usage.output_tokens),
+        )
+    log_llm_call(purpose, model_id, prompt, status="success", response="".join(full_text_parts))
+
+
 def _call_claude_sync(
     api_key: str, model_id: str, max_tokens: int, system: Optional[str], prompt: str, temperature: Optional[float] = None
 ):
     """Runs in a thread via asyncio.to_thread — the anthropic SDK's client is
     sync/blocking, and this is a network call, so it must not run directly
     on the event loop (unlike vault_io's local file writes, which are fast
-    enough to stay inline — see vault_io.py's concurrency note)."""
-    client = anthropic.Anthropic(api_key=api_key)
+    enough to stay inline — see vault_io.py's concurrency note).
+
+    _get_client() reuses a cached client instead of constructing a fresh
+    one per call -- safe to touch _client_cache here with no extra lock:
+    ask_claude()'s own _concurrency_guard already limits this whole
+    function to one in-flight call at a time, so this is never actually
+    entered concurrently despite running off the event loop."""
+    client = _get_client(api_key)
     kwargs = {"model": model_id, "max_tokens": max_tokens, "messages": [{"role": "user", "content": prompt}]}
     if system:
         kwargs["system"] = system

@@ -162,13 +162,50 @@ async def _relay_from_worker(
             continue
 
         session_id = f"voice:{msg['user_id']}"
+        streamed_any = False
+
+        async def on_chunk(sentence: str) -> None:
+            # Freshly rebound every loop iteration (this closure captures
+            # the CURRENT to_worker/streamed_any, not a stale one from an
+            # earlier utterance) -- see handle_message()'s on_chunk
+            # contract in assistant.py/briefing.py: called only when
+            # routing falls through to the LLM Q&A fallback, one sentence
+            # at a time, as Claude generates them. Lets the worker start
+            # speaking the first sentence immediately instead of waiting
+            # for the whole reply -- the real latency win from
+            # ask_claude_stream(), see the 2026-08-21 latency chart.
+            nonlocal streamed_any
+            streamed_any = True
+            try:
+                to_worker.put({"type": "speak_chunk", "text": sentence})
+            except Exception as e:
+                logger.error(f"voice_session: failed to relay chunk to worker: {e}")
+
         try:
             response = await handle_message(
-                msg["text"], tasks_engine, briefing_engine, list_engine, scheduled_engine, session_id=session_id
+                msg["text"],
+                tasks_engine,
+                briefing_engine,
+                list_engine,
+                scheduled_engine,
+                session_id=session_id,
+                on_chunk=on_chunk,
             )
         except Exception as e:
             logger.error(f"voice_session: assistant router failed: {e}")
             continue
+
+        if streamed_any:
+            # Already fully delivered sentence-by-sentence above -- don't
+            # also send the complete response as a second, redundant
+            # "speak", just tell the worker no more chunks are coming so
+            # it knows to stop waiting and finish playback.
+            try:
+                to_worker.put({"type": "speak_chunk_done"})
+            except Exception as e:
+                logger.error(f"voice_session: failed to signal stream end to worker: {e}")
+            continue
+
         if not response:
             continue
         try:

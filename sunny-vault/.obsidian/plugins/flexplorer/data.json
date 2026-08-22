@@ -194,7 +194,10 @@
     "state/tasks": {
       "isPinned": false,
       "isHidden": false,
-      "customOrder": [],
+      "customOrder": [
+        "another-test-task.md",
+        "test-task.md"
+      ],
       "sortOrder": "custom"
     },
     "state/lists": {
@@ -250,6 +253,14 @@
       "isHidden": false
     },
     "instructions/general-chat.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/test-task.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/another-test-task.md": {
       "isPinned": false,
       "isHidden": false
     }

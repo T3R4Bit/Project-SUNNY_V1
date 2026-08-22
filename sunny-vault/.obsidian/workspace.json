@@ -206,6 +206,8 @@
   },
   "active": "b71858e4a6f616e0",
   "lastOpenFiles": [
+    "state/tasks/another-test-task.md",
+    "state/tasks/test-task.md",
     "docs/ABOUT.md",
     "docs/phases.md",
     "docs/BACKLOG.md",
@@ -239,8 +241,6 @@
     "state/tasks/concurrency-web-task-3-2.md",
     "state/tasks/concurrency-web-task-2-2.md",
     "state/tasks/concurrency-web-task-1-2.md",
-    "state/tasks/concurrency-chat-task-3.md",
-    "state/tasks/concurrency-chat-task-2.md",
-    "state/tasks/concurrency-chat-task-1.md"
+    "state/tasks/concurrency-chat-task-3.md"
   ]
 }

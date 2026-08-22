@@ -16,7 +16,7 @@ import time
 from typing import Dict, Optional
 
 from sunny_code.components import health_check, setup_guides
-from sunny_code.components.briefing import BriefingEngine
+from sunny_code.components.briefing import BriefingEngine, OnChunk
 from sunny_code.components.device import device_from_session
 from sunny_code.components.lists_engine import ListEngine
 from sunny_code.components.lists_parser import ListCommandParser
@@ -159,8 +159,15 @@ async def handle_message(
     list_engine: Optional[ListEngine] = None,
     scheduled_engine: Optional[ScheduledEngine] = None,
     session_id: str = "default",
+    on_chunk: Optional[OnChunk] = None,
 ) -> str:
-    """Route one free-text message and return the response text."""
+    """Route one free-text message and return the response text.
+
+    on_chunk is optional and additive — see briefing.py's
+    custom_briefing() docstring for the streaming contract it enables.
+    Every caller that doesn't pass it (every text interface) sees zero
+    behavior change; only reaches anything when routing falls all the
+    way through to the LLM Q&A fallback."""
     stripped = text.strip()
     lowered = stripped.lower().strip("? ")
     source = device_from_session(session_id)
@@ -217,7 +224,7 @@ async def handle_message(
         report = health_check.latest_report()
         return report if report else "No health check report yet — the first one runs Sunday at 4am."
 
-    return await briefing_engine.answer_question(stripped)
+    return await briefing_engine.answer_question(stripped, on_chunk=on_chunk)
 
 
 def is_briefing_trigger(text: str) -> bool:

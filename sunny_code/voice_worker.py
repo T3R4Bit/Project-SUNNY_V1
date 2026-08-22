@@ -99,8 +99,19 @@ SILENCE_WATCHDOG_INTERVAL = 0.05  # polling granularity -- kept tight so
 COMMAND_POLL_TIMEOUT = 1.0  # how often command_reader wakes to check for
 # shutdown even with no message waiting -- keeps the process from ever
 # blocking forever on an empty queue.
+THINKING_SOUND_DELAY = 0.5  # seconds to wait after dispatching an
+# utterance before playing a "still working on it" cue -- long enough
+# that the fast hardcoded path (real measured total ~1.2s end-to-end,
+# but routing itself is ~10ms of that, see the latency chart from
+# 2026-08-21) never triggers it, short enough that the LLM path's real
+# ~1-1.2s round trip reliably does. Covers the one silent gap left in
+# the pipeline: the wake chime confirms "I heard you" instantly, but
+# there was nothing covering "I'm still working on it" for however long
+# the LLM call takes -- this is that, the same pattern real voice
+# assistants use for exactly this gap.
 
 _chime_pcm: Optional[bytes] = None
+_thinking_pcm: Optional[bytes] = None
 _dave_lock = threading.Lock()  # see _patch_dave_session_locking — the
 # actual root cause behind most of the crashes this pipeline has had.
 _dave_active = [0]  # temporary overlap-detection instrumentation, see
@@ -159,6 +170,40 @@ def _get_chime_pcm() -> bytes:
 
     _chime_pcm = bytes(frames)
     return _chime_pcm
+
+
+def _get_thinking_pcm() -> bytes:
+    """A soft, single-tone cue (~250ms) for the one silent gap the wake
+    chime doesn't cover: after "I heard you", there's still however long
+    the LLM call takes with nothing telling the user Sunny's actually
+    working on it. Deliberately different from the chime -- one lower,
+    quieter tone instead of two rising ones -- so it reads as "still
+    thinking" rather than a second "I heard you" alert. Same
+    generate-on-the-fly, cache-after-first-call approach as the chime."""
+    global _thinking_pcm
+    if _thinking_pcm is not None:
+        return _thinking_pcm
+
+    from discord.opus import Encoder as OpusEncoder
+
+    rate = 48000
+    freq, duration = 330, 0.25  # E4 -- a soft, low, non-alerting tone
+    fade_samples = int(rate * 0.04)  # longer fade than the chime (40ms)
+    # -- softer attack/release reads as "ambient" rather than a ding
+    n = int(rate * duration)
+    frames = bytearray()
+    for i in range(n):
+        fade = min(i / fade_samples, (n - i) / fade_samples, 1.0)
+        value = math.sin(2 * math.pi * freq * i / rate) * fade * 0.18  # quieter than the chime's 0.3
+        sample = int(value * 32767)
+        frames += struct.pack("<hh", sample, sample)
+
+    pad = (-len(frames)) % OpusEncoder.FRAME_SIZE
+    if pad:
+        frames += b"\x00" * pad
+
+    _thinking_pcm = bytes(frames)
+    return _thinking_pcm
 
 
 def _patch_voice_recv_packet_router() -> None:
@@ -491,6 +536,10 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
     voice_client: Optional[voice_recv.VoiceRecvClient] = None
     recognizers = {}  # user_id -> {"rec": KaldiRecognizer, "chimed": bool, "pending": bool}
     stop_event = asyncio.Event()
+    pending_thinking_task: Optional[asyncio.Task] = None  # see
+    # THINKING_SOUND_DELAY -- set by handle_utterance right after
+    # dispatching, cancelled by speak() once a real reply is ready to
+    # play, so the cue only ever appears for the gap it's meant to cover.
 
     async def play_wake_chime():
         if voice_client is None or not voice_client.is_connected():
@@ -504,7 +553,25 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
             logger.error(f"voice_worker: chime playback failed: {e}")
         logger.info("voice_worker: wake chime play() call returned")
 
+    async def _play_thinking_cue_after_delay():
+        """Started fresh for every dispatched utterance, cancelled by
+        speak() the moment a real reply is ready -- see
+        THINKING_SOUND_DELAY. asyncio.CancelledError is expected and
+        silent here, not an error: cancellation is the normal, common
+        case (the fast hardcoded path beats the delay almost every time)."""
+        await asyncio.sleep(THINKING_SOUND_DELAY)
+        if voice_client is None or not voice_client.is_connected():
+            return
+        logger.info("voice_worker: still waiting on a reply, playing thinking cue")
+        try:
+            if voice_client.is_playing():
+                voice_client.stop()
+            voice_client.play(discord.PCMAudio(io.BytesIO(_get_thinking_pcm())))
+        except Exception as e:
+            logger.error(f"voice_worker: thinking-cue playback failed: {e}")
+
     async def handle_utterance(state, text, already_chimed=False):
+        nonlocal pending_thinking_task
         user = state["user"]
         t_heard = time.monotonic()
         logger.info(f"voice_worker: heard from {user}: {text!r}")
@@ -539,22 +606,81 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
             "text": command,
             "t_heard": t_heard,
         })
+        if pending_thinking_task is not None and not pending_thinking_task.done():
+            pending_thinking_task.cancel()  # a stray earlier one, shouldn't
+            # normally still be around, but never stack two of these
+        pending_thinking_task = asyncio.create_task(_play_thinking_cue_after_delay())
 
-    async def speak(text: str) -> None:
+    speech_queue: asyncio.Queue = asyncio.Queue()  # PCM bytes, one entry
+    # per response ("speak") or per streamed sentence ("speak_chunk"), in
+    # arrival order -- speech_player() below is the only thing that ever
+    # plays from this queue, so a streamed reply's sentences always play
+    # back-to-back in order even though each one is synthesized as its
+    # own separate call.
+
+    async def _synthesize_and_enqueue(text: str, error_context: str) -> None:
+        nonlocal pending_thinking_task
         if voice_client is None or not voice_client.is_connected():
             return
         try:
             pcm = await asyncio.to_thread(tts.synthesize_discord_pcm, text)
         except Exception as e:
-            logger.error(f"voice_worker: TTS synthesis failed: {e}")
+            logger.error(f"voice_worker: {error_context} TTS synthesis failed: {e}")
             return
-        try:
-            if voice_client.is_playing():
-                voice_client.stop()
-            voice_client.play(discord.PCMAudio(io.BytesIO(pcm)))
-        except Exception as e:
-            logger.error(f"voice_worker: response playback failed: {e}")
-            return
+        # Cancelled here, right after synthesis of the first real piece
+        # of audio -- not any earlier -- so the thinking cue (if it's
+        # already started) keeps covering the wait for as long as there
+        # genuinely isn't anything else to play yet, including TTS
+        # synthesis time itself, not just the LLM call before it. A
+        # no-op on later chunks of the same reply (already cancelled).
+        if pending_thinking_task is not None and not pending_thinking_task.done():
+            pending_thinking_task.cancel()
+            pending_thinking_task = None
+        await speech_queue.put(pcm)
+
+    async def speak(text: str) -> None:
+        await _synthesize_and_enqueue(text, "response")
+
+    async def speak_chunk(text: str) -> None:
+        """One sentence of a streamed reply -- see voice_session.py's
+        on_chunk/"speak_chunk". Queued the same way as a full "speak"
+        response; speech_player() is what actually plays it, in order,
+        once every earlier chunk has finished."""
+        await _synthesize_and_enqueue(text, "chunk")
+
+    async def speech_player():
+        """Plays queued response audio back-to-back, one item at a time,
+        for the life of the worker. A dedicated long-lived task rather
+        than playing straight from speak()/speak_chunk() so a streamed
+        reply's sentences queue up and play in strict order without
+        cutting each other off, while the next sentence's TTS synthesis
+        (a separate to_thread call in _synthesize_and_enqueue) can run
+        concurrently with this one's playback. Polls is_playing() rather
+        than discord.py's after= callback (which fires off the asyncio
+        loop) -- matches this file's other poll-based loops
+        (silence_watchdog)."""
+        while not stop_event.is_set():
+            try:
+                pcm = await asyncio.wait_for(speech_queue.get(), timeout=COMMAND_POLL_TIMEOUT)
+            except asyncio.TimeoutError:
+                continue
+            if voice_client is None or not voice_client.is_connected():
+                continue
+            try:
+                if voice_client.is_playing():
+                    # Only ever a stale chime/thinking-cue still playing
+                    # from before this reply was ready -- by the time
+                    # this task reaches here for its own previous queue
+                    # item, that item has already finished (the wait
+                    # loop below blocks until it does), so this never
+                    # cuts off this queue's own audio.
+                    voice_client.stop()
+                voice_client.play(discord.PCMAudio(io.BytesIO(pcm)))
+            except Exception as e:
+                logger.error(f"voice_worker: queued playback failed: {e}")
+                continue
+            while voice_client.is_playing():
+                await asyncio.sleep(0.02)
 
     def on_audio(user, data):
         """Sync callback — fires on voice_recv's own audio-decode thread,
@@ -647,6 +773,13 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
             msg_type = msg.get("type")
             if msg_type == "speak":
                 await speak(msg["text"])
+            elif msg_type == "speak_chunk":
+                await speak_chunk(msg["text"])
+            elif msg_type == "speak_chunk_done":
+                pass  # sentinel only -- speech_queue already holds every
+                # chunk of this reply in arrival order; speech_player()
+                # drains it as fast as synthesis+playback allow, nothing
+                # to do here
             elif msg_type == "leave":
                 stop_event.set()
 
@@ -692,6 +825,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         logger.info(f"voice_worker: joined #{channel.name} ({channel.id})")
         asyncio.create_task(silence_watchdog())
         asyncio.create_task(command_reader())
+        asyncio.create_task(speech_player())
 
         try:
             await warm_task  # make sure the model's actually ready before returning
