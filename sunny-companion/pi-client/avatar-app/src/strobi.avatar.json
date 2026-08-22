@@ -1136,26 +1136,26 @@
       "steps": [
         {
           "expression": "neutral",
-          "holdMs": 260,
-          "transitionMs": 120,
+          "holdMs": 140,
+          "transitionMs": 320,
           "transition": "smooth"
         },
         {
           "expression": "small-attentive",
-          "holdMs": 220,
-          "transitionMs": 120,
+          "holdMs": 120,
+          "transitionMs": 300,
           "transition": "smooth"
         },
         {
           "expression": "attentive-left",
-          "holdMs": 240,
-          "transitionMs": 120,
+          "holdMs": 130,
+          "transitionMs": 300,
           "transition": "smooth"
         },
         {
           "expression": "neutral",
-          "holdMs": 200,
-          "transitionMs": 120,
+          "holdMs": 120,
+          "transitionMs": 300,
           "transition": "smooth"
         }
       ],
