@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sunny Companion — face preview</title>
+  </head>
+  <body>
+    <main>
+      <div id="avatar"></div>
+      <p class="state-label">state: <span id="state-readout">idle</span></p>
+      <div class="controls">
+        <button type="button" data-state="idle">Idle</button>
+        <button type="button" data-state="listening">Listening</button>
+        <button type="button" data-state="thinking">Thinking</button>
+        <button type="button" data-state="speaking">Speaking</button>
+      </div>
+      <div class="controls">
+        <button type="button" data-emotion="happy">Happy</button>
+        <button type="button" data-emotion="confused">Confused</button>
+        <button type="button" data-emotion="surprised">Surprised</button>
+        <button type="button" data-emotion="sad">Sad</button>
+      </div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

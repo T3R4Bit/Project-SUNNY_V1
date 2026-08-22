@@ -1,0 +1,57 @@
+:root {
+  color: #17191d;
+  background: #f4f6fa;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+body {
+  display: grid;
+  min-height: 100vh;
+  margin: 0;
+  place-items: center;
+}
+
+main {
+  display: grid;
+  width: min(480px, calc(100% - 32px));
+  gap: 16px;
+}
+
+#avatar {
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid #dce1ea;
+  border-radius: 24px;
+  background: white;
+}
+
+.state-label {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  color: #5a6472;
+}
+
+.state-label span {
+  font-weight: 600;
+  color: #17191d;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+button {
+  padding: 9px 13px;
+  border: 1px solid #cfd6e2;
+  border-radius: 9px;
+  background: white;
+  cursor: pointer;
+}
+
+button[data-state] {
+  font-weight: 600;
+}
