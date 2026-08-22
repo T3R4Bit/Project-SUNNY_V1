@@ -24,6 +24,7 @@ from sunny_code.components.scheduled_db import ScheduledDB
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.scheduled_vault_mirror import create_scheduled_vault_mirror, write_scheduled_mirror
 from sunny_code.components.chatbot_ui import create_chatbot_router
+from sunny_code.components.pi_companion import create_pi_companion_router
 from sunny_code.components.console_stats import create_console_router
 from sunny_code.components.discord_bot import create_discord_bot
 from sunny_code.components.google_routes import create_google_auth_router
@@ -197,6 +198,13 @@ class SunnyCore:
             self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine
         )
         app.include_router(chatbot_router)
+
+        # Sunny Companion hardware device -- /ws/pi (bypasses Discord entirely,
+        # see sunny-companion/BUILD_PLAN.md Phase 6)
+        pi_companion_router = create_pi_companion_router(
+            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine
+        )
+        app.include_router(pi_companion_router)
 
         # Console stats dashboard
         console_router = create_console_router()

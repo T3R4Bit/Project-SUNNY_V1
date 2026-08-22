@@ -45,6 +45,25 @@ main {
   border: 1px solid #dce1ea;
   border-radius: 24px;
   background: white;
+  transform: scale(var(--speak-pulse, 1));
+}
+
+.connection {
+  align-items: center;
+}
+
+#ws-url {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #cfd6e2;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+#ws-status {
+  font-size: 13px;
+  color: #5a6472;
 }
 
 .state-label {

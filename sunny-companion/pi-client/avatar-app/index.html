@@ -35,6 +35,11 @@
         <button type="button" data-emotion="surprised">Surprised</button>
         <button type="button" data-emotion="sad">Sad</button>
       </div>
+      <div class="controls connection">
+        <input type="text" id="ws-url" value="ws://127.0.0.1:5055/ws/pi" />
+        <button type="button" id="ws-connect">Connect</button>
+        <span id="ws-status">disconnected</span>
+      </div>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

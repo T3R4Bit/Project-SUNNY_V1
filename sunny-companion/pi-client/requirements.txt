@@ -1,0 +1,6 @@
+# Runs on the Pi (or, for now, a dev machine for local testing) --
+# separate from the root requirements.txt, which is the server's.
+openwakeword>=0.6.0
+sounddevice>=0.4.6
+numpy>=1.26.0
+websockets>=12.0
