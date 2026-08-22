@@ -43,12 +43,41 @@ No additional cables needed: the screen direct-connects via HDMI port + 40-pin G
 
 **Enclosure implication:** GPIO-stacking means the screen sits directly on/against the board — it's not something that can be cable-separated into different parts of the case. The 3D-printed enclosure needs to treat the Pi + screen as one fixed stacked unit, while still leaving the USB ports (for the mic) and microSD slot accessible (they're on the opposite edges of the board from the GPIO header, so no physical conflict with the stacked screen).
 
+## Software architecture (decided)
+
+The device is a **thin client** — no local LLM, no Discord voice client. The server is the brain:
+
+- **Local on the Pi:** a lightweight wake-word engine (e.g. openWakeWord or a small Vosk grammar) listens continuously on the USB mic. On trigger, the device switches to "listening" **instantly, before any network round-trip**, then streams audio to a **new local endpoint** added to the Sunny server.
+- **Server-side (new code, not `voice_worker.py`):** the new endpoint reuses the existing `stt.py`/`tts.py` components directly — no Discord, no Opus/DAVE encryption, no gateway heartbeats. It runs Vosk STT → existing LLM/handle_message pipeline → Piper TTS, and streams both the TTS audio and small **state events** back to the device (`{"state": "thinking"}`, `{"state": "speaking", "emotion": "happy"}`, `{"state": "idle"}`).
+- This bypasses `sunny_code/voice_worker.py`'s Discord-voice-channel design entirely for this device — that pipeline stays as-is for Discord users, this is a parallel path.
+
+## Face behavior — state machine + real animation loops
+
+Confirmed (not assumed): the avatar-lab's animation system is genuinely loop-capable, not static-image swapping. Expressions act as semantic keyframes on a timeline; the **Motion** JS library tweens between them; playback modes include **loop, play-once, and ping-pong**; "ambient movement" (blinking, subtle body/eye motion) runs continuously as its own loop layered on top. This is a real animation engine, not a picture-swapper.
+
+Planned states, each a real animation (not a still frame):
+
+- **Idle** — ambient movement + blinking loop, resting expression, waiting for the wake word.
+- **Listening** — triggered locally the instant the wake-word engine fires (no network wait). Eyes perk up / lean in.
+- **Thinking** — loops while waiting on the server's LLM reply; covers the latency gap so it doesn't freeze.
+- **Speaking** — loops while TTS audio plays; mouth movement driven by the **audio's live amplitude** (no true lip-sync — the library doesn't support visemes, and neither Vosk nor Piper hand us phoneme timing — amplitude-driven mouth-open is the cheap, well-worn substitute that still reads as "talking").
+- **Emotion overlay (v2)** — server can tag a reply with a coarse mood (happy/concerned/playful/apologetic); device swaps in a hand-designed expression preset for eyes/brows while the same speaking animation runs underneath.
+
+## Stat dashboard feature (e.g. "what's my Sonnet usage")
+
+A second display mode alongside the face, not bolted onto it — Cog swaps from the avatar view to a small stats view for a few seconds on request, then back to idle.
+
+- Backed by Anthropic's **Usage & Cost Admin API** (`GET /v1/organizations/usage_report/messages` for token counts by model/time-bucket, `GET /v1/organizations/cost_report` for USD cost, daily granularity). Confirmed Sunny's org already has API billing set up (`anthropic` package is in [requirements.txt](../requirements.txt)), so minting an Admin key is straightforward.
+- **Security constraint:** the Admin API key (`sk-ant-admin01-...`) is far more powerful than Sunny's regular API key (full org usage/cost visibility) and **must live server-side only** — never on the physical device. The server fetches and formats the numbers; the device only ever receives a rendered stats payload, never the credential.
+- Data lags ~5 min and the endpoint is rate-limited to roughly 1 request/minute for sustained polling — server should poll occasionally and cache, not fetch live on every request.
+- Two dashboard presets planned to start: "today's usage" and "cost this month."
+
 ## Open questions
 
-- **Software architecture note:** the existing voice pipeline (`sunny_code/voice_worker.py`) is built around joining a **Discord voice channel** (`/join`), with Vosk STT + Piper TTS running server-side over Discord's voice transport. Need to decide whether the desk unit connects the same way (acts as a Discord voice client) or whether a new direct local audio channel to the backend gets built instead, bypassing Discord entirely. Doesn't change the hardware picked above, but is a real fork for the client software that talks to `sunny_code`.
 - Validate WPE WebKit/Cog can render the `avatar-web` SVG output smoothly on the Pi 3 B before writing much client code
 - Enclosure design for the desk form factor (3D printed, separate from this BOM) — needs to account for the GPIO-stacked screen geometry above
+- Exact expression set and transition design for the state machine above (how many emotion presets, what triggers each)
 
 ## Status
 
-Board bought (Pi 3 Model B, $32). Rest of the BOM picked with real Amazon links, not yet ordered. No code in this folder yet.
+Board bought (Pi 3 Model B, $32). Rest of the BOM picked with real Amazon links, not yet ordered. Architecture and face/dashboard behavior designed. Step-by-step build plan: [BUILD_PLAN.md](BUILD_PLAN.md). No code in this folder yet.
