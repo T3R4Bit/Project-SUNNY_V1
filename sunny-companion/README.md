@@ -20,14 +20,39 @@ Reference: [avatars.bible-strong.app](https://avatars.bible-strong.app/) / [smon
 - Wake-on-LAN: power on the desktop PC from the device — via an Ethernet port, or possibly offloaded to a small MCU (STM32) so it works even if the main board is asleep
 - Hardwired power (no battery for v1)
 
+## Hardware plan (2026-08-22 research pass)
+
+Budget target: under $100 total including screen (case is 3D-printed separately, not counted). Two board options were researched:
+
+- **Pi 4 (2GB), $55** — safe bet, Chromium kiosk is proven for this kind of UI, but all-in cost (board + screen + mic + SD card + PSU) lands around $103-111, slightly over budget.
+- **Pi Zero 2 W, $15** — chosen path. Full Chromium is reportedly "painfully slow" on its 512MB RAM (swaps to the SD card), so this only works by using **WPE WebKit + Cog** instead — a lightweight, hardware-accelerated kiosk browser stack built for exactly this class of board. Not yet benchmarked against the specific `avatar-web` SVG output this project wants to use — **prototype this before buying the screen**, since it's the one unproven piece of the plan and the screen is the priciest single item.
+
+### Bill of materials (Pi Zero 2 W path)
+
+| Part | Price |
+|---|---|
+| Raspberry Pi Zero 2 W | $15 |
+| 4" square HDMI touchscreen, 720×720 | $33 |
+| USB mini microphone | $7 |
+| microSD card (32GB) | $8 |
+| Micro-USB power supply (5V/2.5A) | $7 |
+| Mini-HDMI → HDMI cable/adapter | $5 |
+| Micro-USB OTG hub (Zero 2 W has only one USB data port; mic + touchscreen both need it) | $6 |
+| **Total** | **~$81** (+ ~$4 for a USB audio dongle, since the Zero 2 W has no onboard 3.5mm jack) |
+
+Notes:
+- User confirmed audio jack should be **3.5mm**, not 8mm as originally stated.
+- Wake-on-LAN needs no special hardware — it's a UDP magic packet sent over WiFi to the target PC's MAC address, doable in a few lines of Python from whatever board ends up in the device. No STM32/Ethernet required for this specifically.
+- If the screen doesn't need to be tappable, dropping touch removes the USB hub requirement (mic gets the single data port to itself) and likely finds a cheaper panel too.
+- No spare parts (SD card, PSU) on hand — full BOM applies as priced.
+
 ## Open questions
 
-- Confirm audio jack size (3.5mm TRRS most likely)
-- Main board choice: Pi-class SBC (for the JS-based avatar) vs. microcontroller + separate display driver — depends on how much of the avatar-lab rendering approach we keep vs. reimplement in something lighter
-- Screen part number / driver (SPI vs HDMI vs DSI) — depends on board choice above
-- How this talks to the existing Sunny backend (`sunny_code/`) — presumably over the local network, reusing the existing voice pipeline rather than duplicating it on-device
-- Enclosure design for the desk form factor
+- Validate WPE WebKit/Cog can render the `avatar-web` SVG output smoothly on the Zero 2 W before buying the screen
+- Does the desk unit need touch, or just display? Affects screen pick and whether the USB hub is needed at all
+- **Software architecture note:** the existing voice pipeline (`sunny_code/voice_worker.py`) is built around joining a **Discord voice channel** (`/join`), with Vosk STT + Piper TTS running server-side over Discord's voice transport. Need to decide whether the desk unit connects the same way (acts as a Discord voice client) or whether a new direct local audio channel to the backend gets built instead, bypassing Discord entirely. Doesn't change the hardware picked above, but is a real fork for the client software that talks to `sunny_code`.
+- Enclosure design for the desk form factor (3D printed, separate from this BOM)
 
 ## Status
 
-Planning stage — no hardware ordered yet, no code in this folder yet.
+Planning stage — board path chosen (Pi Zero 2 W + WPE WebKit/Cog), no hardware ordered yet, no code in this folder yet.
