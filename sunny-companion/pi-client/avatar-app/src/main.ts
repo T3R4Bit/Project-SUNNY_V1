@@ -57,11 +57,111 @@ document.querySelectorAll<HTMLButtonElement>('[data-emotion]').forEach(button =>
   button.addEventListener('click', () => setState(button.dataset.emotion!))
 })
 
-// --- Not built yet (Phase 5/6) ---
-// This page will eventually open a WebSocket to the local server endpoint
-// and drive `setState()` from incoming {"state": ...} / {"emotion": ...}
-// messages instead of button clicks, and the "speaking" state's animation
-// should be modulated by the live TTS audio's amplitude in real time rather
-// than looping at the fixed cadence baked into the JSON above — this
-// character format has no mouth geometry, so that modulation will act on
-// eye/body motion instead of a mouth shape.
+// --- Server connection (Phase 6 endpoint: sunny_code/components/pi_companion.py) ---
+//
+// On the real device, the Python wake-word client (Phase 5) is what holds
+// the connection to the server and streams mic audio -- this page would just
+// receive relayed state/audio from that local client, not talk to the
+// server directly. For now, before that Python piece exists, this page
+// connects straight to /ws/pi itself so the whole loop (state machine +
+// real TTS audio + amplitude reaction) can be tested here in a browser.
+//
+// avatar-web's public API is animation-based (play/setExpression), with no
+// raw parameter control and no mouth geometry on this character at all --
+// so "amplitude-driven speaking" is implemented as an external CSS pulse
+// (--speak-pulse custom property on #avatar) layered on top of whichever
+// named animation is already looping, not an internal morph.
+
+const avatarHost = document.querySelector<HTMLDivElement>('#avatar')!
+const wsUrlInput = document.querySelector<HTMLInputElement>('#ws-url')!
+const wsConnectButton = document.querySelector<HTMLButtonElement>('#ws-connect')!
+const wsStatus = document.querySelector<HTMLSpanElement>('#ws-status')!
+
+let socket: WebSocket | null = null
+let audioContext: AudioContext | null = null
+
+function setWsStatus(text: string) {
+  wsStatus.textContent = text
+}
+
+function getAudioContext(): AudioContext {
+  if (!audioContext) audioContext = new AudioContext()
+  return audioContext
+}
+
+async function playReplyAudio(wavBytes: ArrayBuffer) {
+  const ctx = getAudioContext()
+  const buffer = await ctx.decodeAudioData(wavBytes)
+
+  const analyser = ctx.createAnalyser()
+  analyser.fftSize = 256
+  const levels = new Uint8Array(analyser.frequencyBinCount)
+
+  const source = ctx.createBufferSource()
+  source.buffer = buffer
+  source.connect(analyser)
+  analyser.connect(ctx.destination)
+
+  let pulsing = true
+  const pulse = () => {
+    if (!pulsing) return
+    analyser.getByteTimeDomainData(levels)
+    let sumSquares = 0
+    for (const level of levels) {
+      const centered = (level - 128) / 128
+      sumSquares += centered * centered
+    }
+    const rms = Math.sqrt(sumSquares / levels.length)
+    // Subtle: full-volume speech should nudge scale by a few percent, not
+    // visibly distort the character.
+    avatarHost.style.setProperty('--speak-pulse', (1 + Math.min(rms, 1) * 0.06).toFixed(4))
+    requestAnimationFrame(pulse)
+  }
+
+  source.onended = () => {
+    pulsing = false
+    avatarHost.style.setProperty('--speak-pulse', '1')
+  }
+
+  source.start()
+  requestAnimationFrame(pulse)
+}
+
+function connect() {
+  const url = wsUrlInput.value.trim()
+  if (!url) return
+  socket = new WebSocket(url)
+  socket.binaryType = 'arraybuffer'
+  setWsStatus('connecting…')
+
+  socket.addEventListener('open', () => {
+    setWsStatus('connected')
+    wsConnectButton.textContent = 'Disconnect'
+  })
+  socket.addEventListener('close', () => {
+    setWsStatus('disconnected')
+    wsConnectButton.textContent = 'Connect'
+    socket = null
+  })
+  socket.addEventListener('error', () => setWsStatus('error'))
+
+  socket.addEventListener('message', event => {
+    if (typeof event.data === 'string') {
+      const message = JSON.parse(event.data) as { state?: string; emotion?: string }
+      if (message.emotion) setState(message.emotion)
+      else if (message.state) setState(message.state)
+    } else {
+      void playReplyAudio(event.data as ArrayBuffer)
+    }
+  })
+}
+
+function disconnect() {
+  socket?.close()
+  socket = null
+}
+
+wsConnectButton.addEventListener('click', () => {
+  if (socket) disconnect()
+  else connect()
+})

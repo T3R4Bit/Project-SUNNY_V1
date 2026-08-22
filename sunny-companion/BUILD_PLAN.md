@@ -54,29 +54,29 @@ Updating the device going forward is just `git pull` on the Pi + restarting the 
 
 ## Phase 4 — Avatar app (built on a dev machine, deployed to the Pi)
 
-- [ ] Design the character in the bible-strong-avatar-lab editor; export the `.avatar.json`
-- [ ] Build the expression set: idle, listening, thinking, speaking, plus 2–4 emotion presets (see README's open question — nail down the exact list here)
-- [ ] Wire up `@bible-strong/avatar-web` (vanilla JS/ESM, no React needed) to load the character and play the animations designed above, using the library's loop / play-once / ping-pong playback modes
-- [ ] Add amplitude-driven mouth movement for the "speaking" state (sample the live audio's volume envelope, map to mouth-open amount)
-- [ ] Add a small local WebSocket client in the page's JS that listens for state messages (`{"state": "listening"}` etc.) and drives the animation state machine
-- [ ] Bundle as a static build (Vite or similar) — confirm it doesn't need a server, so Cog can load it via `file://` or a trivial local static server
+- [ ] Design the character in the bible-strong-avatar-lab editor; export the `.avatar.json` (currently using the library's own sample character, "Strobi", recolored yellow — not a custom design yet)
+- [x] Build the expression set: idle, listening, thinking, speaking, plus emotion presets — done using expressions already on the placeholder character (idle/listening/thinking/speaking all expanded to 4-7 step variety; happy/confused/surprised/sad/etc. emotion animations were already present)
+- [x] Wire up `@bible-strong/avatar-web` to load the character and play animations using the library's loop/play-once/ping-pong modes — done in `pi-client/avatar-app/src/main.ts`
+- [x] Add amplitude-driven modulation for the "speaking" state — done, but as an **external CSS pulse** on the avatar host element (`--speak-pulse`), not literal mouth movement: avatar-web's public API has no raw parameter control and this character has no mouth geometry at all, so a CSS scale pulse driven by a live `AnalyserNode` reading the actual TTS audio is the honest implementation
+- [x] Add a small local WebSocket client in the page's JS that listens for state/audio messages and drives the animation state machine + audio playback — done; currently connects directly to `/ws/pi` for testing (see Phase 5 note below on where this wiring moves once the Python device client exists)
+- [ ] Bundle as a static build (Vite or similar) — confirm it doesn't need a server, so Cog can load it via `file://` or a trivial local static server (still only tested via `vite dev`, haven't run a production `vite build` yet)
 - [ ] Copy the built static bundle onto the Pi; point the Phase 2 systemd unit's Cog invocation at it
 - [ ] **Validation checkpoint** (flagged as a risk earlier): confirm this renders smoothly via Cog's DRM backend on the actual Pi 3 B hardware before investing more time in the expression set
 
 ## Phase 5 — Device client (Python, runs on the Pi)
 
-- [ ] Pick and install a local wake-word engine (openWakeWord or a small Vosk grammar) listening on the USB mic
-- [ ] On wake-word trigger: immediately push a `listening` state to the avatar app (local, no network wait), then start streaming mic audio to the new server endpoint (Phase 6)
-- [ ] Receive state events + TTS audio back from the server; forward state events to the avatar app's WebSocket, play TTS audio through ALSA/3.5mm out
-- [ ] Wake-on-LAN: small script sending a UDP magic packet to the desktop PC's MAC address, triggered by a specific recognized command from the server
+- [x] Pick and install a local wake-word engine — `pi-client/wake_word_listener.py`, using openWakeWord. **No pretrained "hey sunny" model exists** — using "hey_jarvis" as a placeholder to prove the mechanism (continuous low-compute listening → trigger callback) actually works; verified the model loads and stays near-zero on silence/noise, and the live audio stream opens and runs without crashing. Not yet verified against a real spoken wake word — training a real "hey sunny" model is separate follow-up work (needs synthetic data generation via openWakeWord's own training notebooks)
+- [ ] On wake-word trigger: immediately push a `listening` state to the avatar app (local, no network wait), then start streaming mic audio to the new server endpoint (Phase 6) — **not wired together yet**: the wake-word listener and the server endpoint both work independently (see Phase 6), but nothing yet connects the trigger to opening a `/ws/pi` connection and streaming mic audio into it
+- [ ] Receive state events + TTS audio back from the server; forward state events to the avatar app's WebSocket, play TTS audio through ALSA/3.5mm out — not built; today the avatar app connects to `/ws/pi` directly itself for testing purposes instead
+- [x] Wake-on-LAN: `pi-client/wake_on_lan.py` — pure `socket`, no dependency, unit-tested (magic packet builds to the correct 102 bytes: 6×0xFF + 16×MAC)
 - [ ] Write `pi-client/systemd/sunny-client.service`: `After=network-online.target`, `Wants=network-online.target` (this one genuinely needs WiFi up before it can reach the server, unlike the face service), `Restart=on-failure`
 - [ ] `systemctl enable sunny-client.service` — confirm it waits for network before starting, and that a killed process gets restarted automatically
 
 ## Phase 6 — Server-side endpoint (new code in `sunny_code`)
 
-- [ ] New lightweight local endpoint (WebSocket or similar) — separate from `sunny_code/voice_worker.py`'s Discord path, reusing the existing `stt.py`/`tts.py` components directly
-- [ ] Pipeline: receive streamed audio → Vosk STT → existing LLM/`handle_message` logic → Piper TTS → stream audio + state events back
-- [ ] State events sent at the right points: `thinking` right after audio is received, `speaking` (with optional `emotion` tag) when TTS starts streaming, `idle` when done
+- [x] New lightweight local endpoint — `sunny_code/components/pi_companion.py`, a FastAPI WebSocket router (`/ws/pi`) matching `chatbot_ui.py`'s pattern exactly: takes the same **shared** `tasks_engine`/`briefing_engine`/`list_engine`/`scheduled_engine` instances as the Discord bot and console (not a second forked set), wired into `main.py` alongside the other routers. Separate from `voice_worker.py`'s Discord path entirely — no Opus, no DAVE encryption, no gateway heartbeats
+- [x] Pipeline: receive streamed audio → Vosk STT → existing `handle_message()` → Piper TTS → stream audio + state events back — **verified end-to-end**: fed real Piper-synthesized speech ("what time is it") back in as 16kHz mono PCM, got a correct Vosk transcription, real `handle_message()` routing (hit the "no Claude API key configured locally" fallback — an existing environment gap, not a bug), and real reply audio back
+- [x] State events sent at the right points — verified live: `thinking` → `speaking` → `idle` arrived in the correct order in the same test
 - [ ] Dashboard feature: new function to call Anthropic's Usage & Cost Admin API (`usage_report/messages`, `cost_report`), using a **server-side-only** Admin API key, with caching (data lags ~5 min, endpoint is rate-limited to ~1 req/min for sustained polling)
 - [ ] Wire "what's my Sonnet usage" (and similar) recognized intents to the dashboard function, returning a stats payload instead of a spoken-reply + state event
 

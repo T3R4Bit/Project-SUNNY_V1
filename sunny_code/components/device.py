@@ -7,8 +7,8 @@ tag records (tasks, list items, alarms, reminders) with which interface created 
 
 
 def device_from_session(session_id: str) -> str:
-    """Return a short device label from a session_id, e.g. 'web', 'discord', 'terminal', 'api'."""
+    """Return a short device label from a session_id, e.g. 'web', 'discord', 'terminal', 'pi', 'api'."""
     if not session_id:
         return "api"
     prefix = session_id.split(":", 1)[0]
-    return prefix if prefix in ("web", "discord", "terminal") else "api"
+    return prefix if prefix in ("web", "discord", "terminal", "pi") else "api"
