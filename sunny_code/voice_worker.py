@@ -820,25 +820,38 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         try:
             state = recognizers.get(user.id)
             if state is None:
-                state = {"rec": stt.new_recognizer(), "chimed": False, "pending": False}
+                state = {"rec": stt.new_recognizer(), "chimed": False, "pending": False, "lock": threading.Lock()}
                 recognizers[user.id] = state
             state["user"] = user
             state["last_packet_at"] = time.monotonic()
             rec = state["rec"]
 
-            text = stt.feed(rec, data.pcm)
-            if text is None:
-                state["pending"] = True  # there's buffered audio Vosk hasn't finalized yet
-                if not state["chimed"]:
-                    partial_text = stt.partial(rec)
-                    if partial_text and _strip_wake_phrase(partial_text) is not None:
-                        state["chimed"] = True
-                        logger.info(
-                            f"voice_worker: wake word matched in partial {partial_text!r}, "
-                            f"scheduling chime (thread={threading.get_ident()})"
-                        )
-                        asyncio.run_coroutine_threadsafe(play_wake_chime(), loop)
-                return
+            # Real bug, seen live (2026-08-23): this callback runs on
+            # voice_recv's own decode thread, while silence_watchdog()
+            # below force-finalizes the same recognizer from the asyncio
+            # loop thread -- with no lock, a feed() here could land
+            # between that finalize's FinalResult() and Reset(), which
+            # Vosk itself detects and rejects ("AcceptWaveform called
+            # after InputFinished() was called"), corrupting the
+            # recognizer badly enough that its *next* FinalResult() came
+            # back truncated/invalid JSON. Same class of bug as the
+            # DAVE-session threading race fixed earlier -- a native
+            # object touched from two threads with no synchronization --
+            # same fix: hold a lock around every call that touches it.
+            with state["lock"]:
+                text = stt.feed(rec, data.pcm)
+                if text is None:
+                    state["pending"] = True  # there's buffered audio Vosk hasn't finalized yet
+                    if not state["chimed"]:
+                        partial_text = stt.partial(rec)
+                        if partial_text and _strip_wake_phrase(partial_text) is not None:
+                            state["chimed"] = True
+                            logger.info(
+                                f"voice_worker: wake word matched in partial {partial_text!r}, "
+                                f"scheduling chime (thread={threading.get_ident()})"
+                            )
+                            asyncio.run_coroutine_threadsafe(play_wake_chime(), loop)
+                    return
             state["pending"] = False
             already_chimed = state["chimed"]
             state["chimed"] = False  # reset for the next utterance
@@ -870,7 +883,10 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
                     continue
                 state["pending"] = False
                 try:
-                    text = stt.finalize(state["rec"])
+                    # Same lock on_audio() holds around feed()/partial() --
+                    # see its comment for the corruption this prevents.
+                    with state["lock"]:
+                        text = stt.finalize(state["rec"])
                 except Exception as e:
                     logger.error(f"voice_worker: forced finalize failed: {e}")
                     continue
