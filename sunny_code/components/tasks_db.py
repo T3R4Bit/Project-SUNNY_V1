@@ -13,7 +13,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from sunny_code.components import vault_io
 
@@ -84,12 +84,14 @@ class TaskDB:
         task["description"] = description
         return task
 
-    def _iter_tasks(self):
-        """Yield every parseable task dict in the directory. Skips (and logs)
-        any file that fails to parse rather than letting one bad file break
-        every caller that scans the whole directory — a risk SQLite's
-        single-table-read never had."""
-        for path in sorted(self.tasks_dir.glob("*.md")):
+    def _iter_dir(self, directory: Path):
+        """Yield every parseable task dict in one directory (non-recursive).
+        Skips (and logs) any file that fails to parse rather than letting
+        one bad file break every caller that scans the whole directory —
+        a risk SQLite's single-table-read never had."""
+        if not directory.exists():
+            return
+        for path in sorted(directory.glob("*.md")):
             try:
                 text = path.read_text(encoding="utf-8")
                 task = self._document_to_task(text)
@@ -99,6 +101,12 @@ class TaskDB:
                 logger.warning(f"Skipping unreadable task file {path}: {e}")
             except Exception as e:
                 logger.warning(f"Skipping unparseable task file {path}: {e}")
+
+    def _iter_tasks(self):
+        """Yield every parseable ACTIVE task dict -- never archived
+        (deleted or finished) ones. See get_stats() for the one place
+        archived tasks are read at all."""
+        yield from self._iter_dir(self.tasks_dir)
 
     def _find_path_by_id(self, task_id: str) -> Optional[Path]:
         for path in self.tasks_dir.glob("*.md"):
@@ -261,7 +269,10 @@ class TaskDB:
         return True
 
     def delete_task(self, task_id: str) -> bool:
-        """Delete a task."""
+        """Delete a task. Deprecated in favor of archive_task(task_id,
+        "deleted") — kept for any caller that genuinely wants the file
+        gone, but nothing in this app calls it anymore (see
+        tasks_engine.py's _execute_delete)."""
         path = self._find_path_by_id(task_id)
         if path is None:
             return False
@@ -269,19 +280,56 @@ class TaskDB:
         logger.info(f"Task deleted: {task_id}")
         return True
 
+    def archive_task(self, task_id: str, reason: Literal["deleted", "finished"]) -> bool:
+        """Move a task's file into archive/<reason>/ instead of removing
+        it — no data is rewritten or dropped, just relocated, so "deleted"
+        and "finished" tasks are always still there to find later. Used by
+        tasks_engine.py for both the delete command and for a status
+        update that resolves to "done"."""
+        path = self._find_path_by_id(task_id)
+        if path is None:
+            return False
+
+        archive_dir = self.tasks_dir / "archive" / reason
+        archive_dir.mkdir(parents=True, exist_ok=True)
+
+        dest = archive_dir / path.name
+        if dest.exists():
+            # A same-slug task was already archived before -- keep both,
+            # same collision handling as _unique_slug.
+            stem, suffix = path.stem, path.suffix
+            n = 2
+            while dest.exists():
+                dest = archive_dir / f"{stem}-{n}{suffix}"
+                n += 1
+
+        path.rename(dest)
+        logger.info(f"Task archived ({reason}): {task_id}")
+        return True
+
     def get_stats(self) -> Dict:
-        """Get task statistics."""
+        """Get task statistics. "done" and "total" include archived/
+        finished tasks, so they reflect everything that ever finished even
+        though archive_task() moves them out of the active listing
+        everything else here uses. Archived/deleted tasks are never
+        counted anywhere, regardless of whatever status they happened to
+        have at the moment they were deleted -- deleting a task shouldn't
+        move any stat."""
         tasks = list(self._iter_tasks())
+        finished_archived = list(self._iter_dir(self.tasks_dir / "archive" / "finished"))
+
         open_tasks = [t for t in tasks if t.get("status") == "open"]
         by_tag: Dict[str, int] = {}
         for t in open_tasks:
             by_tag[t.get("tag", "General")] = by_tag.get(t.get("tag", "General"), 0) + 1
 
+        done_count = sum(1 for t in tasks if t.get("status") == "done") + len(finished_archived)
+
         return {
             "open": len(open_tasks),
-            "done": sum(1 for t in tasks if t.get("status") == "done"),
+            "done": done_count,
             "in_progress": sum(1 for t in tasks if t.get("status") == "in_progress"),
-            "total": len(tasks),
+            "total": len(tasks) + len(finished_archived),
             "by_tag": by_tag,
         }
 

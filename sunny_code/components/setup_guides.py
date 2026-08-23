@@ -7,7 +7,7 @@ text — so the answer is never stale.
 
 from typing import Optional
 
-from sunny_code.components import google_auth, location_store, tts
+from sunny_code.components import google_auth, location_store, spotify_auth, tts
 from sunny_code.components.data_sources import is_configured
 from sunny_code.config import get_settings, looks_configured
 
@@ -33,6 +33,8 @@ _ALIASES = {
     "google sign-in": "google",
     "discord": "discord",
     "discord bot": "discord",
+    "spotify": "spotify",
+    "music": "spotify",
     "piper": "piper",
     "speak": "piper",
     "tts": "piper",
@@ -122,6 +124,38 @@ Status: {status}
 
 Covers Calendar + Gmail (read-only) only — not Drive, Contacts, sending mail,
 or Maps/traffic. Full details: sunny-vault/docs/architecture/google-integration.md"""
+
+
+def _spotify_guide() -> str:
+    if not spotify_auth.is_client_configured():
+        status = "Not set up (no OAuth client yet)"
+    elif not spotify_auth.is_connected():
+        status = "Client configured, but not signed in yet"
+    else:
+        status = f"Connected as {spotify_auth.connected_username()}"
+
+    return f"""SPOTIFY SETUP (voice playback control)
+Status: {status}
+
+Requires a Spotify Premium account — playback control (play/pause/skip/
+volume) doesn't work on a Free account.
+
+1. developer.spotify.com/dashboard → log in → Create app.
+2. Add a Redirect URI: http://127.0.0.1:5000/auth/spotify/callback (or your
+   Tailscale IP/hostname equivalent, same pattern as Google's).
+3. Copy the Client ID/Secret into .env:
+   SPOTIFY_CLIENT_ID=...
+   SPOTIFY_CLIENT_SECRET=...
+   SPOTIFY_OAUTH_REDIRECT_URI=http://127.0.0.1:5000/auth/spotify/callback
+4. Restart Sunny, open /console, click "Connect Spotify Account" in the
+   SPOTIFY card.
+
+Once connected: "play <song>", "pause", "resume", "skip", "previous song",
+"volume up/down" or "set volume to 50", "what's playing". Commands act on
+whatever device Spotify itself considers active — same as the Spotify app
+or Siri, no device selection built in, so open Spotify somewhere first.
+
+Full details: sunny-vault/docs/architecture/spotify-integration.md"""
 
 
 def _discord_guide() -> str:
@@ -234,6 +268,7 @@ _GUIDES = {
     "gps": _gps_guide,
     "piper": _piper_guide,
     "google": _google_guide,
+    "spotify": _spotify_guide,
     "discord": _discord_guide,
     "commute": lambda: _not_built_guide("commute/traffic"),
     "health": lambda: _not_built_guide("health/wellness"),
@@ -242,13 +277,14 @@ _GUIDES = {
     "tasks": _tasks_guide,
 }
 
-_OVERVIEW_ORDER = ["tasks", "weather", "gps", "google", "discord", "piper", "claude", "commute", "health", "news", "motorsports"]
+_OVERVIEW_ORDER = ["tasks", "weather", "gps", "google", "spotify", "discord", "piper", "claude", "commute", "health", "news", "motorsports"]
 _OVERVIEW_LABELS = {
     "tasks": "Tasks",
     "claude": "Claude (LLM, infra-only)",
     "weather": "Weather",
     "gps": "GPS location (OwnTracks)",
     "google": "Calendar + Email (Google)",
+    "spotify": "Music (Spotify)",
     "discord": "Discord bot",
     "piper": "Voice (Piper TTS, /speak)",
     "commute": "Commute/Traffic",
@@ -263,6 +299,10 @@ def _overview_status(key: str) -> str:
         if not google_auth.is_client_configured():
             return "not set up"
         return "connected" if google_auth.is_connected() else "needs sign-in"
+    if key == "spotify":
+        if not spotify_auth.is_client_configured():
+            return "not set up"
+        return "connected" if spotify_auth.is_connected() else "needs sign-in"
     if key == "discord":
         settings = get_settings()
         return "connected" if (looks_configured(settings.discord_bot_token) and settings.discord_chat_channel_id) else "not connected"

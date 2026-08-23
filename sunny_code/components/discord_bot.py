@@ -34,25 +34,33 @@ import asyncio
 import io
 import logging
 from datetime import datetime
+from typing import Literal
 
 import discord
 from discord.ext import tasks
 
-from sunny_code.components import tts, voice_session
+from sunny_code.components import category_store, tts, usage_chart, voice_session
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.crash_check import check_previous_crash
 from sunny_code.components.key_status import missing_api_keys, startup_summary
 from sunny_code.components.lists_engine import ListEngine
+from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.server_admin_parser import ServerAdminParser
+from sunny_code.components.spotify_engine import SpotifyEngine
 from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.time_parse import next_occurrence
+from sunny_code.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 DASHBOARD_MARKER = "​" # zero-width space appended to the dashboard message so a
 # restarted bot can recognize its own pinned message and start editing it again
+HEALTH_MARKER = "⁠" # word joiner (U+2060) -- deliberately a *different*
+# invisible character than DASHBOARD_MARKER, so pin-rediscovery for one
+# can never accidentally match the other's message if both channels ever
+# end up configured to the same channel.
 MAX_MESSAGE_LENGTH = 1900 # Discord's real limit is 2000; leave headroom
 SCHEDULED_CHECK_INTERVAL_SECONDS = 30
 SPEAK_MAX_CHARS = 1000 # practical cap on synthesis time/file size, well under
@@ -80,6 +88,38 @@ def _chunk_message(text: str, limit: int = MAX_MESSAGE_LENGTH):
 def _find_channel(guild: discord.Guild, name: str):
     name = name.lower().lstrip("#")
     return discord.utils.find(lambda c: c.name.lower() == name, guild.channels)
+
+
+def build_dashboard_embed(dashboard_data: dict, project_names: list) -> discord.Embed:
+    """Renders TaskEngine.get_dashboard_data() as a Discord embed — one
+    field per active category, plus a Projects field listing whatever
+    project folders exist on disk (populated by the "new project" flow;
+    project_names is a plain directory listing the caller supplies, not
+    something this function reads itself, so it's testable without a real
+    vault on disk). Tasks don't get a priority bar; the priority number is
+    enough. Module-level (not a closure in create_discord_bot()) so this
+    can be unit-tested directly with synthetic data."""
+    stats = dashboard_data["stats"]
+
+    due_soon = dashboard_data["due_soon"]
+    description = f"{len(due_soon)} task{'s' if len(due_soon) != 1 else ''} due this week" if due_soon else None
+    embed = discord.Embed(title="Your Tasks", description=description, color=discord.Color.blurple())
+
+    for tag, tag_tasks in dashboard_data["categories"]:
+        lines = []
+        for task in tag_tasks[:5]:
+            due_str = f" (due {task['due_date']})" if task["due_date"] else ""
+            lines.append(f"P{task['priority']} — {task['title']}{due_str}")
+        if len(tag_tasks) > 5:
+            lines.append(f"...and {len(tag_tasks) - 5} more")
+        embed.add_field(name=f"{tag} ({len(tag_tasks)})", value="\n".join(lines) or "(none)", inline=False)
+
+    embed.add_field(name="Projects", value="\n".join(project_names) if project_names else "(none yet)", inline=False)
+
+    embed.set_footer(
+        text=f"Open: {stats['open']} | In Progress: {stats['in_progress']} | Done: {stats['done']}{DASHBOARD_MARKER}"
+    )
+    return embed
 
 
 def _find_role(guild: discord.Guild, name: str):
@@ -154,6 +194,8 @@ def create_discord_bot(
     briefing_engine: BriefingEngine,
     list_engine: ListEngine,
     scheduled_engine: ScheduledEngine,
+    project_engine: ProjectEngine,
+    spotify_engine: SpotifyEngine,
     chat_channel_id: int,
     dashboard_channel_id: int = 0,
     briefings_channel_id: int = 0,
@@ -177,6 +219,7 @@ def create_discord_bot(
     client.tree = tree # exposed for introspection/testing, and for future slash commands (e.g. /join) to extend
     state = {
         "dashboard_message_id": None,
+        "health_message_id": None,
         "posted_key_status": False,
         "commands_synced": False,
         "posted_crash_notice": False,
@@ -234,7 +277,8 @@ def create_discord_bot(
             await _post_to(warnings_channel_id, text, fallback_channel_id=chat_channel_id)
 
         message = await voice_session.start(
-            interaction, tasks_engine, briefing_engine, list_engine, scheduled_engine, notify_fn=_notify_voice_crash
+            interaction, tasks_engine, briefing_engine, list_engine, scheduled_engine, project_engine,
+            spotify_engine, notify_fn=_notify_voice_crash
         )
         await interaction.followup.send(message, ephemeral=True)
 
@@ -248,6 +292,39 @@ def create_discord_bot(
         await interaction.response.defer(thinking=True, ephemeral=True)
         message = await voice_session.stop()
         await interaction.followup.send(message, ephemeral=True)
+
+    @tree.command(name="category", description="Add or remove a task category")
+    async def category_command(interaction: discord.Interaction, action: Literal["add", "remove"], name: str):
+        if interaction.channel_id != chat_channel_id:
+            await interaction.response.send_message(
+                "Use /category in the chat channel.", ephemeral=True
+            )
+            return
+        await interaction.response.defer(thinking=True, ephemeral=True)
+        if action == "add":
+            _, message = category_store.add_category(name)
+        else:
+            _, message = category_store.remove_category(name)
+        await interaction.followup.send(message, ephemeral=True)
+        await refresh_dashboard()
+
+    @tree.command(name="usage", description="Chart of Claude API cost over the last N days (the one paid API here)")
+    async def usage_command(interaction: discord.Interaction, days: int = 30):
+        if interaction.channel_id != chat_channel_id:
+            await interaction.response.send_message(
+                "Use /usage in the chat channel.", ephemeral=True
+            )
+            return
+        await interaction.response.defer(thinking=True, ephemeral=True)
+        try:
+            png_bytes = await asyncio.to_thread(usage_chart.render_usage_chart_png, days)
+        except Exception as e:
+            logger.error(f"/usage chart render failed: {e}")
+            await interaction.followup.send("Couldn't render the usage chart — check the logs.", ephemeral=True)
+            return
+        await interaction.followup.send(
+            file=discord.File(io.BytesIO(png_bytes), filename="usage.png"), ephemeral=True
+        )
 
     async def _post_to(channel_id: int, text: str, fallback_channel_id: int = None):
         """Send `text` to `channel_id` if set, else to `fallback_channel_id` (typically
@@ -265,18 +342,88 @@ def create_discord_bot(
             await channel.send(chunk)
 
     async def post_to_health(text: str):
-        """Exposed for callers outside this module (currently the weekly
-        health check, started from main.py) that want to post the report
-        without importing Discord internals. No-ops if the client isn't
-        connected yet — the health-check loop and Discord's own reconnect are
-        scheduled independently, with no ordering guarantee (a 4am fire right
-        after a restart could beat Discord)."""
+        """Exposed for callers outside this module (health_check.py, via
+        set_post_fn -- both the scheduled Sunday run and an on-demand "run
+        health check" go through this same function) that want to post the
+        report without importing Discord internals. No-ops if the client
+        isn't connected yet — the health-check loop and Discord's own
+        reconnect are scheduled independently, with no ordering guarantee
+        (a 4am fire right after a restart could beat Discord).
+
+        One pinned message, edited in place on every run, same pattern as
+        refresh_dashboard() -- an embed (not plain text) both for the
+        larger size budget (a health report can run longer than a plain
+        message's ~2000-char limit) and because the report itself now
+        writes **bold** markdown for scannability (see
+        weekly-health-check.md), which an embed description renders."""
         if not client.is_ready():
             logger.warning("post_to_health: Discord client not ready, skipping")
             return
-        await _post_to(health_channel_id, text, fallback_channel_id=chat_channel_id)
+        target_channel_id = health_channel_id or chat_channel_id
+        if not target_channel_id:
+            return
+        try:
+            channel = await client.fetch_channel(target_channel_id)
+        except (discord.NotFound, discord.Forbidden) as e:
+            logger.warning(f"Cannot access Discord health channel {target_channel_id}: {e}")
+            return
+
+        # report is always "# <title line>\n\n<body>" -- see
+        # health_check.run_weekly_health_check(). Title becomes the embed
+        # title; body (already <200 words by the instructions file) fits
+        # comfortably under an embed description's 4096-char limit.
+        title, _, body = text.partition("\n\n")
+        embed = discord.Embed(
+            title=title.lstrip("#").strip() or "Weekly Health Check",
+            description=body.strip(),
+            color=discord.Color.green(),
+        )
+        embed.set_footer(text=HEALTH_MARKER)
+
+        message = None
+        if state["health_message_id"]:
+            try:
+                message = await channel.fetch_message(state["health_message_id"])
+            except discord.NotFound:
+                message = None
+
+        if message is None:
+            # Bot restarted — look for a health message pinned by a previous run
+            async for pin in channel.pins(limit=50):
+                if pin.author.id == client.user.id and pin.embeds and pin.embeds[0].footer.text and \
+                        pin.embeds[0].footer.text.endswith(HEALTH_MARKER):
+                    message = pin
+                    break
+
+        if message is not None:
+            state["health_message_id"] = message.id
+            try:
+                await message.edit(content=None, embed=embed)
+                return
+            except discord.NotFound:
+                state["health_message_id"] = None
+
+        new_message = await channel.send(embed=embed)
+        try:
+            await new_message.pin()
+        except discord.Forbidden:
+            logger.warning("Missing permission to pin the health message — sent unpinned")
+        state["health_message_id"] = new_message.id
 
     client.post_to_health = post_to_health
+
+    async def post_to_warnings(text: str):
+        """Exposed for callers outside this module (currently pi_companion.py's
+        crash-report endpoint, for the Sunny Companion hardware device) that
+        want to post to the same #warnings channel this module already uses
+        for its own crash notice, without importing Discord internals. Same
+        not-ready no-op as post_to_health above, same reason."""
+        if not client.is_ready():
+            logger.warning("post_to_warnings: Discord client not ready, skipping")
+            return
+        await _post_to(warnings_channel_id, text, fallback_channel_id=chat_channel_id)
+
+    client.post_to_warnings = post_to_warnings
 
     async def refresh_dashboard(_change_message: str = None):
         """Post or edit the pinned dashboard message in the dashboard channel
@@ -287,7 +434,9 @@ def create_discord_bot(
             logger.warning(f"Cannot access Discord dashboard channel {dashboard_channel_id}: {e}")
             return
 
-        dashboard_text = tasks_engine.format_dashboard() + DASHBOARD_MARKER
+        projects_dir = get_settings().project_root / "sunny-vault" / "projects"
+        project_names = sorted(p.name for p in projects_dir.iterdir() if p.is_dir()) if projects_dir.exists() else []
+        embed = build_dashboard_embed(tasks_engine.get_dashboard_data(), project_names)
 
         message = None
         if state["dashboard_message_id"]:
@@ -299,20 +448,21 @@ def create_discord_bot(
         if message is None:
             # Bot restarted — look for a dashboard message pinned by a previous run
             async for pin in channel.pins(limit=50):
-                if pin.author.id == client.user.id and pin.content.endswith(DASHBOARD_MARKER):
+                if pin.author.id == client.user.id and pin.embeds and pin.embeds[0].footer.text and \
+                        pin.embeds[0].footer.text.endswith(DASHBOARD_MARKER):
                     message = pin
                     break
 
         if message is not None:
             state["dashboard_message_id"] = message.id
             try:
-                await message.edit(content=dashboard_text)
+                await message.edit(content=None, embed=embed)
                 return
             except discord.NotFound:
                 state["dashboard_message_id"] = None
 
         # Nothing to edit — post a fresh one and pin it
-        new_message = await channel.send(dashboard_text)
+        new_message = await channel.send(embed=embed)
         try:
             await new_message.pin()
         except discord.Forbidden:
@@ -434,7 +584,8 @@ def create_discord_bot(
 
         session_id = f"discord:{message.channel.id}:{message.author.id}"
         response = await handle_message(
-            message.content, tasks_engine, briefing_engine, list_engine, scheduled_engine, session_id=session_id
+            message.content, tasks_engine, briefing_engine, list_engine, scheduled_engine,
+            project_engine, spotify_engine, session_id=session_id
         )
         for chunk in _chunk_message(response):
             await message.channel.send(chunk)

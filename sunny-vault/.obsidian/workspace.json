@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/phases.md",
+                "file": "docs/BACKLOG.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "phases"
+              "title": "BACKLOG"
             }
           }
         ],
@@ -206,24 +206,31 @@
   },
   "active": "b71858e4a6f616e0",
   "lastOpenFiles": [
-    "docs/ABOUT.md",
-    "docs/phases.md",
+    "state/alarms-reminders.md",
+    "state/lists",
+    "state/tasks",
+    "state",
+    "docs/architecture/spotify-integration.md",
+    "docs/CHANGELOG.md",
+    "state/tasks/another-test-task.md",
+    "state/tasks/test-task.md",
+    "state/health-check.md.tmp",
+    "state/health-check.md",
+    "log/health-checks.md",
+    "log/llm-usage.md",
+    "instructions/weekly-health-check.md.tmp.16024.68d2e0ea5a3c",
     "docs/BACKLOG.md",
+    "docs/phases.md",
+    "docs/CHANGELOG.md.tmp.16024.0e0f68430072",
+    "docs/ABOUT.md",
     "docs/BACKLOG.md.tmp.18212.bf9f0f31d97d",
     "docs/BACKLOG.md.tmp.18212.4093ff4e61d5",
     "docs/architecture/llm-readiness.md.tmp.18212.35b8fd53d10b",
     "docs/architecture/llm-integration.md.tmp.18212.c996189901fc",
-    "docs/architecture/llm-integration.md.tmp.18212.afb8eaecb29c",
-    "docs/architecture/llm-integration.md.tmp.18212.797f59e4b951",
     "instructions/general-chat.md",
-    "docs/architecture/voice-join.md.tmp.18212.8ece96bc170e",
-    "docs/architecture/voice-join.md.tmp.18212.968f8d385d17",
-    "docs/architecture/voice-join.md.tmp.18212.aaa4143bcda6",
-    "docs/architecture/voice-join.md.tmp.18212.9cdbca9689bf",
     "docs/architecture/voice-join.md",
     "docs/architecture/tts-piper.md",
     "docs/architecture/health-check.md",
-    "log/llm-usage.md",
     "docs/architecture/llm-instructions.md",
     "instructions/weekly-health-check.md",
     "instructions/README.md",
@@ -233,14 +240,6 @@
     "docs/architecture/vault-storage.md",
     "state/tasks/concurrency-chat-task-3-2.md",
     "state/tasks/concurrency-chat-task-2-2.md",
-    "state/tasks/concurrency-chat-task-1-2.md",
-    "state/tasks/concurrency-web-task-5-2.md",
-    "state/tasks/concurrency-web-task-4-2.md",
-    "state/tasks/concurrency-web-task-3-2.md",
-    "state/tasks/concurrency-web-task-2-2.md",
-    "state/tasks/concurrency-web-task-1-2.md",
-    "state/tasks/concurrency-chat-task-3.md",
-    "state/tasks/concurrency-chat-task-2.md",
-    "state/tasks/concurrency-chat-task-1.md"
+    "state/tasks/concurrency-chat-task-1-2.md"
   ]
 }

@@ -12,14 +12,17 @@ to sunny-vault/log/requests.md.
 import asyncio
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Awaitable, Callable, Dict, List, Optional
 
 from sunny_code.config import get_settings
 from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.data_sources import is_configured, missing_requirement
-from sunny_code.components.llm_client import ask_claude
+from sunny_code.components.llm_client import ask_claude, ask_claude_stream
 from sunny_code.components.request_log import log_unfulfilled
 from sunny_code.components import google_calendar, google_gmail, health_check, weather
+
+OnChunk = Callable[[str], Awaitable[None]]
+OnSearchStart = Callable[[], Awaitable[None]]
 
 
 logger = logging.getLogger(__name__)
@@ -272,8 +275,32 @@ Sleep well and rest up for tomorrow!
         return briefing
 
     @staticmethod
-    async def custom_briefing(question: str, tasks_db: TaskDB) -> str:
-        """Answer a question with real data if we have it, an honest gap if we don't."""
+    async def custom_briefing(
+        question: str,
+        tasks_db: TaskDB,
+        on_chunk: Optional[OnChunk] = None,
+        on_search_start: Optional[OnSearchStart] = None,
+    ) -> str:
+        """Answer a question with real data if we have it, an honest gap if we don't.
+
+        on_chunk is optional and additive: when given, the LLM fallback
+        (the final branch, for genuinely open-ended questions) streams
+        its answer sentence-by-sentence through this callback as it's
+        generated, in addition to still returning the complete
+        accumulated string at the end exactly as before -- so a caller
+        that doesn't pass on_chunk (every caller before 2026-08-21, and
+        every text-based one still) sees zero behavior change. Built for
+        /join specifically, so TTS can start speaking the first sentence
+        while Claude is still writing the rest — see ask_claude_stream().
+
+        The LLM fallback also has real web search available now (see
+        llm_client.ask_claude[_stream]'s enable_web_search) -- Claude
+        decides for itself whether a question actually needs it (see
+        general-chat.md). on_search_start, if given (only meaningful
+        alongside on_chunk -- the non-streaming path has no live-progress
+        channel to fire it through), gets called the instant a search
+        starts, so a caller can play/show a distinct "searching" cue
+        for what's otherwise unexplained extra silence."""
         question_lower = question.lower().strip()
 
         def unconfigured_reply(source: str, label: Optional[str] = None) -> str:
@@ -351,13 +378,29 @@ Total: {len(open_tasks) + len(in_progress)} tasks
         # prompt itself, sunny-vault/instructions/general-chat.md.
         else:
             settings = get_settings()
-            answer = await ask_claude(
-                question,
-                model=settings.llm_chat_model,
-                max_tokens=settings.llm_chat_max_tokens,
-                temperature=settings.llm_chat_temperature,
-                purpose="general_chat",
-            )
+            if on_chunk is not None:
+                parts = []
+                async for sentence in ask_claude_stream(
+                    question,
+                    model=settings.llm_chat_model,
+                    max_tokens=settings.llm_chat_max_tokens,
+                    temperature=settings.llm_chat_temperature,
+                    purpose="general_chat",
+                    enable_web_search=True,
+                    on_search_start=on_search_start,
+                ):
+                    parts.append(sentence)
+                    await on_chunk(sentence)
+                answer = " ".join(parts) if parts else None
+            else:
+                answer = await ask_claude(
+                    question,
+                    model=settings.llm_chat_model,
+                    max_tokens=settings.llm_chat_max_tokens,
+                    temperature=settings.llm_chat_temperature,
+                    purpose="general_chat",
+                    enable_web_search=True,
+                )
             if answer:
                 return answer
             log_unfulfilled("qa_question", f'"{question}" — not understood, no matching topic')
@@ -382,7 +425,13 @@ class BriefingEngine:
         self.logger.info("Generating evening briefing...")
         return await BriefingTemplates.evening_briefing(self.tasks_db)
 
-    async def answer_question(self, question: str) -> str:
-        """Answer a natural language question about today's data."""
+    async def answer_question(
+        self, question: str, on_chunk: Optional[OnChunk] = None, on_search_start: Optional[OnSearchStart] = None
+    ) -> str:
+        """Answer a natural language question about today's data. See
+        custom_briefing()'s docstring for on_chunk's streaming contract
+        and on_search_start's web-search cue contract."""
         self.logger.info(f"Processing question: {question}")
-        return await BriefingTemplates.custom_briefing(question, self.tasks_db)
+        return await BriefingTemplates.custom_briefing(
+            question, self.tasks_db, on_chunk=on_chunk, on_search_start=on_search_start
+        )

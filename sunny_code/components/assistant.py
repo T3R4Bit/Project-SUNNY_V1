@@ -15,13 +15,15 @@ list" before the more specific parser ever saw it.
 import time
 from typing import Dict, Optional
 
-from sunny_code.components import health_check, setup_guides
-from sunny_code.components.briefing import BriefingEngine
+from sunny_code.components import category_store, health_check, setup_guides
+from sunny_code.components.briefing import BriefingEngine, OnChunk, OnSearchStart
 from sunny_code.components.device import device_from_session
 from sunny_code.components.lists_engine import ListEngine
 from sunny_code.components.lists_parser import ListCommandParser
+from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.scheduled_parser import ScheduledCommandParser
+from sunny_code.components.spotify_engine import SpotifyEngine
 from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.tasks_parser import TaskCommandParser
 
@@ -39,6 +41,15 @@ LISTS (groceries, packing, anything checkable)
   remove <item> from my <name> list
   my lists — show all your lists
 
+SPOTIFY (needs setup — see "setup spotify")
+  play <song/artist> — search and start playback
+  pause / resume — pause the music / resume the music
+  skip / previous song
+  volume up / volume down / set volume to 50
+  what's playing
+  Acts on whatever device Spotify itself considers active — same as the
+  Spotify app or Siri, no device selection built in.
+
 ALARMS & REMINDERS
   set an alarm for 7am / wake me up at 6:30am tomorrow
   remind me to call Mom at 5pm / in 30 minutes
@@ -50,6 +61,8 @@ ALARMS & REMINDERS
 BRIEFINGS
   morning / evening — full briefing
   health check — latest weekly system report (runs Sunday 4am on its own)
+  run health check — run one right now instead of waiting for Sunday
+    (short spoken summary over voice, full report everywhere else)
 
 VOICE (Discord slash commands, not plain text)
   /speak <text> — one-shot: Sunny says it out loud in the channel
@@ -57,6 +70,10 @@ VOICE (Discord slash commands, not plain text)
     "Hey Sunny" before every request (no listening window — each request
     needs its own wake word)
   /leave — ends the voice session
+
+DISCORD-ONLY COMMANDS
+  /category add|remove <name> — manage the task category list
+  /usage [days] — chart of Claude API cost over the last N days (default 30)
 
 SERVER ADMIN (Discord only — needs a live server to act on)
   create/delete channel <name> — text channels
@@ -70,7 +87,9 @@ QUESTIONS
   data once each is connected (see "setup" below) — I'll say so plainly
   instead of making something up if one isn't. Anything else genuinely
   open-ended — a question, a request, plain conversation — goes to
-  Claude for a real answer, not a canned "I don't know."
+  Claude for a real answer, not a canned "I don't know." Claude can also
+  search the web for things that genuinely need current information —
+  it decides for itself when that's actually needed, not by default.
 
 SETUP
   setup — what's connected, what still needs setup
@@ -82,6 +101,20 @@ Type "help" any time to see this again."""
 _HELP_TRIGGERS = ("", "help", "/help", "commands", "info", "what can you do", "what can i ask")
 _CANCEL_WORDS = ("cancel", "nevermind", "never mind", "stop", "skip", "forget it")
 _BRIEFING_KEYWORDS = ("morning", "morning briefing", "evening", "evening briefing")
+# Exact-phrase, not a regex -- this launches a multi-question wizard, so a
+# false positive (an unrelated sentence that happens to contain "project")
+# is worse than a false negative (a real phrasing that doesn't match).
+_PROJECT_TRIGGERS = (
+    "i would like to make a new project",
+    "i'd like to make a new project",
+    "i want to make a new project",
+    "start a new project",
+    "make a new project",
+    "create a new project",
+    "create a project",
+    "new project",
+)
+_SKIP_SECTIONS_WORDS = ("no", "none", "nope", "you decide", "your choice", "up to you", "doesn't matter", "whatever you think")
 _SETUP_BARE = ("setup", "/setup", "set up", "connect", "setup steps", "connect steps")
 _SETUP_PREFIXES = (
     "setup ", "/setup ", "set up ", "connect ",
@@ -117,15 +150,23 @@ def _get_pending(session_id: str) -> Optional[Dict]:
     return entry
 
 
-def _set_pending(session_id: str, awaiting: str) -> None:
-    _pending[session_id] = {"awaiting": awaiting, "ts": time.time()}
+def _set_pending(session_id: str, awaiting: str, **extra) -> None:
+    _pending[session_id] = {"awaiting": awaiting, "ts": time.time(), **extra}
 
 
 def _looks_like_a_command(stripped: str, lowered: str) -> bool:
     """True if the text matches some other recognized command grammar (task,
     list, alarm/reminder, help, or a briefing keyword) — used so a pending
     follow-up question doesn't swallow an unrelated message as if it were
-    the answer."""
+    the answer.
+
+    A blank reply is deliberately never "a command" here, even though ""
+    is itself one of _HELP_TRIGGERS for a top-level message — every pending
+    handler already has its own "still need X" re-prompt for an empty
+    answer, and that's clearly the right response to silence/whitespace
+    sent while a question is outstanding, not the general help text."""
+    if not stripped:
+        return False
     if lowered in _HELP_TRIGGERS or lowered in _BRIEFING_KEYWORDS:
         return True
     task_cmd_type, _, _ = TaskCommandParser.parse_command(stripped)
@@ -136,6 +177,21 @@ def _looks_like_a_command(stripped: str, lowered: str) -> bool:
     if ScheduledCommandParser.parse(stripped) is not None:
         return True
     return False
+
+
+async def _run_health_check_now(session_id: str) -> str:
+    """Triggers a real, immediate health check — same work the automatic
+    Sunday 4am one does (gather the week's summary, ask Claude to write
+    it up, log it to the vault, flip the acknowledgment marker) — and
+    returns a reply sized for the calling interface: a short, no-LLM
+    spoken summary (health_check.short_summary()) for voice sessions
+    (Discord /join or the Pi companion, both session_id-prefixed
+    accordingly), the full written report everywhere else. The check
+    itself is identical either way; only what gets said back differs."""
+    report = await health_check.run_weekly_health_check()
+    if session_id.startswith("voice:") or session_id.startswith("pi:"):
+        return health_check.short_summary()
+    return report
 
 
 async def _create_task_from_reply(reply: str, tasks_engine: TaskEngine, session_id: str, source: str) -> str:
@@ -152,15 +208,94 @@ async def _create_task_from_reply(reply: str, tasks_engine: TaskEngine, session_
     return message
 
 
+async def _finish_task_with_category(
+    reply: str, pending_data: Dict, tasks_engine: TaskEngine, session_id: str, source: str
+) -> str:
+    """Resolve a pending "which category?" follow-up and create the task.
+    pending_data is everything parse_command already resolved (title,
+    priority, due_date, description, ...) minus "tag" — there's no single
+    command string left to re-parse here, unlike _create_task_from_reply,
+    so this goes through TaskEngine.create_task_from_data() directly.
+
+    Accepts the reply as-is even if it doesn't match a category in
+    category_store — same permissive spirit as every other field here
+    (categories are still free-form storage; the live list is just what
+    gets offered/asked about)."""
+    category = reply.strip().strip('"\'')
+    if not category:
+        _set_pending(session_id, "task_category", **pending_data)
+        categories = category_store.get_categories()
+        return f'Still need a category — {", ".join(categories)}? (or say "cancel")'
+
+    matched = next((c for c in category_store.get_categories() if c.lower() == category.lower()), category)
+    data = {**pending_data, "tag": matched}
+    _, message = await tasks_engine.create_task_from_data(data, source=source)
+    return message
+
+
+async def _advance_project_wizard(
+    stripped: str, lowered: str, pending: Dict, project_engine, session_id: str
+) -> Optional[str]:
+    """One step of the fixed "new project" wizard (name -> description ->
+    optional sections -> scaffold). Returns the response text, or None if
+    the reply didn't look like an answer at all (caller falls through to
+    normal routing, same as the task_title/task_category pending states)."""
+    awaiting = pending["awaiting"]
+
+    if lowered in _CANCEL_WORDS:
+        _pending.pop(session_id, None)
+        return "No worries — cancelled."
+
+    if _looks_like_a_command(stripped, lowered):
+        _pending.pop(session_id, None)
+        return None
+
+    _pending.pop(session_id, None)
+
+    if awaiting == "project_name":
+        name = stripped.strip().strip('"\'')
+        if not name:
+            _set_pending(session_id, "project_name")
+            return 'Still need a name for this one — what should I call it? (or say "cancel")'
+        _set_pending(session_id, "project_description", name=name)
+        return "One or two lines on what it's about?"
+
+    if awaiting == "project_description":
+        _set_pending(session_id, "project_sections", name=pending["name"], description=stripped.strip())
+        return (
+            'Any specific sections or files you want to start with, or should I decide based on that? '
+            '(say "you decide" to skip)'
+        )
+
+    # awaiting == "project_sections" -- the wizard's last step
+    sections = "" if lowered in _SKIP_SECTIONS_WORDS else stripped.strip()
+    if project_engine is None:
+        return "Project system isn't available right now."
+    _, message = await project_engine.scaffold(pending["name"], pending["description"], sections)
+    return message
+
+
 async def handle_message(
     text: str,
     tasks_engine: TaskEngine,
     briefing_engine: BriefingEngine,
     list_engine: Optional[ListEngine] = None,
     scheduled_engine: Optional[ScheduledEngine] = None,
+    project_engine: Optional[ProjectEngine] = None,
+    spotify_engine: Optional[SpotifyEngine] = None,
     session_id: str = "default",
+    on_chunk: Optional[OnChunk] = None,
+    on_search_start: Optional[OnSearchStart] = None,
 ) -> str:
-    """Route one free-text message and return the response text."""
+    """Route one free-text message and return the response text.
+
+    on_chunk is optional and additive — see briefing.py's
+    custom_briefing() docstring for the streaming contract it enables.
+    on_search_start is the same idea for a live web-search cue -- only
+    meaningful alongside on_chunk. Every caller that doesn't pass them
+    (every text interface) sees zero
+    behavior change; only reaches anything when routing falls all the
+    way through to the LLM Q&A fallback."""
     stripped = text.strip()
     lowered = stripped.lower().strip("? ")
     source = device_from_session(session_id)
@@ -178,8 +313,33 @@ async def handle_message(
         _pending.pop(session_id, None)
         # falls through to normal handling below
 
+    elif pending and pending.get("awaiting") == "task_category":
+        task_data = {k: v for k, v in pending.items() if k not in ("awaiting", "ts")}
+        if lowered in _CANCEL_WORDS:
+            _pending.pop(session_id, None)
+            return "No worries — cancelled."
+
+        if not _looks_like_a_command(stripped, lowered):
+            _pending.pop(session_id, None)
+            return await _finish_task_with_category(stripped, task_data, tasks_engine, session_id, source)
+
+        _pending.pop(session_id, None)
+        # falls through to normal handling below
+
+    elif pending and pending.get("awaiting") in ("project_name", "project_description", "project_sections"):
+        wizard_reply = await _advance_project_wizard(stripped, lowered, pending, project_engine, session_id)
+        if wizard_reply is not None:
+            return wizard_reply
+        # falls through to normal handling below
+
     if lowered in _HELP_TRIGGERS:
         return HELP_TEXT
+
+    if lowered in _PROJECT_TRIGGERS:
+        if project_engine is None:
+            return "Project system isn't available right now."
+        _set_pending(session_id, "project_name")
+        return "What's the project called?"
 
     setup_query = _extract_setup_query(lowered)
     if setup_query is not None:
@@ -195,7 +355,12 @@ async def handle_message(
         if handled:
             return message
 
-    cmd_type, success, _ = TaskCommandParser.parse_command(stripped)
+    if spotify_engine is not None:
+        handled, _, message = await spotify_engine.try_execute(stripped, source=source)
+        if handled:
+            return message
+
+    cmd_type, success, task_data = TaskCommandParser.parse_command(stripped, category_store.get_categories())
 
     if cmd_type == "add" and not success:
         # The only real failure mode for a natural "add" is a missing title
@@ -203,8 +368,17 @@ async def handle_message(
         _set_pending(session_id, "task_title")
         return 'Sure — what should I call it? (or say "cancel")'
 
+    if cmd_type == "add" and success and "tag" not in task_data:
+        # Title (and any --flags) resolved, but no category was stated or
+        # recognized inline — ask instead of silently defaulting to General.
+        _set_pending(session_id, "task_category", **task_data)
+        categories = category_store.get_categories()
+        return f'Got it — which category: {", ".join(categories)}? (or say "cancel")'
+
     if cmd_type != "unknown":
-        _, message = await tasks_engine.execute_command(stripped, source=source)
+        _, message = await tasks_engine.execute_command(
+            stripped, source=source, known_categories=category_store.get_categories()
+        )
         return message
 
     if lowered in ("morning", "morning briefing"):
@@ -213,11 +387,26 @@ async def handle_message(
     if lowered in ("evening", "evening briefing"):
         return await briefing_engine.generate_evening_briefing()
 
+    # Substring, not an exact-phrase tuple -- "can you run a system health
+    # check" (a real phrasing that failed live, 2026-08-23) doesn't match
+    # a fixed tuple entry, and unlike "health" alone, "health check"/
+    # "system health" isn't generic enough to collide with the unrelated
+    # personal-wellness "health"/"sleep"/"mood" keyword check further down
+    # this routing chain (see briefing.py's custom_briefing) -- catching
+    # it here, before that fallback is ever reached, is what fixes it.
+    # The exact bare phrase means "show me the last one"; anything else
+    # that mentions it ("run a health check", "check system health",
+    # "can you run a system health check") reads as wanting a fresh one --
+    # simpler and more robust than trying to enumerate every verb someone
+    # might use ("check" itself is ambiguous, since it's also half of the
+    # bare phrase this branch has to leave alone).
     if lowered in ("health check", "health report"):
         report = health_check.latest_report()
         return report if report else "No health check report yet — the first one runs Sunday at 4am."
+    if "health check" in lowered or "system health" in lowered:
+        return await _run_health_check_now(session_id)
 
-    return await briefing_engine.answer_question(stripped)
+    return await briefing_engine.answer_question(stripped, on_chunk=on_chunk, on_search_start=on_search_start)
 
 
 def is_briefing_trigger(text: str) -> bool:

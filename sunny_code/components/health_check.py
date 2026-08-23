@@ -120,6 +120,29 @@ def _build_summary(days: int = 7) -> str:
     return "\n".join(lines)
 
 
+def short_summary(days: int = 7) -> str:
+    """A one-line, TTS-friendly health summary — same underlying counts as
+    _build_summary(), phrased as a spoken sentence instead of a labeled
+    text block. Built for a voice-triggered "run health check" (see
+    assistant.py's _run_health_check_now) — no LLM call, so it's fast and
+    free, and short enough to actually say out loud instead of reading
+    the full written report a text interface gets."""
+    error_count = _count_log_errors()
+    unfulfilled_total = sum(_recent_request_categories(days).values())
+    llm_total = sum(_recent_llm_calls(days).values())
+    expiring = key_status.expiring_within(7)
+
+    parts = [
+        f"{error_count} app error{'s' if error_count != 1 else ''}",
+        f"{unfulfilled_total} unfulfilled request{'s' if unfulfilled_total != 1 else ''}",
+        f"{llm_total} LLM call{'s' if llm_total != 1 else ''}",
+    ]
+    if expiring:
+        parts.append(f"{len(expiring)} key{'s' if len(expiring) != 1 else ''} expiring soon")
+
+    return f"This week: {', '.join(parts)}."
+
+
 def _log_path() -> Path:
     return get_settings().project_root / "sunny-vault" / "log" / "health-checks.md"
 
@@ -150,12 +173,27 @@ def _write_marker(status: str) -> None:
     vault_io.atomic_write_text(_marker_path(), content)
 
 
-async def run_weekly_health_check(post_fn: Optional[Callable[[str], Awaitable[None]]] = None) -> str:
+_post_fn: Optional[Callable[[str], Awaitable[None]]] = None
+
+
+def set_post_fn(fn: Optional[Callable[[str], Awaitable[None]]]) -> None:
+    """Registered once at startup (see main.py, right after the Discord bot
+    is built) so run_weekly_health_check() posts the same way whether it
+    was triggered by the scheduled Sunday loop or an on-demand "run health
+    check" from assistant.py -- one registration instead of threading a
+    Discord-specific callback through assistant.py's otherwise interface-
+    agnostic routing (the same trade already made for TaskEngine.on_change)."""
+    global _post_fn
+    _post_fn = fn
+
+
+async def run_weekly_health_check() -> str:
     """Gathers the week's summary, asks Claude to write it up, appends it to
     the vault log, flips the marker to unacknowledged, and posts it via
-    post_fn if given. Always logs locally even if post_fn is None or fails
-    (e.g. Discord isn't configured) — the check itself doesn't depend on
-    Discord being available."""
+    the registered post fn (see set_post_fn), if any. Always logs locally
+    even if nothing's registered or posting fails (e.g. Discord isn't
+    configured) — the check itself doesn't depend on Discord being
+    available."""
     summary = _build_summary()
     llm_report = await ask_claude(prompt=summary, model="haiku", purpose="weekly_health_check")
 
@@ -165,9 +203,9 @@ async def run_weekly_health_check(post_fn: Optional[Callable[[str], Awaitable[No
     _append_report(report)
     _write_marker("unacknowledged")
 
-    if post_fn is not None:
+    if _post_fn is not None:
         try:
-            await post_fn(report)
+            await _post_fn(report)
         except Exception as e:
             logger.error(f"Failed to post health check report: {e}")
 

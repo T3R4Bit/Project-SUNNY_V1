@@ -8,7 +8,7 @@ Two input styles are understood, both fully deterministic (regex only):
 """
 
 import re
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 import logging
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,9 @@ class TaskCommandParser:
         # the title instead of failing the match outright.
         re.compile(r'^(?:add\s+|i\'?d\s+|id\s+)?(.+?)\s+to\s+(?:my\s+)?task\s+list$', re.IGNORECASE),
         re.compile(r'^(?:add\s+|i\'?d\s+|id\s+)?(.+?)\s+to\s+(?:my\s+)?tasks?$', re.IGNORECASE),
+        # "put X on my tasks" — a real, natural alternative to "add X to my
+        # tasks" that isn't just a rephrasing of an already-covered pattern.
+        re.compile(r'^put\s+(.+?)\s+on\s+(?:my\s+)?tasks?$', re.IGNORECASE),
         # "add/create/make/new (a/an/me a) (new) task [title]" — title is optional
         # (`.*` not `.+`), so a bare "make a new task" is a valid empty-title
         # match too, which is what lets the assistant ask a follow-up for it.
@@ -57,6 +60,16 @@ class TaskCommandParser:
         re.compile(r'^(?:add|create|make|new)\s+(?:a\s+|an\s+|me\s+a\s+)?(?:new\s+)?task[:\s]*(.*)$', re.IGNORECASE),
         re.compile(r'^add\s+(.+)$', re.IGNORECASE),  # bare "add X" catch-all
     ]
+    # Tried before NATURAL_ADD_TRIGGERS (see parse_natural_add) — same
+    # leading-word tolerance as the plain "to my tasks" pattern above, but
+    # captures a second group for an inline category word ("...to my school
+    # tasks"). Only actually used as a category if it matches something in
+    # the live category list (case-insensitive) — parse_natural_add falls
+    # through to the plain trigger list otherwise, so an ordinary title
+    # that happens to end in "to my <word> tasks" is never misparsed.
+    NATURAL_ADD_WITH_CATEGORY = re.compile(
+        r'^(?:add\s+|i\'?d\s+|id\s+)?(.+?)\s+to\s+(?:my\s+)?(\w+)\s+tasks?$', re.IGNORECASE
+    )
     NATURAL_LIST_PATTERN = re.compile(
         r'^(?:show|list|see|view)\s+(?:my\s+)?tasks?$'
         r'|^what(?:\'s|s| is| are)\s+(?:on\s+)?my\s+tasks?\??$'
@@ -73,8 +86,9 @@ class TaskCommandParser:
         # (crossing an item off a physical list), heard live via /join,
         # 2026-08-21, and not recognized by any pattern above. Trailing
         # " task" is stripped if present so the extracted identifier
-        # matches cleanly against the stored title either way.
-        r'|^cross\s+off\s+(?:my\s+)?(.+?)(?:\s+task)?$',
+        # matches cleanly against the stored title either way. "check off
+        # my X task" is the same idea, different verb.
+        r'|^(?:cross|check)\s+off\s+(?:my\s+)?(.+?)(?:\s+task)?$',
         re.IGNORECASE,
     )
     NATURAL_DELETE_PATTERN = re.compile(
@@ -92,11 +106,17 @@ class TaskCommandParser:
 
     @staticmethod
     def _fields_from_flags(flags: str) -> Dict:
-        """Extract tag/priority/due/description from a --flag string. Shared by add paths."""
+        """Extract tag/priority/due/description from a --flag string. Shared by add paths.
+        "tag" is only present if --tag was actually given -- no default here, so a caller
+        (parse_natural_add) can tell "no category stated" apart from "General was chosen"
+        and ask instead of silently guessing. parse_add_command (the legacy !task syntax)
+        applies its own "General" default after calling this, since that path has no
+        interactive follow-up to ask through."""
         result = {}
 
         tag_match = re.search(TaskCommandParser.TAG_PATTERN, flags)
-        result["tag"] = tag_match.group(2) if tag_match else "General"
+        if tag_match:
+            result["tag"] = tag_match.group(2)
 
         priority_match = re.search(TaskCommandParser.PRIORITY_PATTERN, flags)
         result["priority"] = int(priority_match.group(1)) if priority_match else 3
@@ -153,12 +173,35 @@ class TaskCommandParser:
 
         result = {"title": title}
         result.update(TaskCommandParser._fields_from_flags(flags))
+        result.setdefault("tag", "General")
         return True, result
 
     @staticmethod
-    def parse_natural_add(command: str) -> Optional[Tuple[bool, Dict]]:
-        """Parse: "add buy milk to my tasks --priority 4" or "remind me to buy milk"."""
+    def parse_natural_add(
+        command: str, known_categories: Optional[List[str]] = None
+    ) -> Optional[Tuple[bool, Dict]]:
+        """Parse: "add buy milk to my tasks --priority 4" or "add buy milk to
+        my school tasks". known_categories, if given, lets an inline "to my
+        <category> tasks" phrasing set the category directly; if that word
+        isn't one of the known ones (or no list was passed at all), this
+        falls through to the plain trigger list below and "tag" is left for
+        the caller (assistant.py) to ask about instead of guessing.
+
+        result never has a default "tag" -- see _fields_from_flags."""
         phrase, flags = TaskCommandParser._split_flags(command)
+
+        if known_categories:
+            cat_match = TaskCommandParser.NATURAL_ADD_WITH_CATEGORY.match(phrase)
+            if cat_match:
+                title = cat_match.group(1).strip().strip('"\'')
+                category_word = cat_match.group(2).strip()
+                matched = next((c for c in known_categories if c.lower() == category_word.lower()), None)
+                if matched and title:
+                    result = {"title": title, "tag": matched}
+                    # Applied after the inline-category default so an explicit
+                    # --tag flag (rare in the same phrase, but possible) wins.
+                    result.update(TaskCommandParser._fields_from_flags(flags))
+                    return True, result
 
         for trigger in TaskCommandParser.NATURAL_ADD_TRIGGERS:
             match = trigger.match(phrase)
@@ -237,12 +280,14 @@ class TaskCommandParser:
         return True, TaskCommandParser._filters_from_flags(flags)
 
     @staticmethod
-    def parse_natural_command(command: str) -> Optional[Tuple[str, bool, Dict]]:
+    def parse_natural_command(
+        command: str, known_categories: Optional[List[str]] = None
+    ) -> Optional[Tuple[str, bool, Dict]]:
         """Try every natural-language pattern. Returns None if nothing matches."""
         stripped = command.strip()
         phrase, _ = TaskCommandParser._split_flags(stripped)
 
-        add_result = TaskCommandParser.parse_natural_add(stripped)
+        add_result = TaskCommandParser.parse_natural_add(stripped, known_categories)
         if add_result is not None:
             success, data = add_result
             return "add", success, data
@@ -263,10 +308,13 @@ class TaskCommandParser:
         return None
 
     @staticmethod
-    def parse_command(command: str) -> Tuple[str, bool, Dict]:
+    def parse_command(command: str, known_categories: Optional[List[str]] = None) -> Tuple[str, bool, Dict]:
         """
         Parse any task command (natural phrasing or legacy !task syntax) and
         return (command_type, success, data). Command types: add, update, delete, list, unknown
+
+        known_categories is only used for natural "add" phrasing that names a
+        category inline (e.g. "...to my school tasks") — see parse_natural_add.
         """
         command = command.strip()
 
@@ -285,7 +333,7 @@ class TaskCommandParser:
             return "list", success, data
 
         # Natural phrasing — the primary, documented way to talk to the task system
-        natural = TaskCommandParser.parse_natural_command(command)
+        natural = TaskCommandParser.parse_natural_command(command, known_categories)
         if natural is not None:
             return natural
 

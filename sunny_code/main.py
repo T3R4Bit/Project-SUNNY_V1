@@ -20,6 +20,7 @@ from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.tasks_api import create_tasks_router
 from sunny_code.components.lists_db import ListDB
 from sunny_code.components.lists_engine import ListEngine
+from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_db import ScheduledDB
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.scheduled_vault_mirror import create_scheduled_vault_mirror, write_scheduled_mirror
@@ -28,7 +29,10 @@ from sunny_code.components.pi_companion import create_pi_companion_router
 from sunny_code.components.console_stats import create_console_router
 from sunny_code.components.discord_bot import create_discord_bot
 from sunny_code.components.google_routes import create_google_auth_router
+from sunny_code.components.spotify_engine import SpotifyEngine
+from sunny_code.components.spotify_routes import create_spotify_auth_router
 from sunny_code.components.crash_check import check_previous_crash
+from sunny_code.components import health_check
 from sunny_code.components.health_check import run_weekly_health_check
 from sunny_code.components.weather_routes import create_weather_router
 from sunny_code.components.location_routes import create_location_router
@@ -62,6 +66,8 @@ class SunnyCore:
         self.list_engine = ListEngine(lists_db)
         scheduled_db = ScheduledDB(self.settings.project_root / "scheduled.db")
         self.scheduled_engine = ScheduledEngine(scheduled_db)
+        self.project_engine = ProjectEngine()
+        self.spotify_engine = SpotifyEngine()
 
         # Read-only alarms/reminders mirror — updates on every change, and once
         # now so the file reflects reality from startup rather than staying
@@ -83,6 +89,12 @@ class SunnyCore:
 
         self.app = self._create_app()
         self.discord_bot = self._create_discord_bot()
+        # Registered once here (not re-fetched per run) so run_weekly_health_check()
+        # posts the same way whether it's the scheduled Sunday loop below or an
+        # on-demand "run health check" from assistant.py -- self.discord_bot never
+        # changes after this point, so a one-time registration is equivalent to the
+        # old getattr-every-time pattern.
+        health_check.set_post_fn(getattr(self.discord_bot, "post_to_health", None) if self.discord_bot else None)
         self.health_check_loop = self._create_health_check_loop()
 
     def _create_discord_bot(self):
@@ -98,6 +110,8 @@ class SunnyCore:
             self.briefing_engine,
             self.list_engine,
             self.scheduled_engine,
+            self.project_engine,
+            self.spotify_engine,
             self.settings.discord_chat_channel_id,
             dashboard_channel_id=self.settings.discord_tasks_channel_id,
             briefings_channel_id=self.settings.discord_briefings_channel_id,
@@ -125,8 +139,7 @@ class SunnyCore:
         async def health_check_loop():
             if datetime.now(tz).weekday() != 6:  # Monday=0 ... Sunday=6
                 return
-            post_fn = getattr(self.discord_bot, "post_to_health", None) if self.discord_bot else None
-            await run_weekly_health_check(post_fn=post_fn)
+            await run_weekly_health_check()
 
         return health_check_loop
 
@@ -195,14 +208,30 @@ class SunnyCore:
 
         # Chatbot UI
         chatbot_router = create_chatbot_router(
-            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine
+            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine, self.project_engine,
+            self.spotify_engine,
         )
         app.include_router(chatbot_router)
 
         # Sunny Companion hardware device -- /ws/pi (bypasses Discord entirely,
         # see sunny-companion/BUILD_PLAN.md Phase 6)
+        async def _post_to_warnings_if_configured(text: str) -> None:
+            # Lazy lookup, not a resolved value up front: _create_app() runs
+            # before self.discord_bot is assigned (see __init__), but by the
+            # time any request actually reaches this endpoint the app is
+            # fully constructed, so the attribute is there.
+            post_fn = getattr(self.discord_bot, "post_to_warnings", None)
+            if post_fn is not None:
+                await post_fn(text)
+
         pi_companion_router = create_pi_companion_router(
-            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine
+            self.tasks_engine,
+            self.briefing_engine,
+            self.list_engine,
+            self.scheduled_engine,
+            self.project_engine,
+            self.spotify_engine,
+            post_to_warnings=_post_to_warnings_if_configured,
         )
         app.include_router(pi_companion_router)
 
@@ -213,6 +242,10 @@ class SunnyCore:
         # Google Sign-In (OAuth) — /auth/google/login, /callback, /status, /disconnect
         google_router = create_google_auth_router()
         app.include_router(google_router)
+
+        # Spotify Sign-In (OAuth) — /auth/spotify/login, /callback, /status, /disconnect
+        spotify_router = create_spotify_auth_router()
+        app.include_router(spotify_router)
 
         # Weather location — /api/weather/location (read/write for the console's LOCATION card)
         weather_router = create_weather_router()

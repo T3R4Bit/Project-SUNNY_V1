@@ -5,13 +5,13 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "state",
         "instructions",
         "archive",
         "docs",
         "inbox",
         "log",
-        "staging",
-        "state"
+        "staging"
       ]
     },
     "archive": {
@@ -31,6 +31,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "CHANGELOG.md",
         "BACKLOG.md",
         "ABOUT.md",
         "QUICKSTART.md",
@@ -55,6 +56,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "spotify-integration.md",
         "voice-join.md",
         "tts-piper.md",
         "health-check.md",
@@ -125,16 +127,6 @@
       "sortOrder": "custom",
       "customOrder": []
     },
-    "state": {
-      "isPinned": false,
-      "isHidden": false,
-      "sortOrder": "custom",
-      "customOrder": [
-        "alarms-reminders.md",
-        "lists",
-        "tasks"
-      ]
-    },
     "docs/architecture/Mind-Map.md": {
       "isPinned": false,
       "isHidden": false
@@ -191,22 +183,6 @@
       "isPinned": false,
       "isHidden": false
     },
-    "state/tasks": {
-      "isPinned": false,
-      "isHidden": false,
-      "customOrder": [],
-      "sortOrder": "custom"
-    },
-    "state/lists": {
-      "isPinned": false,
-      "isHidden": false,
-      "customOrder": [],
-      "sortOrder": "custom"
-    },
-    "state/alarms-reminders.md": {
-      "isPinned": false,
-      "isHidden": false
-    },
     "docs/architecture/vault-storage.md": {
       "isPinned": false,
       "isHidden": false
@@ -218,12 +194,13 @@
     "instructions": {
       "isPinned": false,
       "isHidden": false,
+      "sortOrder": "custom",
       "customOrder": [
+        "project-scaffold.md",
         "general-chat.md",
         "weekly-health-check.md",
         "README.md"
-      ],
-      "sortOrder": "custom"
+      ]
     },
     "instructions/README.md": {
       "isPinned": false,
@@ -250,6 +227,44 @@
       "isHidden": false
     },
     "instructions/general-chat.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "instructions/project-scaffold.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/CHANGELOG.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/spotify-integration.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state": {
+      "isPinned": false,
+      "isHidden": false,
+      "customOrder": [
+        "alarms-reminders.md",
+        "lists",
+        "tasks"
+      ],
+      "sortOrder": "custom"
+    },
+    "state/tasks": {
+      "isPinned": false,
+      "isHidden": false,
+      "customOrder": [],
+      "sortOrder": "custom"
+    },
+    "state/lists": {
+      "isPinned": false,
+      "isHidden": false,
+      "customOrder": [],
+      "sortOrder": "custom"
+    },
+    "state/alarms-reminders.md": {
       "isPinned": false,
       "isHidden": false
     }

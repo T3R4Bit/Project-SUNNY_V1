@@ -57,6 +57,16 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
     google_oauth_redirect_uri: str = "http://127.0.0.1:5000/auth/google/callback"
 
+    # Spotify (OAuth 2.0, PKCE) — powers voice playback control. See
+    # sunny-vault/docs/architecture/spotify-integration.md for the Spotify
+    # Developer Dashboard setup steps required before this works. Requires
+    # Spotify Premium — the Web API's playback-control endpoints reject
+    # Free-tier accounts.
+    spotify_client_id: str = ""
+    spotify_client_secret: str = ""
+    spotify_oauth_redirect_uri: str = "http://127.0.0.1:5000/auth/spotify/callback"
+    spotify_token_path: Path = project_root / "spotify_token.json"
+
     # Discord bot — DISCORD_CHAT_CHANNEL_ID is the one required channel the bot
     # reads commands from (tasks/lists/alarms/server-admin). DISCORD_TASKS_
     # CHANNEL_ID is a separate, optional, read-only home for the pinned task
