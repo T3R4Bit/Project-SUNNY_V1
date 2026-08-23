@@ -18,7 +18,7 @@ import asyncio
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Optional, Tuple
+from typing import Awaitable, Callable, Optional, Tuple
 
 import anthropic
 
@@ -32,6 +32,16 @@ MODELS = {
     "sonnet": "claude-sonnet-5",
     "opus": "claude-opus-5",
 }
+
+# Basic web search (not the newer dynamic-filtering variant, which needs
+# Opus/Sonnet 4.6+) -- works on every model this app uses, including the
+# Haiku default, and needs no code-execution provisioning of its own.
+_WEB_SEARCH_TOOL = "web_search_20250305"
+# "Simple factual queries typically use 1-3 searches" per Anthropic's own
+# guidance -- capped, not unlimited, since every extra search is both real
+# latency (this app plays an audio/state cue for exactly that reason -- see
+# voice_worker.py's "searching" cue) and real per-1000-searches cost.
+_WEB_SEARCH_MAX_USES = 3
 
 # SUNNY is a single-user personal assistant — one in-flight LLM call at a
 # time is enough and keeps spend/behavior easy to reason about. Stands in
@@ -119,6 +129,7 @@ async def ask_claude(
     system: Optional[str] = None,
     purpose: str = "unspecified",
     temperature: Optional[float] = None,
+    enable_web_search: bool = False,
 ) -> Optional[str]:
     """Ask Claude a question. Never raises — returns None on any failure
     (not configured, over budget, rate limited, API/network error) so a
@@ -135,6 +146,14 @@ async def ask_claude(
     applies — deliberately not defaulted to a specific number here, so
     "not configured" and "explicitly set to the API default" stay
     distinguishable in the vault log below.
+
+    enable_web_search: off by default (existing behavior/other purposes
+    unchanged) — Claude still decides for itself whether a given prompt
+    actually needs a search (see general-chat.md's steering note); this
+    just makes the tool available. No live "searching" cue on this
+    non-streaming path — see ask_claude_stream()'s on_search_start for
+    that (this function has no interface that streams intermediate
+    progress today).
 
     Every exit point logs to the vault (see log_llm_call) — not just
     successful calls. That's deliberate: the point is to see everything
@@ -153,7 +172,8 @@ async def ask_claude(
     async with _concurrency_guard:
         try:
             response = await asyncio.to_thread(
-                _call_claude_sync, settings.claude_api_key, model_id, max_tokens, system, prompt, temperature
+                _call_claude_sync, settings.claude_api_key, model_id, max_tokens, system, prompt, temperature,
+                enable_web_search,
             )
         except anthropic.AuthenticationError:
             _auth_disabled = True
@@ -214,6 +234,8 @@ async def ask_claude_stream(
     system: Optional[str] = None,
     purpose: str = "unspecified",
     temperature: Optional[float] = None,
+    enable_web_search: bool = False,
+    on_search_start: Optional[Callable[[], Awaitable[None]]] = None,
 ):
     """Same safety contract as ask_claude() (never raises; an honest
     refusal reason logged to the vault either way) but yields the
@@ -227,12 +249,20 @@ async def ask_claude_stream(
     same way they'd treat ask_claude() returning None, and fall back
     accordingly (this file has no opinion on what that fallback is).
 
-    Uses AsyncAnthropic directly (native `async for` over
-    stream.text_stream) rather than running the sync client through
-    asyncio.to_thread like ask_claude() does -- bridging a blocking
-    generator across that boundary would need its own thread+queue
-    plumbing for no benefit when an async-native client already does
-    exactly this job."""
+    enable_web_search: off by default. When on, Claude still decides for
+    itself whether a given prompt actually needs a search (see
+    general-chat.md's steering note) -- this just makes the tool
+    available. on_search_start, if given, fires the instant a search
+    begins (a "server_tool_use"/web_search content block starting) --
+    lets a caller play a distinct "searching" cue for what's otherwise a
+    real, silent gap on top of the model's own thinking time (see
+    voice_worker.py's _get_searching_pcm()). Never fires if
+    enable_web_search is False, and may fire more than once in a single
+    call if Claude searches multiple times.
+
+    Iterates raw stream events (not the stream.text_stream convenience
+    property) specifically so search-start events are visible at all --
+    text_stream only ever surfaces text deltas."""
     global _auth_disabled
 
     settings = get_settings()
@@ -248,6 +278,8 @@ async def ask_claude_stream(
         kwargs["system"] = system
     if temperature is not None:
         kwargs["temperature"] = temperature
+    if enable_web_search:
+        kwargs["tools"] = [{"type": _WEB_SEARCH_TOOL, "name": "web_search", "max_uses": _WEB_SEARCH_MAX_USES}]
 
     full_text_parts = []
     final_usage = None
@@ -256,16 +288,22 @@ async def ask_claude_stream(
             client = _get_async_client(settings.claude_api_key)
             async with client.messages.stream(**kwargs) as stream:
                 buffer = ""
-                async for delta in stream.text_stream:
-                    buffer += delta
-                    full_text_parts.append(delta)
-                    while True:
-                        split = _next_sentence(buffer)
-                        if split is None:
-                            break
-                        sentence, buffer = split
-                        if sentence:
-                            yield sentence
+                async for event in stream:
+                    if event.type == "content_block_start":
+                        block = event.content_block
+                        if getattr(block, "type", None) == "server_tool_use" and on_search_start is not None:
+                            await on_search_start()
+                    elif event.type == "content_block_delta" and event.delta.type == "text_delta":
+                        delta = event.delta.text
+                        buffer += delta
+                        full_text_parts.append(delta)
+                        while True:
+                            split = _next_sentence(buffer)
+                            if split is None:
+                                break
+                            sentence, buffer = split
+                            if sentence:
+                                yield sentence
                 if buffer.strip():
                     yield buffer.strip()
                 final = await stream.get_final_message()
@@ -299,7 +337,13 @@ async def ask_claude_stream(
 
 
 def _call_claude_sync(
-    api_key: str, model_id: str, max_tokens: int, system: Optional[str], prompt: str, temperature: Optional[float] = None
+    api_key: str,
+    model_id: str,
+    max_tokens: int,
+    system: Optional[str],
+    prompt: str,
+    temperature: Optional[float] = None,
+    enable_web_search: bool = False,
 ):
     """Runs in a thread via asyncio.to_thread — the anthropic SDK's client is
     sync/blocking, and this is a network call, so it must not run directly
@@ -317,6 +361,8 @@ def _call_claude_sync(
         kwargs["system"] = system
     if temperature is not None:
         kwargs["temperature"] = temperature
+    if enable_web_search:
+        kwargs["tools"] = [{"type": _WEB_SEARCH_TOOL, "name": "web_search", "max_uses": _WEB_SEARCH_MAX_USES}]
     return client.messages.create(**kwargs)
 
 

@@ -106,6 +106,7 @@ def create_pi_companion_router(
                             briefing_engine,
                             list_engine,
                             scheduled_engine,
+                            project_engine,
                             session_id,
                         )
                     continue
@@ -123,6 +124,7 @@ def create_pi_companion_router(
                                 briefing_engine,
                                 list_engine,
                                 scheduled_engine,
+                                project_engine,
                                 session_id,
                             )
         except WebSocketDisconnect:
@@ -151,6 +153,7 @@ async def _handle_utterance(
     briefing_engine: BriefingEngine,
     list_engine: ListEngine,
     scheduled_engine: ScheduledEngine,
+    project_engine: ProjectEngine,
     session_id: str,
 ) -> None:
     await websocket.send_json({"state": "thinking"})
@@ -161,6 +164,13 @@ async def _handle_utterance(
         chunk_sent = True
         await _speak(websocket, sentence)
 
+    async def on_search_start() -> None:
+        # A distinct state event (not just "thinking") so the device's
+        # face can show something more specific for the extra gap a real
+        # web search adds -- see llm_client.ask_claude_stream's
+        # on_search_start and voice_worker.py's audio equivalent.
+        await websocket.send_json({"state": "searching"})
+
     reply = await handle_message(
         text,
         tasks_engine,
@@ -170,6 +180,7 @@ async def _handle_utterance(
         project_engine,
         session_id=session_id,
         on_chunk=on_chunk,
+        on_search_start=on_search_start,
     )
 
     # on_chunk only fires for the LLM Q&A fallback path (see assistant.py) --

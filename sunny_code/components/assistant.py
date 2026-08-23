@@ -16,7 +16,7 @@ import time
 from typing import Dict, Optional
 
 from sunny_code.components import category_store, health_check, setup_guides
-from sunny_code.components.briefing import BriefingEngine, OnChunk
+from sunny_code.components.briefing import BriefingEngine, OnChunk, OnSearchStart
 from sunny_code.components.device import device_from_session
 from sunny_code.components.lists_engine import ListEngine
 from sunny_code.components.lists_parser import ListCommandParser
@@ -51,6 +51,8 @@ ALARMS & REMINDERS
 BRIEFINGS
   morning / evening — full briefing
   health check — latest weekly system report (runs Sunday 4am on its own)
+  run health check — run one right now instead of waiting for Sunday
+    (short spoken summary over voice, full report everywhere else)
 
 VOICE (Discord slash commands, not plain text)
   /speak <text> — one-shot: Sunny says it out loud in the channel
@@ -58,6 +60,10 @@ VOICE (Discord slash commands, not plain text)
     "Hey Sunny" before every request (no listening window — each request
     needs its own wake word)
   /leave — ends the voice session
+
+DISCORD-ONLY COMMANDS
+  /category add|remove <name> — manage the task category list
+  /usage [days] — chart of Claude API cost over the last N days (default 30)
 
 SERVER ADMIN (Discord only — needs a live server to act on)
   create/delete channel <name> — text channels
@@ -71,7 +77,9 @@ QUESTIONS
   data once each is connected (see "setup" below) — I'll say so plainly
   instead of making something up if one isn't. Anything else genuinely
   open-ended — a question, a request, plain conversation — goes to
-  Claude for a real answer, not a canned "I don't know."
+  Claude for a real answer, not a canned "I don't know." Claude can also
+  search the web for things that genuinely need current information —
+  it decides for itself when that's actually needed, not by default.
 
 SETUP
   setup — what's connected, what still needs setup
@@ -159,6 +167,21 @@ def _looks_like_a_command(stripped: str, lowered: str) -> bool:
     if ScheduledCommandParser.parse(stripped) is not None:
         return True
     return False
+
+
+async def _run_health_check_now(session_id: str) -> str:
+    """Triggers a real, immediate health check — same work the automatic
+    Sunday 4am one does (gather the week's summary, ask Claude to write
+    it up, log it to the vault, flip the acknowledgment marker) — and
+    returns a reply sized for the calling interface: a short, no-LLM
+    spoken summary (health_check.short_summary()) for voice sessions
+    (Discord /join or the Pi companion, both session_id-prefixed
+    accordingly), the full written report everywhere else. The check
+    itself is identical either way; only what gets said back differs."""
+    report = await health_check.run_weekly_health_check()
+    if session_id.startswith("voice:") or session_id.startswith("pi:"):
+        return health_check.short_summary()
+    return report
 
 
 async def _create_task_from_reply(reply: str, tasks_engine: TaskEngine, session_id: str, source: str) -> str:
@@ -251,12 +274,15 @@ async def handle_message(
     project_engine: Optional[ProjectEngine] = None,
     session_id: str = "default",
     on_chunk: Optional[OnChunk] = None,
+    on_search_start: Optional[OnSearchStart] = None,
 ) -> str:
     """Route one free-text message and return the response text.
 
     on_chunk is optional and additive — see briefing.py's
     custom_briefing() docstring for the streaming contract it enables.
-    Every caller that doesn't pass it (every text interface) sees zero
+    on_search_start is the same idea for a live web-search cue -- only
+    meaningful alongside on_chunk. Every caller that doesn't pass them
+    (every text interface) sees zero
     behavior change; only reaches anything when routing falls all the
     way through to the LLM Q&A fallback."""
     stripped = text.strip()
@@ -345,11 +371,14 @@ async def handle_message(
     if lowered in ("evening", "evening briefing"):
         return await briefing_engine.generate_evening_briefing()
 
+    if lowered in ("run health check", "run a health check", "do a health check", "run the health check", "check system health"):
+        return await _run_health_check_now(session_id)
+
     if lowered in ("health check", "health report"):
         report = health_check.latest_report()
         return report if report else "No health check report yet — the first one runs Sunday at 4am."
 
-    return await briefing_engine.answer_question(stripped, on_chunk=on_chunk)
+    return await briefing_engine.answer_question(stripped, on_chunk=on_chunk, on_search_start=on_search_start)
 
 
 def is_briefing_trigger(text: str) -> bool:

@@ -120,6 +120,29 @@ def _build_summary(days: int = 7) -> str:
     return "\n".join(lines)
 
 
+def short_summary(days: int = 7) -> str:
+    """A one-line, TTS-friendly health summary — same underlying counts as
+    _build_summary(), phrased as a spoken sentence instead of a labeled
+    text block. Built for a voice-triggered "run health check" (see
+    assistant.py's _run_health_check_now) — no LLM call, so it's fast and
+    free, and short enough to actually say out loud instead of reading
+    the full written report a text interface gets."""
+    error_count = _count_log_errors()
+    unfulfilled_total = sum(_recent_request_categories(days).values())
+    llm_total = sum(_recent_llm_calls(days).values())
+    expiring = key_status.expiring_within(7)
+
+    parts = [
+        f"{error_count} app error{'s' if error_count != 1 else ''}",
+        f"{unfulfilled_total} unfulfilled request{'s' if unfulfilled_total != 1 else ''}",
+        f"{llm_total} LLM call{'s' if llm_total != 1 else ''}",
+    ]
+    if expiring:
+        parts.append(f"{len(expiring)} key{'s' if len(expiring) != 1 else ''} expiring soon")
+
+    return f"This week: {', '.join(parts)}."
+
+
 def _log_path() -> Path:
     return get_settings().project_root / "sunny-vault" / "log" / "health-checks.md"
 

@@ -112,6 +112,7 @@ THINKING_SOUND_DELAY = 0.5  # seconds to wait after dispatching an
 
 _chime_pcm: Optional[bytes] = None
 _thinking_pcm: Optional[bytes] = None
+_searching_pcm: Optional[bytes] = None
 _dave_lock = threading.Lock()  # see _patch_dave_session_locking — the
 # actual root cause behind most of the crashes this pipeline has had.
 _dave_active = [0]  # temporary overlap-detection instrumentation, see
@@ -204,6 +205,41 @@ def _get_thinking_pcm() -> bytes:
 
     _thinking_pcm = bytes(frames)
     return _thinking_pcm
+
+
+def _get_searching_pcm() -> bytes:
+    """A distinct cue for the one extra silent gap web search adds on top
+    of the LLM's own thinking time (see llm_client.ask_claude_stream's
+    on_search_start) -- deliberately different from both the chime (two
+    tones, rising, bright) and the thinking cue (one tone, low, soft): a
+    quick two-tone *descending* pattern at a different pitch pair, so a
+    listener who's heard all three can tell "heard you" from "still
+    thinking" from "looking that up" by ear. Same generate-on-the-fly,
+    cache-after-first-call approach as the other two."""
+    global _searching_pcm
+    if _searching_pcm is not None:
+        return _searching_pcm
+
+    from discord.opus import Encoder as OpusEncoder
+
+    rate = 48000
+    notes = [(659, 0.07), (440, 0.09)]  # E5 then A4 -- quick descending "look-up"
+    fade_samples = int(rate * 0.015)  # short, clipped fades -- reads as brisk/active
+    frames = bytearray()
+    for freq, duration in notes:
+        n = int(rate * duration)
+        for i in range(n):
+            fade = min(i / fade_samples, (n - i) / fade_samples, 1.0)
+            value = math.sin(2 * math.pi * freq * i / rate) * fade * 0.22
+            sample = int(value * 32767)
+            frames += struct.pack("<hh", sample, sample)
+
+    pad = (-len(frames)) % OpusEncoder.FRAME_SIZE
+    if pad:
+        frames += b"\x00" * pad
+
+    _searching_pcm = bytes(frames)
+    return _searching_pcm
 
 
 def _patch_voice_recv_packet_router() -> None:
@@ -589,6 +625,31 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         except Exception as e:
             logger.error(f"voice_worker: thinking-cue playback failed: {e}")
 
+    async def play_searching_cue(generation: int):
+        """Fired via the "searching" IPC message the instant Claude starts
+        a real web search (see llm_client.ask_claude_stream's
+        on_search_start) -- a more specific, informative signal than the
+        generic thinking cue, so it supersedes rather than stacks with it.
+        Dropped if a barge-in has since moved speech_generation past the
+        request this cue was for, same staleness check as queued
+        speech (see speech_player())."""
+        nonlocal pending_thinking_task
+        if generation != speech_generation:
+            logger.info("voice_worker: dropping stale searching cue (barged in on)")
+            return
+        if pending_thinking_task is not None and not pending_thinking_task.done():
+            pending_thinking_task.cancel()
+            pending_thinking_task = None
+        if voice_client is None or not voice_client.is_connected():
+            return
+        logger.info("voice_worker: searching the web, playing searching cue")
+        try:
+            if voice_client.is_playing():
+                voice_client.stop()
+            voice_client.play(discord.PCMAudio(io.BytesIO(_get_searching_pcm())))
+        except Exception as e:
+            logger.error(f"voice_worker: searching-cue playback failed: {e}")
+
     async def handle_utterance(state, text, already_chimed=False):
         nonlocal pending_thinking_task
         user = state["user"]
@@ -841,6 +902,8 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
                 # chunk of this reply in arrival order; speech_player()
                 # drains it as fast as synthesis+playback allow, nothing
                 # to do here
+            elif msg_type == "searching":
+                await play_searching_cue(msg.get("generation", speech_generation))
             elif msg_type == "leave":
                 stop_event.set()
 

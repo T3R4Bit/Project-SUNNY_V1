@@ -39,7 +39,7 @@ from typing import Literal
 import discord
 from discord.ext import tasks
 
-from sunny_code.components import category_store, tts, voice_session
+from sunny_code.components import category_store, tts, usage_chart, voice_session
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.crash_check import check_previous_crash
@@ -300,6 +300,24 @@ def create_discord_bot(
             _, message = category_store.remove_category(name)
         await interaction.followup.send(message, ephemeral=True)
         await refresh_dashboard()
+
+    @tree.command(name="usage", description="Chart of Claude API cost over the last N days (the one paid API here)")
+    async def usage_command(interaction: discord.Interaction, days: int = 30):
+        if interaction.channel_id != chat_channel_id:
+            await interaction.response.send_message(
+                "Use /usage in the chat channel.", ephemeral=True
+            )
+            return
+        await interaction.response.defer(thinking=True, ephemeral=True)
+        try:
+            png_bytes = await asyncio.to_thread(usage_chart.render_usage_chart_png, days)
+        except Exception as e:
+            logger.error(f"/usage chart render failed: {e}")
+            await interaction.followup.send("Couldn't render the usage chart — check the logs.", ephemeral=True)
+            return
+        await interaction.followup.send(
+            file=discord.File(io.BytesIO(png_bytes), filename="usage.png"), ephemeral=True
+        )
 
     async def _post_to(channel_id: int, text: str, fallback_channel_id: int = None):
         """Send `text` to `channel_id` if set, else to `fallback_channel_id` (typically

@@ -13,8 +13,8 @@ correctly even if it's the first thing to touch sunny.db in a given process
 import json
 import logging
 import sqlite3
-from datetime import date
-from typing import Dict, Tuple
+from datetime import date, timedelta
+from typing import Dict, List, Tuple
 
 from sunny_code.components.db_connection import closing_transaction
 from sunny_code.config import get_settings
@@ -119,6 +119,37 @@ def get_today_usage() -> Dict:
         "cost": row["total_cost"] or 0.0,
         "by_model": json.loads(row["by_model"] or "{}"),
     }
+
+
+def get_daily_costs(days: int = 30) -> List[Dict]:
+    """One row per day for the last `days` days (oldest first), zero-filled
+    for any day with no recorded usage -- built for usage_chart.py, which
+    needs a real value (even if 0.0) for every day on the x-axis, not just
+    the days a row happens to exist for. Each row: date (YYYY-MM-DD), cost,
+    total_tokens."""
+    today = date.today()
+    start = (today - timedelta(days=days - 1)).isoformat()
+    with closing_transaction(_connect()) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT date, prompt_tokens, completion_tokens, total_cost FROM token_usage WHERE date >= ? ORDER BY date",
+            (start,),
+        ).fetchall()
+
+    by_date = {
+        row["date"]: {
+            "cost": row["total_cost"] or 0.0,
+            "total_tokens": (row["prompt_tokens"] or 0) + (row["completion_tokens"] or 0),
+        }
+        for row in rows
+    }
+
+    result = []
+    for i in range(days):
+        day = (today - timedelta(days=days - 1 - i)).isoformat()
+        entry = by_date.get(day, {"cost": 0.0, "total_tokens": 0})
+        result.append({"date": day, "cost": entry["cost"], "total_tokens": entry["total_tokens"]})
+    return result
 
 
 def get_month_cost() -> float:

@@ -188,6 +188,18 @@ async def _relay_from_worker(
             except Exception as e:
                 logger.error(f"voice_session: failed to relay chunk to worker: {e}")
 
+        async def on_search_start() -> None:
+            # Fires the instant Claude starts a web search (see
+            # llm_client.ask_claude_stream) -- a real, otherwise-unexplained
+            # extra gap on top of the LLM's own thinking time. Same
+            # generation-tagging as on_chunk, so a stale search cue from an
+            # already-barged-in-on request gets dropped by the worker
+            # instead of playing over whatever's current.
+            try:
+                to_worker.put({"type": "searching", "generation": generation})
+            except Exception as e:
+                logger.error(f"voice_session: failed to relay search cue to worker: {e}")
+
         try:
             response = await handle_message(
                 msg["text"],
@@ -198,6 +210,7 @@ async def _relay_from_worker(
                 project_engine,
                 session_id=session_id,
                 on_chunk=on_chunk,
+                on_search_start=on_search_start,
             )
         except Exception as e:
             logger.error(f"voice_session: assistant router failed: {e}")
