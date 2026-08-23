@@ -173,12 +173,27 @@ def _write_marker(status: str) -> None:
     vault_io.atomic_write_text(_marker_path(), content)
 
 
-async def run_weekly_health_check(post_fn: Optional[Callable[[str], Awaitable[None]]] = None) -> str:
+_post_fn: Optional[Callable[[str], Awaitable[None]]] = None
+
+
+def set_post_fn(fn: Optional[Callable[[str], Awaitable[None]]]) -> None:
+    """Registered once at startup (see main.py, right after the Discord bot
+    is built) so run_weekly_health_check() posts the same way whether it
+    was triggered by the scheduled Sunday loop or an on-demand "run health
+    check" from assistant.py -- one registration instead of threading a
+    Discord-specific callback through assistant.py's otherwise interface-
+    agnostic routing (the same trade already made for TaskEngine.on_change)."""
+    global _post_fn
+    _post_fn = fn
+
+
+async def run_weekly_health_check() -> str:
     """Gathers the week's summary, asks Claude to write it up, appends it to
     the vault log, flips the marker to unacknowledged, and posts it via
-    post_fn if given. Always logs locally even if post_fn is None or fails
-    (e.g. Discord isn't configured) — the check itself doesn't depend on
-    Discord being available."""
+    the registered post fn (see set_post_fn), if any. Always logs locally
+    even if nothing's registered or posting fails (e.g. Discord isn't
+    configured) — the check itself doesn't depend on Discord being
+    available."""
     summary = _build_summary()
     llm_report = await ask_claude(prompt=summary, model="haiku", purpose="weekly_health_check")
 
@@ -188,9 +203,9 @@ async def run_weekly_health_check(post_fn: Optional[Callable[[str], Awaitable[No
     _append_report(report)
     _write_marker("unacknowledged")
 
-    if post_fn is not None:
+    if _post_fn is not None:
         try:
-            await post_fn(report)
+            await _post_fn(report)
         except Exception as e:
             logger.error(f"Failed to post health check report: {e}")
 

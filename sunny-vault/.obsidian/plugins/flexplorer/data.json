@@ -5,7 +5,6 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
-        "state",
         "instructions",
         "archive",
         "docs",
@@ -234,32 +233,6 @@
       "isHidden": false
     },
     "docs/CHANGELOG.md": {
-      "isPinned": false,
-      "isHidden": false
-    },
-    "state": {
-      "isPinned": false,
-      "isHidden": false,
-      "customOrder": [
-        "alarms-reminders.md",
-        "lists",
-        "tasks"
-      ],
-      "sortOrder": "custom"
-    },
-    "state/tasks": {
-      "isPinned": false,
-      "isHidden": false,
-      "customOrder": [],
-      "sortOrder": "custom"
-    },
-    "state/lists": {
-      "isPinned": false,
-      "isHidden": false,
-      "customOrder": [],
-      "sortOrder": "custom"
-    },
-    "state/alarms-reminders.md": {
       "isPinned": false,
       "isHidden": false
     }

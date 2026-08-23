@@ -30,6 +30,7 @@ from sunny_code.components.console_stats import create_console_router
 from sunny_code.components.discord_bot import create_discord_bot
 from sunny_code.components.google_routes import create_google_auth_router
 from sunny_code.components.crash_check import check_previous_crash
+from sunny_code.components import health_check
 from sunny_code.components.health_check import run_weekly_health_check
 from sunny_code.components.weather_routes import create_weather_router
 from sunny_code.components.location_routes import create_location_router
@@ -85,6 +86,12 @@ class SunnyCore:
 
         self.app = self._create_app()
         self.discord_bot = self._create_discord_bot()
+        # Registered once here (not re-fetched per run) so run_weekly_health_check()
+        # posts the same way whether it's the scheduled Sunday loop below or an
+        # on-demand "run health check" from assistant.py -- self.discord_bot never
+        # changes after this point, so a one-time registration is equivalent to the
+        # old getattr-every-time pattern.
+        health_check.set_post_fn(getattr(self.discord_bot, "post_to_health", None) if self.discord_bot else None)
         self.health_check_loop = self._create_health_check_loop()
 
     def _create_discord_bot(self):
@@ -128,8 +135,7 @@ class SunnyCore:
         async def health_check_loop():
             if datetime.now(tz).weekday() != 6:  # Monday=0 ... Sunday=6
                 return
-            post_fn = getattr(self.discord_bot, "post_to_health", None) if self.discord_bot else None
-            await run_weekly_health_check(post_fn=post_fn)
+            await run_weekly_health_check()
 
         return health_check_loop
 

@@ -56,6 +56,10 @@ logger = logging.getLogger(__name__)
 
 DASHBOARD_MARKER = "​" # zero-width space appended to the dashboard message so a
 # restarted bot can recognize its own pinned message and start editing it again
+HEALTH_MARKER = "⁠" # word joiner (U+2060) -- deliberately a *different*
+# invisible character than DASHBOARD_MARKER, so pin-rediscovery for one
+# can never accidentally match the other's message if both channels ever
+# end up configured to the same channel.
 MAX_MESSAGE_LENGTH = 1900 # Discord's real limit is 2000; leave headroom
 SCHEDULED_CHECK_INTERVAL_SECONDS = 30
 SPEAK_MAX_CHARS = 1000 # practical cap on synthesis time/file size, well under
@@ -213,6 +217,7 @@ def create_discord_bot(
     client.tree = tree # exposed for introspection/testing, and for future slash commands (e.g. /join) to extend
     state = {
         "dashboard_message_id": None,
+        "health_message_id": None,
         "posted_key_status": False,
         "commands_synced": False,
         "posted_crash_notice": False,
@@ -335,16 +340,73 @@ def create_discord_bot(
             await channel.send(chunk)
 
     async def post_to_health(text: str):
-        """Exposed for callers outside this module (currently the weekly
-        health check, started from main.py) that want to post the report
-        without importing Discord internals. No-ops if the client isn't
-        connected yet — the health-check loop and Discord's own reconnect are
-        scheduled independently, with no ordering guarantee (a 4am fire right
-        after a restart could beat Discord)."""
+        """Exposed for callers outside this module (health_check.py, via
+        set_post_fn -- both the scheduled Sunday run and an on-demand "run
+        health check" go through this same function) that want to post the
+        report without importing Discord internals. No-ops if the client
+        isn't connected yet — the health-check loop and Discord's own
+        reconnect are scheduled independently, with no ordering guarantee
+        (a 4am fire right after a restart could beat Discord).
+
+        One pinned message, edited in place on every run, same pattern as
+        refresh_dashboard() -- an embed (not plain text) both for the
+        larger size budget (a health report can run longer than a plain
+        message's ~2000-char limit) and because the report itself now
+        writes **bold** markdown for scannability (see
+        weekly-health-check.md), which an embed description renders."""
         if not client.is_ready():
             logger.warning("post_to_health: Discord client not ready, skipping")
             return
-        await _post_to(health_channel_id, text, fallback_channel_id=chat_channel_id)
+        target_channel_id = health_channel_id or chat_channel_id
+        if not target_channel_id:
+            return
+        try:
+            channel = await client.fetch_channel(target_channel_id)
+        except (discord.NotFound, discord.Forbidden) as e:
+            logger.warning(f"Cannot access Discord health channel {target_channel_id}: {e}")
+            return
+
+        # report is always "# <title line>\n\n<body>" -- see
+        # health_check.run_weekly_health_check(). Title becomes the embed
+        # title; body (already <200 words by the instructions file) fits
+        # comfortably under an embed description's 4096-char limit.
+        title, _, body = text.partition("\n\n")
+        embed = discord.Embed(
+            title=title.lstrip("#").strip() or "Weekly Health Check",
+            description=body.strip(),
+            color=discord.Color.green(),
+        )
+        embed.set_footer(text=HEALTH_MARKER)
+
+        message = None
+        if state["health_message_id"]:
+            try:
+                message = await channel.fetch_message(state["health_message_id"])
+            except discord.NotFound:
+                message = None
+
+        if message is None:
+            # Bot restarted — look for a health message pinned by a previous run
+            async for pin in channel.pins(limit=50):
+                if pin.author.id == client.user.id and pin.embeds and pin.embeds[0].footer.text and \
+                        pin.embeds[0].footer.text.endswith(HEALTH_MARKER):
+                    message = pin
+                    break
+
+        if message is not None:
+            state["health_message_id"] = message.id
+            try:
+                await message.edit(content=None, embed=embed)
+                return
+            except discord.NotFound:
+                state["health_message_id"] = None
+
+        new_message = await channel.send(embed=embed)
+        try:
+            await new_message.pin()
+        except discord.Forbidden:
+            logger.warning("Missing permission to pin the health message — sent unpinned")
+        state["health_message_id"] = new_message.id
 
     client.post_to_health = post_to_health
 

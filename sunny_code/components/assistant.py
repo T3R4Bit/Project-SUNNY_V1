@@ -371,12 +371,24 @@ async def handle_message(
     if lowered in ("evening", "evening briefing"):
         return await briefing_engine.generate_evening_briefing()
 
-    if lowered in ("run health check", "run a health check", "do a health check", "run the health check", "check system health"):
-        return await _run_health_check_now(session_id)
-
+    # Substring, not an exact-phrase tuple -- "can you run a system health
+    # check" (a real phrasing that failed live, 2026-08-23) doesn't match
+    # a fixed tuple entry, and unlike "health" alone, "health check"/
+    # "system health" isn't generic enough to collide with the unrelated
+    # personal-wellness "health"/"sleep"/"mood" keyword check further down
+    # this routing chain (see briefing.py's custom_briefing) -- catching
+    # it here, before that fallback is ever reached, is what fixes it.
+    # The exact bare phrase means "show me the last one"; anything else
+    # that mentions it ("run a health check", "check system health",
+    # "can you run a system health check") reads as wanting a fresh one --
+    # simpler and more robust than trying to enumerate every verb someone
+    # might use ("check" itself is ambiguous, since it's also half of the
+    # bare phrase this branch has to leave alone).
     if lowered in ("health check", "health report"):
         report = health_check.latest_report()
         return report if report else "No health check report yet — the first one runs Sunday at 4am."
+    if "health check" in lowered or "system health" in lowered:
+        return await _run_health_check_now(session_id)
 
     return await briefing_engine.answer_question(stripped, on_chunk=on_chunk, on_search_start=on_search_start)
 
