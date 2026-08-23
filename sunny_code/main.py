@@ -29,6 +29,8 @@ from sunny_code.components.pi_companion import create_pi_companion_router
 from sunny_code.components.console_stats import create_console_router
 from sunny_code.components.discord_bot import create_discord_bot
 from sunny_code.components.google_routes import create_google_auth_router
+from sunny_code.components.spotify_engine import SpotifyEngine
+from sunny_code.components.spotify_routes import create_spotify_auth_router
 from sunny_code.components.crash_check import check_previous_crash
 from sunny_code.components import health_check
 from sunny_code.components.health_check import run_weekly_health_check
@@ -65,6 +67,7 @@ class SunnyCore:
         scheduled_db = ScheduledDB(self.settings.project_root / "scheduled.db")
         self.scheduled_engine = ScheduledEngine(scheduled_db)
         self.project_engine = ProjectEngine()
+        self.spotify_engine = SpotifyEngine()
 
         # Read-only alarms/reminders mirror — updates on every change, and once
         # now so the file reflects reality from startup rather than staying
@@ -108,6 +111,7 @@ class SunnyCore:
             self.list_engine,
             self.scheduled_engine,
             self.project_engine,
+            self.spotify_engine,
             self.settings.discord_chat_channel_id,
             dashboard_channel_id=self.settings.discord_tasks_channel_id,
             briefings_channel_id=self.settings.discord_briefings_channel_id,
@@ -204,7 +208,8 @@ class SunnyCore:
 
         # Chatbot UI
         chatbot_router = create_chatbot_router(
-            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine, self.project_engine
+            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine, self.project_engine,
+            self.spotify_engine,
         )
         app.include_router(chatbot_router)
 
@@ -225,6 +230,7 @@ class SunnyCore:
             self.list_engine,
             self.scheduled_engine,
             self.project_engine,
+            self.spotify_engine,
             post_to_warnings=_post_to_warnings_if_configured,
         )
         app.include_router(pi_companion_router)
@@ -236,6 +242,10 @@ class SunnyCore:
         # Google Sign-In (OAuth) — /auth/google/login, /callback, /status, /disconnect
         google_router = create_google_auth_router()
         app.include_router(google_router)
+
+        # Spotify Sign-In (OAuth) — /auth/spotify/login, /callback, /status, /disconnect
+        spotify_router = create_spotify_auth_router()
+        app.include_router(spotify_router)
 
         # Weather location — /api/weather/location (read/write for the console's LOCATION card)
         weather_router = create_weather_router()

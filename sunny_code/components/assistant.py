@@ -23,6 +23,7 @@ from sunny_code.components.lists_parser import ListCommandParser
 from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.scheduled_parser import ScheduledCommandParser
+from sunny_code.components.spotify_engine import SpotifyEngine
 from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.tasks_parser import TaskCommandParser
 
@@ -39,6 +40,15 @@ LISTS (groceries, packing, anything checkable)
   what's on my <name> list — show items
   remove <item> from my <name> list
   my lists — show all your lists
+
+SPOTIFY (needs setup — see "setup spotify")
+  play <song/artist> — search and start playback
+  pause / resume — pause the music / resume the music
+  skip / previous song
+  volume up / volume down / set volume to 50
+  what's playing
+  Acts on whatever device Spotify itself considers active — same as the
+  Spotify app or Siri, no device selection built in.
 
 ALARMS & REMINDERS
   set an alarm for 7am / wake me up at 6:30am tomorrow
@@ -272,6 +282,7 @@ async def handle_message(
     list_engine: Optional[ListEngine] = None,
     scheduled_engine: Optional[ScheduledEngine] = None,
     project_engine: Optional[ProjectEngine] = None,
+    spotify_engine: Optional[SpotifyEngine] = None,
     session_id: str = "default",
     on_chunk: Optional[OnChunk] = None,
     on_search_start: Optional[OnSearchStart] = None,
@@ -341,6 +352,11 @@ async def handle_message(
 
     if scheduled_engine is not None:
         handled, _, message = await scheduled_engine.try_execute(stripped, source=source)
+        if handled:
+            return message
+
+    if spotify_engine is not None:
+        handled, _, message = await spotify_engine.try_execute(stripped, source=source)
         if handled:
             return message
 

@@ -35,6 +35,7 @@ from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.lists_engine import ListEngine
 from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_engine import ScheduledEngine
+from sunny_code.components.spotify_engine import SpotifyEngine
 from sunny_code.components.tasks_engine import TaskEngine
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,7 @@ def create_pi_companion_router(
     list_engine: ListEngine,
     scheduled_engine: ScheduledEngine,
     project_engine: ProjectEngine,
+    spotify_engine: SpotifyEngine,
     post_to_warnings: Optional[PostFn] = None,
 ) -> APIRouter:
     """Create the /ws/pi router. Takes the same shared engine instances as
@@ -107,6 +109,7 @@ def create_pi_companion_router(
                             list_engine,
                             scheduled_engine,
                             project_engine,
+                            spotify_engine,
                             session_id,
                         )
                     continue
@@ -125,6 +128,7 @@ def create_pi_companion_router(
                                 list_engine,
                                 scheduled_engine,
                                 project_engine,
+                                spotify_engine,
                                 session_id,
                             )
         except WebSocketDisconnect:
@@ -154,6 +158,7 @@ async def _handle_utterance(
     list_engine: ListEngine,
     scheduled_engine: ScheduledEngine,
     project_engine: ProjectEngine,
+    spotify_engine: SpotifyEngine,
     session_id: str,
 ) -> None:
     await websocket.send_json({"state": "thinking"})
@@ -178,6 +183,7 @@ async def _handle_utterance(
         list_engine,
         scheduled_engine,
         project_engine,
+        spotify_engine,
         session_id=session_id,
         on_chunk=on_chunk,
         on_search_start=on_search_start,

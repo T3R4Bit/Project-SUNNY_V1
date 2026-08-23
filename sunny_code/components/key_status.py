@@ -9,7 +9,7 @@ posted to Discord when the bot connects.
 from datetime import date, timedelta
 from typing import List, Tuple
 
-from sunny_code.components import google_auth
+from sunny_code.components import google_auth, spotify_auth
 from sunny_code.config import get_settings, looks_configured
 
 # (label, settings attribute, env var name)
@@ -18,6 +18,8 @@ _TRACKED_KEYS = [
     ("OpenWeatherMap (weather)", "openweathermap_api_key", "OPENWEATHERMAP_API_KEY"),
     ("Google OAuth client ID", "google_client_id", "GOOGLE_CLIENT_ID"),
     ("Google OAuth client secret", "google_client_secret", "GOOGLE_CLIENT_SECRET"),
+    ("Spotify OAuth client ID", "spotify_client_id", "SPOTIFY_CLIENT_ID"),
+    ("Spotify OAuth client secret", "spotify_client_secret", "SPOTIFY_CLIENT_SECRET"),
     ("Discord bot token", "discord_bot_token", "DISCORD_BOT_TOKEN"),
     ("Discord chat channel ID", "discord_chat_channel_id", "DISCORD_CHAT_CHANNEL_ID"),
 ]
@@ -88,6 +90,12 @@ def startup_summary() -> str:
         lines.append(
             "Google OAuth client is configured but no account is signed in yet — "
             "visit /console and click \"Connect Google Account\"."
+        )
+
+    if spotify_auth.is_client_configured() and not spotify_auth.is_connected():
+        lines.append(
+            "Spotify OAuth client is configured but no account is signed in yet — "
+            "visit /console and click \"Connect Spotify Account\"."
         )
 
     return "\n".join(lines)

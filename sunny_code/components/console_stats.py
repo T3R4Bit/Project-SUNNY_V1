@@ -562,6 +562,17 @@ def create_console_router() -> APIRouter:
             </div>
 
             <div>
+                <div class="section-label">SPOTIFY</div>
+                <div class="card">
+                    <dl class="kv-grid">
+                        <dt>STATUS</dt><dd id="spotify-status">checking&hellip;</dd>
+                        <dt>ACCOUNT</dt><dd id="spotify-account">&mdash;</dd>
+                        <dt>ACTION</dt><dd id="spotify-action">&mdash;</dd>
+                    </dl>
+                </div>
+            </div>
+
+            <div>
                 <div class="section-label">LOCATION</div>
                 <div class="card">
                     <div class="loc-row">
@@ -848,6 +859,39 @@ def create_console_router() -> APIRouter:
             }}
         }}
 
+        // ---------- Spotify status ----------
+        async function disconnectSpotify() {{
+            await fetch('/auth/spotify/disconnect', {{ method: 'POST' }});
+            updateSpotifyStatus();
+        }}
+
+        async function updateSpotifyStatus() {{
+            try {{
+                const response = await fetch('/auth/spotify/status');
+                const data = await response.json();
+
+                const statusEl = document.getElementById('spotify-status');
+                const accountEl = document.getElementById('spotify-account');
+                const actionEl = document.getElementById('spotify-action');
+
+                if (!data.client_configured) {{
+                    statusEl.textContent = 'NOT SET UP';
+                    accountEl.textContent = '—';
+                    actionEl.innerHTML = 'add SPOTIFY_CLIENT_ID/SECRET to .env';
+                }} else if (data.connected) {{
+                    statusEl.textContent = 'CONNECTED';
+                    accountEl.textContent = data.username || 'unknown';
+                    actionEl.innerHTML = '<a href="#" onclick="disconnectSpotify(); return false;">Disconnect</a>';
+                }} else {{
+                    statusEl.textContent = 'NOT CONNECTED';
+                    accountEl.textContent = '—';
+                    actionEl.innerHTML = '<a href="/auth/spotify/login">Connect Spotify Account</a>';
+                }}
+            }} catch (error) {{
+                console.error('Spotify status error:', error);
+            }}
+        }}
+
         // ---------- Location (weather) ----------
         async function loadLocation() {{
             try {{
@@ -893,6 +937,8 @@ def create_console_router() -> APIRouter:
             setInterval(updateStats, 2000);
             updateGoogleStatus();
             setInterval(updateGoogleStatus, 30000);
+            updateSpotifyStatus();
+            setInterval(updateSpotifyStatus, 30000);
             loadLocation();
         }});
     </script>

@@ -14,6 +14,7 @@ from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.lists_engine import ListEngine
 from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_engine import ScheduledEngine
+from sunny_code.components.spotify_engine import SpotifyEngine
 from sunny_code.components.assistant import handle_message
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ def create_chatbot_router(
     list_engine: ListEngine,
     scheduled_engine: ScheduledEngine,
     project_engine: ProjectEngine,
+    spotify_engine: SpotifyEngine,
 ) -> APIRouter:
     """Create chatbot routes: the message API plus redirects to /console.
 
@@ -52,7 +54,7 @@ def create_chatbot_router(
         so the web chatbot and the Discord bot behave identically."""
         response = await handle_message(
             text, tasks_engine, briefing_engine, list_engine, scheduled_engine,
-            project_engine, session_id=f"web:{session}"
+            project_engine, spotify_engine, session_id=f"web:{session}"
         )
         return {"response": response}
 

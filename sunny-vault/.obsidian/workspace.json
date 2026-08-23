@@ -27,12 +27,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/CHANGELOG.md",
+                "file": "docs/BACKLOG.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "CHANGELOG"
+              "title": "BACKLOG"
             }
           }
         ],
@@ -206,12 +206,14 @@
   },
   "active": "b71858e4a6f616e0",
   "lastOpenFiles": [
+    "state/alarms-reminders.md",
+    "state/lists",
+    "state/tasks",
+    "state",
+    "docs/architecture/spotify-integration.md",
+    "docs/CHANGELOG.md",
     "state/tasks/another-test-task.md",
     "state/tasks/test-task.md",
-    "state/alarms-reminders.md",
-    "state/tasks",
-    "state/lists",
-    "state",
     "state/health-check.md.tmp",
     "state/health-check.md",
     "log/health-checks.md",
@@ -219,7 +221,6 @@
     "instructions/weekly-health-check.md.tmp.16024.68d2e0ea5a3c",
     "docs/BACKLOG.md",
     "docs/phases.md",
-    "docs/CHANGELOG.md",
     "docs/CHANGELOG.md.tmp.16024.0e0f68430072",
     "docs/ABOUT.md",
     "docs/BACKLOG.md.tmp.18212.bf9f0f31d97d",
@@ -239,7 +240,6 @@
     "docs/architecture/vault-storage.md",
     "state/tasks/concurrency-chat-task-3-2.md",
     "state/tasks/concurrency-chat-task-2-2.md",
-    "state/tasks/concurrency-chat-task-1-2.md",
-    "state/tasks/concurrency-web-task-5-2.md"
+    "state/tasks/concurrency-chat-task-1-2.md"
   ]
 }
