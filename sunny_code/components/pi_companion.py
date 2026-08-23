@@ -32,6 +32,7 @@ from sunny_code.components import stt, tts
 from sunny_code.components.assistant import handle_message
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.lists_engine import ListEngine
+from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.tasks_engine import TaskEngine
 
@@ -43,6 +44,7 @@ def create_pi_companion_router(
     briefing_engine: BriefingEngine,
     list_engine: ListEngine,
     scheduled_engine: ScheduledEngine,
+    project_engine: ProjectEngine,
 ) -> APIRouter:
     """Create the /ws/pi router. Takes the same shared engine instances as
     create_chatbot_router() so a change made from the device stays in sync
@@ -134,6 +136,7 @@ async def _handle_utterance(
         briefing_engine,
         list_engine,
         scheduled_engine,
+        project_engine,
         session_id=session_id,
         on_chunk=on_chunk,
     )

@@ -12,6 +12,7 @@ import logging
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.lists_engine import ListEngine
+from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.assistant import handle_message
 
@@ -23,6 +24,7 @@ def create_chatbot_router(
     briefing_engine: BriefingEngine,
     list_engine: ListEngine,
     scheduled_engine: ScheduledEngine,
+    project_engine: ProjectEngine,
 ) -> APIRouter:
     """Create chatbot routes: the message API plus redirects to /console.
 
@@ -49,7 +51,8 @@ def create_chatbot_router(
         """Single entry point for the chatbot — routing lives in sunny_code.components.assistant
         so the web chatbot and the Discord bot behave identically."""
         response = await handle_message(
-            text, tasks_engine, briefing_engine, list_engine, scheduled_engine, session_id=f"web:{session}"
+            text, tasks_engine, briefing_engine, list_engine, scheduled_engine,
+            project_engine, session_id=f"web:{session}"
         )
         return {"response": response}
 

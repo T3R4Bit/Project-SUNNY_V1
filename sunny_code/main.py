@@ -20,6 +20,7 @@ from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.tasks_api import create_tasks_router
 from sunny_code.components.lists_db import ListDB
 from sunny_code.components.lists_engine import ListEngine
+from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_db import ScheduledDB
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.scheduled_vault_mirror import create_scheduled_vault_mirror, write_scheduled_mirror
@@ -62,6 +63,7 @@ class SunnyCore:
         self.list_engine = ListEngine(lists_db)
         scheduled_db = ScheduledDB(self.settings.project_root / "scheduled.db")
         self.scheduled_engine = ScheduledEngine(scheduled_db)
+        self.project_engine = ProjectEngine()
 
         # Read-only alarms/reminders mirror — updates on every change, and once
         # now so the file reflects reality from startup rather than staying
@@ -98,6 +100,7 @@ class SunnyCore:
             self.briefing_engine,
             self.list_engine,
             self.scheduled_engine,
+            self.project_engine,
             self.settings.discord_chat_channel_id,
             dashboard_channel_id=self.settings.discord_tasks_channel_id,
             briefings_channel_id=self.settings.discord_briefings_channel_id,
@@ -195,14 +198,14 @@ class SunnyCore:
 
         # Chatbot UI
         chatbot_router = create_chatbot_router(
-            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine
+            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine, self.project_engine
         )
         app.include_router(chatbot_router)
 
         # Sunny Companion hardware device -- /ws/pi (bypasses Discord entirely,
         # see sunny-companion/BUILD_PLAN.md Phase 6)
         pi_companion_router = create_pi_companion_router(
-            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine
+            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine, self.project_engine
         )
         app.include_router(pi_companion_router)
 

@@ -69,6 +69,7 @@ async def start(
     briefing_engine,
     list_engine,
     scheduled_engine,
+    project_engine,
     notify_fn: Optional[Callable[[str], Awaitable[None]]] = None,
 ) -> str:
     """Joins the invoking user's current voice channel by spawning an
@@ -125,7 +126,8 @@ async def start(
         _to_worker = to_worker
         asyncio.create_task(
             _relay_from_worker(
-                process, from_worker, to_worker, tasks_engine, briefing_engine, list_engine, scheduled_engine
+                process, from_worker, to_worker, tasks_engine, briefing_engine, list_engine,
+                scheduled_engine, project_engine
             )
         )
         asyncio.create_task(_watch_worker(process, notify_fn))
@@ -136,7 +138,7 @@ async def start(
 
 
 async def _relay_from_worker(
-    process, from_worker, to_worker, tasks_engine, briefing_engine, list_engine, scheduled_engine
+    process, from_worker, to_worker, tasks_engine, briefing_engine, list_engine, scheduled_engine, project_engine
 ) -> None:
     """Reads utterance events from the worker for the lifetime of one
     /join session, routes each through the same handle_message() every
@@ -162,22 +164,27 @@ async def _relay_from_worker(
             continue
 
         session_id = f"voice:{msg['user_id']}"
+        generation = msg.get("generation")
         streamed_any = False
 
         async def on_chunk(sentence: str) -> None:
             # Freshly rebound every loop iteration (this closure captures
-            # the CURRENT to_worker/streamed_any, not a stale one from an
-            # earlier utterance) -- see handle_message()'s on_chunk
-            # contract in assistant.py/briefing.py: called only when
-            # routing falls through to the LLM Q&A fallback, one sentence
-            # at a time, as Claude generates them. Lets the worker start
-            # speaking the first sentence immediately instead of waiting
-            # for the whole reply -- the real latency win from
-            # ask_claude_stream(), see the 2026-08-21 latency chart.
+            # the CURRENT to_worker/streamed_any/generation, not a stale
+            # one from an earlier utterance) -- see handle_message()'s
+            # on_chunk contract in assistant.py/briefing.py: called only
+            # when routing falls through to the LLM Q&A fallback, one
+            # sentence at a time, as Claude generates them. Lets the
+            # worker start speaking the first sentence immediately
+            # instead of waiting for the whole reply -- the real latency
+            # win from ask_claude_stream(), see the 2026-08-21 latency
+            # chart. generation is echoed straight back from the
+            # "utterance" message so the worker's barge-in logic
+            # (play_wake_chime()) can tell this chunk apart from a reply
+            # to a request that's since been talked over.
             nonlocal streamed_any
             streamed_any = True
             try:
-                to_worker.put({"type": "speak_chunk", "text": sentence})
+                to_worker.put({"type": "speak_chunk", "text": sentence, "generation": generation})
             except Exception as e:
                 logger.error(f"voice_session: failed to relay chunk to worker: {e}")
 
@@ -188,6 +195,7 @@ async def _relay_from_worker(
                 briefing_engine,
                 list_engine,
                 scheduled_engine,
+                project_engine,
                 session_id=session_id,
                 on_chunk=on_chunk,
             )
@@ -209,7 +217,7 @@ async def _relay_from_worker(
         if not response:
             continue
         try:
-            to_worker.put({"type": "speak", "text": response})
+            to_worker.put({"type": "speak", "text": response, "generation": generation})
         except Exception as e:
             logger.error(f"voice_session: failed to relay response to worker: {e}")
 

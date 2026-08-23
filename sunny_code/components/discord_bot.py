@@ -34,20 +34,23 @@ import asyncio
 import io
 import logging
 from datetime import datetime
+from typing import Literal
 
 import discord
 from discord.ext import tasks
 
-from sunny_code.components import tts, voice_session
+from sunny_code.components import category_store, tts, voice_session
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.crash_check import check_previous_crash
 from sunny_code.components.key_status import missing_api_keys, startup_summary
 from sunny_code.components.lists_engine import ListEngine
+from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.server_admin_parser import ServerAdminParser
 from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.time_parse import next_occurrence
+from sunny_code.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +83,38 @@ def _chunk_message(text: str, limit: int = MAX_MESSAGE_LENGTH):
 def _find_channel(guild: discord.Guild, name: str):
     name = name.lower().lstrip("#")
     return discord.utils.find(lambda c: c.name.lower() == name, guild.channels)
+
+
+def build_dashboard_embed(dashboard_data: dict, project_names: list) -> discord.Embed:
+    """Renders TaskEngine.get_dashboard_data() as a Discord embed — one
+    field per active category, plus a Projects field listing whatever
+    project folders exist on disk (populated by the "new project" flow;
+    project_names is a plain directory listing the caller supplies, not
+    something this function reads itself, so it's testable without a real
+    vault on disk). Tasks don't get a priority bar; the priority number is
+    enough. Module-level (not a closure in create_discord_bot()) so this
+    can be unit-tested directly with synthetic data."""
+    stats = dashboard_data["stats"]
+
+    due_soon = dashboard_data["due_soon"]
+    description = f"{len(due_soon)} task{'s' if len(due_soon) != 1 else ''} due this week" if due_soon else None
+    embed = discord.Embed(title="Your Tasks", description=description, color=discord.Color.blurple())
+
+    for tag, tag_tasks in dashboard_data["categories"]:
+        lines = []
+        for task in tag_tasks[:5]:
+            due_str = f" (due {task['due_date']})" if task["due_date"] else ""
+            lines.append(f"P{task['priority']} — {task['title']}{due_str}")
+        if len(tag_tasks) > 5:
+            lines.append(f"...and {len(tag_tasks) - 5} more")
+        embed.add_field(name=f"{tag} ({len(tag_tasks)})", value="\n".join(lines) or "(none)", inline=False)
+
+    embed.add_field(name="Projects", value="\n".join(project_names) if project_names else "(none yet)", inline=False)
+
+    embed.set_footer(
+        text=f"Open: {stats['open']} | In Progress: {stats['in_progress']} | Done: {stats['done']}{DASHBOARD_MARKER}"
+    )
+    return embed
 
 
 def _find_role(guild: discord.Guild, name: str):
@@ -154,6 +189,7 @@ def create_discord_bot(
     briefing_engine: BriefingEngine,
     list_engine: ListEngine,
     scheduled_engine: ScheduledEngine,
+    project_engine: ProjectEngine,
     chat_channel_id: int,
     dashboard_channel_id: int = 0,
     briefings_channel_id: int = 0,
@@ -234,7 +270,8 @@ def create_discord_bot(
             await _post_to(warnings_channel_id, text, fallback_channel_id=chat_channel_id)
 
         message = await voice_session.start(
-            interaction, tasks_engine, briefing_engine, list_engine, scheduled_engine, notify_fn=_notify_voice_crash
+            interaction, tasks_engine, briefing_engine, list_engine, scheduled_engine, project_engine,
+            notify_fn=_notify_voice_crash
         )
         await interaction.followup.send(message, ephemeral=True)
 
@@ -248,6 +285,21 @@ def create_discord_bot(
         await interaction.response.defer(thinking=True, ephemeral=True)
         message = await voice_session.stop()
         await interaction.followup.send(message, ephemeral=True)
+
+    @tree.command(name="category", description="Add or remove a task category")
+    async def category_command(interaction: discord.Interaction, action: Literal["add", "remove"], name: str):
+        if interaction.channel_id != chat_channel_id:
+            await interaction.response.send_message(
+                "Use /category in the chat channel.", ephemeral=True
+            )
+            return
+        await interaction.response.defer(thinking=True, ephemeral=True)
+        if action == "add":
+            _, message = category_store.add_category(name)
+        else:
+            _, message = category_store.remove_category(name)
+        await interaction.followup.send(message, ephemeral=True)
+        await refresh_dashboard()
 
     async def _post_to(channel_id: int, text: str, fallback_channel_id: int = None):
         """Send `text` to `channel_id` if set, else to `fallback_channel_id` (typically
@@ -287,7 +339,9 @@ def create_discord_bot(
             logger.warning(f"Cannot access Discord dashboard channel {dashboard_channel_id}: {e}")
             return
 
-        dashboard_text = tasks_engine.format_dashboard() + DASHBOARD_MARKER
+        projects_dir = get_settings().project_root / "sunny-vault" / "projects"
+        project_names = sorted(p.name for p in projects_dir.iterdir() if p.is_dir()) if projects_dir.exists() else []
+        embed = build_dashboard_embed(tasks_engine.get_dashboard_data(), project_names)
 
         message = None
         if state["dashboard_message_id"]:
@@ -299,20 +353,21 @@ def create_discord_bot(
         if message is None:
             # Bot restarted — look for a dashboard message pinned by a previous run
             async for pin in channel.pins(limit=50):
-                if pin.author.id == client.user.id and pin.content.endswith(DASHBOARD_MARKER):
+                if pin.author.id == client.user.id and pin.embeds and pin.embeds[0].footer.text and \
+                        pin.embeds[0].footer.text.endswith(DASHBOARD_MARKER):
                     message = pin
                     break
 
         if message is not None:
             state["dashboard_message_id"] = message.id
             try:
-                await message.edit(content=dashboard_text)
+                await message.edit(content=None, embed=embed)
                 return
             except discord.NotFound:
                 state["dashboard_message_id"] = None
 
         # Nothing to edit — post a fresh one and pin it
-        new_message = await channel.send(dashboard_text)
+        new_message = await channel.send(embed=embed)
         try:
             await new_message.pin()
         except discord.Forbidden:
@@ -434,7 +489,8 @@ def create_discord_bot(
 
         session_id = f"discord:{message.channel.id}:{message.author.id}"
         response = await handle_message(
-            message.content, tasks_engine, briefing_engine, list_engine, scheduled_engine, session_id=session_id
+            message.content, tasks_engine, briefing_engine, list_engine, scheduled_engine,
+            project_engine, session_id=session_id
         )
         for chunk in _chunk_message(response):
             await message.channel.send(chunk)

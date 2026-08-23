@@ -15,11 +15,12 @@ list" before the more specific parser ever saw it.
 import time
 from typing import Dict, Optional
 
-from sunny_code.components import health_check, setup_guides
+from sunny_code.components import category_store, health_check, setup_guides
 from sunny_code.components.briefing import BriefingEngine, OnChunk
 from sunny_code.components.device import device_from_session
 from sunny_code.components.lists_engine import ListEngine
 from sunny_code.components.lists_parser import ListCommandParser
+from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.scheduled_parser import ScheduledCommandParser
 from sunny_code.components.tasks_engine import TaskEngine
@@ -82,6 +83,20 @@ Type "help" any time to see this again."""
 _HELP_TRIGGERS = ("", "help", "/help", "commands", "info", "what can you do", "what can i ask")
 _CANCEL_WORDS = ("cancel", "nevermind", "never mind", "stop", "skip", "forget it")
 _BRIEFING_KEYWORDS = ("morning", "morning briefing", "evening", "evening briefing")
+# Exact-phrase, not a regex -- this launches a multi-question wizard, so a
+# false positive (an unrelated sentence that happens to contain "project")
+# is worse than a false negative (a real phrasing that doesn't match).
+_PROJECT_TRIGGERS = (
+    "i would like to make a new project",
+    "i'd like to make a new project",
+    "i want to make a new project",
+    "start a new project",
+    "make a new project",
+    "create a new project",
+    "create a project",
+    "new project",
+)
+_SKIP_SECTIONS_WORDS = ("no", "none", "nope", "you decide", "your choice", "up to you", "doesn't matter", "whatever you think")
 _SETUP_BARE = ("setup", "/setup", "set up", "connect", "setup steps", "connect steps")
 _SETUP_PREFIXES = (
     "setup ", "/setup ", "set up ", "connect ",
@@ -117,15 +132,23 @@ def _get_pending(session_id: str) -> Optional[Dict]:
     return entry
 
 
-def _set_pending(session_id: str, awaiting: str) -> None:
-    _pending[session_id] = {"awaiting": awaiting, "ts": time.time()}
+def _set_pending(session_id: str, awaiting: str, **extra) -> None:
+    _pending[session_id] = {"awaiting": awaiting, "ts": time.time(), **extra}
 
 
 def _looks_like_a_command(stripped: str, lowered: str) -> bool:
     """True if the text matches some other recognized command grammar (task,
     list, alarm/reminder, help, or a briefing keyword) — used so a pending
     follow-up question doesn't swallow an unrelated message as if it were
-    the answer."""
+    the answer.
+
+    A blank reply is deliberately never "a command" here, even though ""
+    is itself one of _HELP_TRIGGERS for a top-level message — every pending
+    handler already has its own "still need X" re-prompt for an empty
+    answer, and that's clearly the right response to silence/whitespace
+    sent while a question is outstanding, not the general help text."""
+    if not stripped:
+        return False
     if lowered in _HELP_TRIGGERS or lowered in _BRIEFING_KEYWORDS:
         return True
     task_cmd_type, _, _ = TaskCommandParser.parse_command(stripped)
@@ -152,12 +175,80 @@ async def _create_task_from_reply(reply: str, tasks_engine: TaskEngine, session_
     return message
 
 
+async def _finish_task_with_category(
+    reply: str, pending_data: Dict, tasks_engine: TaskEngine, session_id: str, source: str
+) -> str:
+    """Resolve a pending "which category?" follow-up and create the task.
+    pending_data is everything parse_command already resolved (title,
+    priority, due_date, description, ...) minus "tag" — there's no single
+    command string left to re-parse here, unlike _create_task_from_reply,
+    so this goes through TaskEngine.create_task_from_data() directly.
+
+    Accepts the reply as-is even if it doesn't match a category in
+    category_store — same permissive spirit as every other field here
+    (categories are still free-form storage; the live list is just what
+    gets offered/asked about)."""
+    category = reply.strip().strip('"\'')
+    if not category:
+        _set_pending(session_id, "task_category", **pending_data)
+        categories = category_store.get_categories()
+        return f'Still need a category — {", ".join(categories)}? (or say "cancel")'
+
+    matched = next((c for c in category_store.get_categories() if c.lower() == category.lower()), category)
+    data = {**pending_data, "tag": matched}
+    _, message = await tasks_engine.create_task_from_data(data, source=source)
+    return message
+
+
+async def _advance_project_wizard(
+    stripped: str, lowered: str, pending: Dict, project_engine, session_id: str
+) -> Optional[str]:
+    """One step of the fixed "new project" wizard (name -> description ->
+    optional sections -> scaffold). Returns the response text, or None if
+    the reply didn't look like an answer at all (caller falls through to
+    normal routing, same as the task_title/task_category pending states)."""
+    awaiting = pending["awaiting"]
+
+    if lowered in _CANCEL_WORDS:
+        _pending.pop(session_id, None)
+        return "No worries — cancelled."
+
+    if _looks_like_a_command(stripped, lowered):
+        _pending.pop(session_id, None)
+        return None
+
+    _pending.pop(session_id, None)
+
+    if awaiting == "project_name":
+        name = stripped.strip().strip('"\'')
+        if not name:
+            _set_pending(session_id, "project_name")
+            return 'Still need a name for this one — what should I call it? (or say "cancel")'
+        _set_pending(session_id, "project_description", name=name)
+        return "One or two lines on what it's about?"
+
+    if awaiting == "project_description":
+        _set_pending(session_id, "project_sections", name=pending["name"], description=stripped.strip())
+        return (
+            'Any specific sections or files you want to start with, or should I decide based on that? '
+            '(say "you decide" to skip)'
+        )
+
+    # awaiting == "project_sections" -- the wizard's last step
+    sections = "" if lowered in _SKIP_SECTIONS_WORDS else stripped.strip()
+    if project_engine is None:
+        return "Project system isn't available right now."
+    _, message = await project_engine.scaffold(pending["name"], pending["description"], sections)
+    return message
+
+
 async def handle_message(
     text: str,
     tasks_engine: TaskEngine,
     briefing_engine: BriefingEngine,
     list_engine: Optional[ListEngine] = None,
     scheduled_engine: Optional[ScheduledEngine] = None,
+    project_engine: Optional[ProjectEngine] = None,
     session_id: str = "default",
     on_chunk: Optional[OnChunk] = None,
 ) -> str:
@@ -185,8 +276,33 @@ async def handle_message(
         _pending.pop(session_id, None)
         # falls through to normal handling below
 
+    elif pending and pending.get("awaiting") == "task_category":
+        task_data = {k: v for k, v in pending.items() if k not in ("awaiting", "ts")}
+        if lowered in _CANCEL_WORDS:
+            _pending.pop(session_id, None)
+            return "No worries — cancelled."
+
+        if not _looks_like_a_command(stripped, lowered):
+            _pending.pop(session_id, None)
+            return await _finish_task_with_category(stripped, task_data, tasks_engine, session_id, source)
+
+        _pending.pop(session_id, None)
+        # falls through to normal handling below
+
+    elif pending and pending.get("awaiting") in ("project_name", "project_description", "project_sections"):
+        wizard_reply = await _advance_project_wizard(stripped, lowered, pending, project_engine, session_id)
+        if wizard_reply is not None:
+            return wizard_reply
+        # falls through to normal handling below
+
     if lowered in _HELP_TRIGGERS:
         return HELP_TEXT
+
+    if lowered in _PROJECT_TRIGGERS:
+        if project_engine is None:
+            return "Project system isn't available right now."
+        _set_pending(session_id, "project_name")
+        return "What's the project called?"
 
     setup_query = _extract_setup_query(lowered)
     if setup_query is not None:
@@ -202,7 +318,7 @@ async def handle_message(
         if handled:
             return message
 
-    cmd_type, success, _ = TaskCommandParser.parse_command(stripped)
+    cmd_type, success, task_data = TaskCommandParser.parse_command(stripped, category_store.get_categories())
 
     if cmd_type == "add" and not success:
         # The only real failure mode for a natural "add" is a missing title
@@ -210,8 +326,17 @@ async def handle_message(
         _set_pending(session_id, "task_title")
         return 'Sure — what should I call it? (or say "cancel")'
 
+    if cmd_type == "add" and success and "tag" not in task_data:
+        # Title (and any --flags) resolved, but no category was stated or
+        # recognized inline — ask instead of silently defaulting to General.
+        _set_pending(session_id, "task_category", **task_data)
+        categories = category_store.get_categories()
+        return f'Got it — which category: {", ".join(categories)}? (or say "cancel")'
+
     if cmd_type != "unknown":
-        _, message = await tasks_engine.execute_command(stripped, source=source)
+        _, message = await tasks_engine.execute_command(
+            stripped, source=source, known_categories=category_store.get_categories()
+        )
         return message
 
     if lowered in ("morning", "morning briefing"):

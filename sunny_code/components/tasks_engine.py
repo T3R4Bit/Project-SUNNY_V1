@@ -4,6 +4,7 @@ import logging
 import re
 from typing import Dict, List, Optional, Tuple
 
+from sunny_code.components import category_store
 from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.tasks_parser import TaskCommandParser
 from sunny_code.components.request_log import log_unfulfilled
@@ -25,11 +26,17 @@ class TaskEngine:
         # set = no-op.
         self.on_change = None
 
-    async def execute_command(self, command: str, source: str = None) -> Tuple[bool, str]:
+    async def execute_command(
+        self, command: str, source: str = None, known_categories: Optional[List[str]] = None
+    ) -> Tuple[bool, str]:
         """Execute a task command and return (success, message). `source` (web/discord/api)
-        is only used for "add" — it's recorded on the created task for future reference."""
+        is only used for "add" — it's recorded on the created task for future reference.
+        `known_categories`, if given, lets an inline "...to my <category> tasks" phrasing
+        resolve a category directly — see tasks_parser.parse_natural_add. Callers that
+        already checked the parse once (assistant.py) should pass the same list here so
+        this internal re-parse agrees with that first one."""
         try:
-            cmd_type, success, data = self.parser.parse_command(command)
+            cmd_type, success, data = self.parser.parse_command(command, known_categories)
 
             if not success:
                 error = data.get("error", "Invalid command")
@@ -131,8 +138,29 @@ Priority: {data.get('priority', 3)}/5"""
         except ValueError as e:
             return False, f"{str(e)}"
 
+    async def create_task_from_data(self, data: Dict, source: str = None) -> Tuple[bool, str]:
+        """Create a task from already-parsed data (title plus whatever
+        fields were resolved) rather than a command string — used when a
+        caller (assistant.py's category follow-up) finished resolving a
+        command across more than one message, so there's no single
+        command string left to feed through execute_command()/parse_command().
+        Fires on_change exactly like a successful execute_command("add"...)
+        would, so the dashboard still refreshes."""
+        success, message = await self._execute_add(data, source=source)
+        if not success:
+            log_unfulfilled("task_command", f'"{data}" — {message}')
+        elif self.on_change:
+            try:
+                await self.on_change(message)
+            except Exception as e:
+                logger.error(f"on_change callback failed: {e}")
+        return success, message
+
     async def _execute_update(self, data: Dict) -> Tuple[bool, str]:
-        """Update a task field."""
+        """Update a task field. A status update that resolves to "done"
+        also archives the task (see tasks_db.archive_task) -- it moves out
+        of the active listing the instant it's finished, same as a delete,
+        but the file itself is kept, not removed."""
         try:
             task_id, error = self._resolve_task_id(data["task_id"])
             if error:
@@ -161,13 +189,19 @@ Priority: {data.get('priority', 3)}/5"""
             task = self.db.get_task(task_id)
             title = task["title"] if task else value
             field_label = "category" if field == "tag" else field
+
+            if field == "status" and value == "done":
+                self.db.archive_task(task_id, "finished")
+                return True, f'Finished "{title}" — archived'
+
             return True, f'Updated "{title}" — {field_label} → {value}'
 
         except ValueError as e:
             return False, f"{str(e)}"
 
     async def _execute_delete(self, data: Dict) -> Tuple[bool, str]:
-        """Delete a task."""
+        """Delete a task -- archives it (tasks_db.archive_task) rather than
+        removing the file, so no task data is ever actually lost."""
         task_id, error = self._resolve_task_id(data["task_id"])
         if error:
             return False, f"{error}"
@@ -176,7 +210,7 @@ Priority: {data.get('priority', 3)}/5"""
         if not task:
             return False, "Task not found"
 
-        self.db.delete_task(task_id)
+        self.db.archive_task(task_id, "deleted")
         return True, f'Deleted "{task["title"]}"'
 
     async def _execute_list(self, data: Dict) -> Tuple[bool, str]:
@@ -224,47 +258,55 @@ Priority: {data.get('priority', 3)}/5"""
 
         return True, message
 
-    # Known categories are listed first (stable, familiar order); anything
-    # else (any custom category the user makes up) is appended alphabetically
-    # — no fixed category list, this is just display ordering.
-    _KNOWN_CATEGORIES = ["School", "Motorsports", "General", "Project Ideas"]
-
-    def format_dashboard(self) -> str:
-        """Format complete task dashboard for Discord embed."""
-        dashboard = "YOUR TASKS\n"
-        dashboard += "━" * 50 + "\n\n"
-
-        # Open tasks grouped by whatever categories actually exist right now —
-        # known ones first (stable, familiar order), then custom ones alphabetically.
+    def get_dashboard_data(self) -> Dict:
+        """Structured dashboard data — every interface (Discord embed,
+        plain text below, the web API) renders this however it needs
+        rather than each re-deriving its own grouping/ordering. Open tasks
+        are grouped by whatever categories actually exist right now: the
+        live category list first (stable, familiar order, from
+        category_store — not a fixed/dead constant), then any custom
+        category a task happens to carry that isn't in that list,
+        alphabetically."""
         all_open = self.db.get_open_tasks()
         tags_dict: Dict[str, List[Dict]] = {}
         for task in all_open:
             tags_dict.setdefault(task["tag"], []).append(task)
 
-        known_order = [t for t in self._KNOWN_CATEGORIES if t in tags_dict]
-        custom_order = sorted(t for t in tags_dict if t not in self._KNOWN_CATEGORIES)
+        categories = category_store.get_categories()
+        known_order = [t for t in categories if t in tags_dict]
+        custom_order = sorted(t for t in tags_dict if t not in categories)
 
-        for tag in known_order + custom_order:
-            tasks = tags_dict[tag]
+        return {
+            "categories": [(tag, tags_dict[tag]) for tag in known_order + custom_order],
+            "stats": self.db.get_stats(),
+            "due_soon": self.db.get_tasks_due_soon(days=7),
+        }
+
+    def format_dashboard(self) -> str:
+        """Plain-text dashboard rendering — used by the web API
+        (tasks_api.py) and the terminal CLI. Discord's dashboard is a
+        richer embed built directly in discord_bot.py from
+        get_dashboard_data() instead of this text."""
+        data = self.get_dashboard_data()
+        dashboard = "YOUR TASKS\n"
+        dashboard += "━" * 50 + "\n\n"
+
+        for tag, tasks in data["categories"]:
             dashboard += f"{tag} ({len(tasks)})\n"
 
-            for task in tasks[:3]: # Show top 3
-                priority_bar = "▰" * task["priority"] + "▱" * (5 - task["priority"])
+            for task in tasks[:3]:  # Show top 3
                 due_str = f" (due {task['due_date']})" if task["due_date"] else ""
-                dashboard += f" [{priority_bar}] {task['title']}{due_str}\n"
+                dashboard += f" - {task['title']}{due_str}\n"
 
             if len(tasks) > 3:
                 dashboard += f" ... and {len(tasks) - 3} more\n"
             dashboard += "\n"
 
-        # Stats
-        stats = self.db.get_stats()
+        stats = data["stats"]
         dashboard += "━" * 50 + "\n"
         dashboard += f"Done: {stats['done']} | In Progress: {stats['in_progress']} | Open: {stats['open']}\n"
 
-        # Due soon
-        due_soon = self.db.get_tasks_due_soon(days=7)
-        if due_soon:
-            dashboard += f"\n{len(due_soon)} tasks due this week\n"
+        if data["due_soon"]:
+            dashboard += f"\n{len(data['due_soon'])} tasks due this week\n"
 
         return dashboard
