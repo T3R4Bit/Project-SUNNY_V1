@@ -1,6 +1,6 @@
 # Sunny Companion — Build Plan (Desk Unit v1)
 
-Step-by-step, in dependency order. Check items off as they're done. Each phase assumes the previous one works before moving on — don't build the avatar app against a kiosk stack that hasn't been proven to boot yet.
+Step-by-step, in dependency order. Check items off as they're done. Each phase assumes the previous one works before moving on — don't build the face renderer against a kiosk stack that hasn't been proven to boot yet.
 
 ## Repo layout
 
@@ -9,14 +9,16 @@ Everything lives in this one repo (Project-SUNNY) — no separate repo for the P
 ```text
 sunny-companion/
 ├── README.md / BUILD_PLAN.md
+├── dev-watchdog.py                     (dev-only: keeps the local test server running)
 └── pi-client/                          ← everything that runs ON the Pi
-    ├── wake_word_client.py             (Phase 5)
+    ├── wake_word_listener.py           (Phase 5)
+    ├── wake_on_lan.py                  (Phase 5)
+    ├── crash_reporter.py               (Phase 5)
     ├── systemd/
-    │   ├── sunny-face.service          (Phase 2 — Cog kiosk)
+    │   ├── sunny-face.service          (Phase 2 — kiosk display, renderer TBD)
     │   └── sunny-client.service        (Phase 5 — wake-word + network client)
-    └── avatar-app/
-        ├── src/                        (edited on a dev machine)
-        └── dist/                       (built static bundle, committed — Pi never runs Node/Vite)
+    └── <renderer TBD>/                 (Phase 4 -- the avatar-lab attempt here was
+                                          scrapped 2026-08-23; nothing lives here yet)
 ```
 
 The new server-side endpoint (Phase 6) stays in `sunny_code/`, alongside the existing `stt.py`/`tts.py`/`voice_worker.py` — not in `sunny-companion/`.
@@ -42,7 +44,7 @@ Updating the device going forward is just `git pull` on the Pi + restarting the 
 - [ ] `sudo apt install cog libwpewebkit-1.1-0`
 - [ ] Test: `cog --platform=drm https://example.com` renders full-screen with no X11/Wayland compositor running — confirms the screen (once attached) and DRM/KMS path work
 - [ ] Attach the Waveshare screen (GPIO + HDMI direct-connect) and repeat the test on real hardware
-- [ ] Write `pi-client/systemd/sunny-face.service`: launches `cog --platform=drm <local avatar app URL>`, `WantedBy=multi-user.target` (no network dependency — static files are already on disk, so the face should appear immediately on boot rather than waiting on WiFi), `Restart=on-failure`
+- [ ] Write `pi-client/systemd/sunny-face.service`: launches whatever Phase 4 ends up being (a `cog --platform=drm <url>` invocation if the replacement is still browser-based, or something else entirely if not — depends on the Phase 4 decision), `WantedBy=multi-user.target` (no network dependency — assets should already be on disk, so the face should appear immediately on boot rather than waiting on WiFi), `Restart=on-failure`
 - [ ] `systemctl enable sunny-face.service` — confirm boot-to-face works with no login prompt, no manual steps, and that it survives a crash (kill the process, confirm systemd restarts it)
 
 ## Phase 3 — Audio I/O
@@ -52,22 +54,22 @@ Updating the device going forward is just `git pull` on the Pi + restarting the 
 - [ ] Record a short clip and play it back to confirm mic quality/levels: `arecord -d 5 test.wav && aplay test.wav`
 - [ ] Set explicit default ALSA input/output devices (`/etc/asound.conf` or `.asoundrc`) so they don't shift if USB device order changes on reboot
 
-## Phase 4 — Avatar app (built on a dev machine, deployed to the Pi)
+## Phase 4 — Face renderer (scrapped and restarting)
 
-- [ ] Design the character in the bible-strong-avatar-lab editor; export the `.avatar.json` (currently using the library's own sample character, "Strobi", recolored yellow — not a custom design yet)
-- [x] Build the expression set: idle, listening, thinking, speaking, plus emotion presets — done using expressions already on the placeholder character (idle/listening/thinking/speaking all expanded to 4-7 step variety; happy/confused/surprised/sad/etc. emotion animations were already present)
-- [x] Wire up `@bible-strong/avatar-web` to load the character and play animations using the library's loop/play-once/ping-pong modes — done in `pi-client/avatar-app/src/main.ts`
-- [x] Add amplitude-driven modulation for the "speaking" state — done, but as an **external CSS pulse** on the avatar host element (`--speak-pulse`), not literal mouth movement: avatar-web's public API has no raw parameter control and this character has no mouth geometry at all, so a CSS scale pulse driven by a live `AnalyserNode` reading the actual TTS audio is the honest implementation
-- [x] Add a small local WebSocket client in the page's JS that listens for state/audio messages and drives the animation state machine + audio playback — done; currently connects directly to `/ws/pi` for testing (see Phase 5 note below on where this wiring moves once the Python device client exists)
-- [ ] Bundle as a static build (Vite or similar) — confirm it doesn't need a server, so Cog can load it via `file://` or a trivial local static server (still only tested via `vite dev`, haven't run a production `vite build` yet)
-- [ ] Copy the built static bundle onto the Pi; point the Phase 2 systemd unit's Cog invocation at it
-- [ ] **Validation checkpoint** (flagged as a risk earlier): confirm this renders smoothly via Cog's DRM backend on the actual Pi 3 B hardware before investing more time in the expression set
+**2026-08-23: the bible-strong-avatar-lab attempt was built (character, expression set, state machine wiring, WebSocket client, amplitude-driven CSS pulse for "speaking") and then scrapped.** It's been removed from the repo entirely. What it proved, for whenever a new attempt starts: the animation-engine-vs-static-image distinction mattered and is worth checking again for whatever's next; the chosen library had no mouth geometry at all, so "speaking" ended up as a CSS pulse rather than real mouth movement — worth deciding upfront next time whether that's acceptable or a dealbreaker; and the render-performance risk flagged from the start (Pi 3 B's CPU cost for whatever does the rendering) never actually got validated on real hardware before the scrap, so it's still an open unknown, not a resolved one.
+
+- [ ] Decide the renderer approach (see README's Open Questions — this decision also feeds back into whether the Pi 3 B board choice still holds)
+- [ ] Everything below is a placeholder shape, not a committed plan, until that's decided: design/build whatever the face actually is, wire it to the state machine (idle/listening/thinking/searching/speaking + emotion overlay) that `pi_companion.py` already emits over `/ws/pi`, get it running standalone on a dev machine, then validate it actually renders smoothly on the real Pi 3 B hardware before investing further
+
+## Phase 4.5 — Wiring the renderer to the device client
+
+Regardless of what Phase 4 turns out to be, something needs to receive `/ws/pi`'s state events and audio and hand them to the renderer + speakers. That's genuinely new work either way (the scrapped attempt had the *browser page itself* connect directly to `/ws/pi` for convenience while testing — not how it should work for real, per Phase 5 below).
 
 ## Phase 5 — Device client (Python, runs on the Pi)
 
 - [x] Pick and install a local wake-word engine — `pi-client/wake_word_listener.py`, using openWakeWord. **No pretrained "hey sunny" model exists** — using "hey_jarvis" as a placeholder to prove the mechanism (continuous low-compute listening → trigger callback) actually works; verified the model loads and stays near-zero on silence/noise, and the live audio stream opens and runs without crashing. Not yet verified against a real spoken wake word — training a real "hey sunny" model is separate follow-up work (needs synthetic data generation via openWakeWord's own training notebooks)
-- [ ] On wake-word trigger: immediately push a `listening` state to the avatar app (local, no network wait), then start streaming mic audio to the new server endpoint (Phase 6) — **not wired together yet**: the wake-word listener and the server endpoint both work independently (see Phase 6), but nothing yet connects the trigger to opening a `/ws/pi` connection and streaming mic audio into it
-- [ ] Receive state events + TTS audio back from the server; forward state events to the avatar app's WebSocket, play TTS audio through ALSA/3.5mm out — not built; today the avatar app connects to `/ws/pi` directly itself for testing purposes instead
+- [ ] On wake-word trigger: immediately push a `listening` state to the face renderer (local, no network wait), then start streaming mic audio to the new server endpoint (Phase 6) — **not wired together yet**: the wake-word listener and the server endpoint both work independently (see Phase 6), but nothing yet connects the trigger to opening a `/ws/pi` connection and streaming mic audio into it
+- [ ] Receive state events + TTS audio back from the server; forward state events to whatever Phase 4 becomes, play TTS audio through ALSA/3.5mm out — not built yet (the scrapped avatar-lab attempt connected to `/ws/pi` directly itself as a testing shortcut, not the real design — this Python client should own that connection instead)
 - [x] Wake-on-LAN: `pi-client/wake_on_lan.py` — pure `socket`, no dependency, unit-tested (magic packet builds to the correct 102 bytes: 6×0xFF + 16×MAC)
 - [ ] Write `pi-client/systemd/sunny-client.service`: `After=network-online.target`, `Wants=network-online.target` (this one genuinely needs WiFi up before it can reach the server, unlike the face service), `Restart=on-failure`
 - [ ] `systemctl enable sunny-client.service` — confirm it waits for network before starting, and that a killed process gets restarted automatically
@@ -85,7 +87,7 @@ Updating the device going forward is just `git pull` on the Pi + restarting the 
 
 - [ ] Say the wake word → confirm instant local "listening" reaction (no visible lag)
 - [ ] Confirm "thinking" shows during the server round-trip
-- [ ] Confirm "speaking" plays with mouth movement synced to actual TTS audio
+- [ ] Confirm "speaking" plays with whatever visual talking indicator Phase 4 ends up being, synced to actual TTS audio
 - [ ] Confirm return to "idle" after the reply finishes
 - [ ] Ask for Sonnet usage → confirm the dashboard view appears and returns to the face afterward
 - [ ] Test Wake-on-LAN command actually powers on the desktop PC

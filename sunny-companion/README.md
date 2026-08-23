@@ -7,9 +7,9 @@ Physical device(s) for talking to Sunny — full conversational capability (wake
 
 ## Face / personality
 
-Reference: [avatars.bible-strong.app](https://avatars.bible-strong.app/) / [smontlouis/bible-strong-avatar-lab](https://github.com/smontlouis/bible-strong-avatar-lab) — want an animated face on-screen to give Sunny more personality, similar visual style to that avatar system.
+Want an animated face on-screen to give Sunny personality — reactions, not just a static display or an LED ring.
 
-**Technical constraint to plan around:** that avatar renderer is SVG + React/DOM (`@bible-strong/avatar-web` for vanilla JS/ESM, portable `.avatar.json` character definitions), running in a browser engine — not something a bare microcontroller (ESP32/STM32) can drive. It implies the screen needs to be driven by something that can run a JS/browser runtime (e.g. a Pi-class SBC in kiosk mode), rather than a microcontroller pushing raw framebuffer graphics. Worth confirming before locking in a board — if we want the exact SVG avatar-web output, plan for a Linux SBC as the display driver; a microcontroller could still own lower-level jobs (power, WoL, audio amp control) alongside it.
+**2026-08-23: the first implementation attempt (bible-strong-avatar-lab, an SVG/browser-rendered avatar) was built, tested, and scrapped.** The underlying state-machine design it was driven by (idle/listening/thinking/speaking, below) is independent of that library and stays — the server already emits exactly those state events over `/ws/pi` regardless of what renders them. What's genuinely open again: **which rendering approach replaces it.** That choice was also the reason WPE WebKit + Cog got picked for the board (needing a full browser engine) — if the replacement doesn't need a browser at all (e.g. a framebuffer/LVGL-style approach a microcontroller or a much lighter Pi could drive), the board choice may be worth revisiting too, not just the visuals. See Open Questions below.
 
 ## Desk unit — target hardware capabilities
 
@@ -51,17 +51,16 @@ The device is a **thin client** — no local LLM, no Discord voice client. The s
 - **Server-side (new code, not `voice_worker.py`):** the new endpoint reuses the existing `stt.py`/`tts.py` components directly — no Discord, no Opus/DAVE encryption, no gateway heartbeats. It runs Vosk STT → existing LLM/handle_message pipeline → Piper TTS, and streams both the TTS audio and small **state events** back to the device (`{"state": "thinking"}`, `{"state": "speaking", "emotion": "happy"}`, `{"state": "idle"}`).
 - This bypasses `sunny_code/voice_worker.py`'s Discord-voice-channel design entirely for this device — that pipeline stays as-is for Discord users, this is a parallel path.
 
-## Face behavior — state machine + real animation loops
+## Face behavior — state machine (implementation-agnostic, still the plan)
 
-Confirmed (not assumed): the avatar-lab's animation system is genuinely loop-capable, not static-image swapping. Expressions act as semantic keyframes on a timeline; the **Motion** JS library tweens between them; playback modes include **loop, play-once, and ping-pong**; "ambient movement" (blinking, subtle body/eye motion) runs continuously as its own loop layered on top. This is a real animation engine, not a picture-swapper.
+This part survives the scrapped avatar-lab attempt unchanged — whatever renders the face next still needs to react to these same states, since the server (`pi_companion.py`) already emits them over `/ws/pi`:
 
-Planned states, each a real animation (not a still frame):
-
-- **Idle** — ambient movement + blinking loop, resting expression, waiting for the wake word.
-- **Listening** — triggered locally the instant the wake-word engine fires (no network wait). Eyes perk up / lean in.
-- **Thinking** — loops while waiting on the server's LLM reply; covers the latency gap so it doesn't freeze.
-- **Speaking** — loops while TTS audio plays; mouth movement driven by the **audio's live amplitude** (no true lip-sync — the library doesn't support visemes, and neither Vosk nor Piper hand us phoneme timing — amplitude-driven mouth-open is the cheap, well-worn substitute that still reads as "talking").
-- **Emotion overlay (v2)** — server can tag a reply with a coarse mood (happy/concerned/playful/apologetic); device swaps in a hand-designed expression preset for eyes/brows while the same speaking animation runs underneath.
+- **Idle** — resting, waiting for the wake word.
+- **Listening** — triggered locally the instant the wake-word engine fires (no network wait).
+- **Thinking** — while waiting on the server's LLM reply; covers the latency gap so it doesn't look frozen.
+- **Searching** — a distinct state for the extra gap a live web search adds (server-side: `llm_client.ask_claude_stream`'s `on_search_start`), rather than lumping it into "thinking."
+- **Speaking** — while TTS audio plays; some kind of "talking" indicator driven by the **audio's live amplitude** is the plan (no phoneme/viseme timing available from Vosk or Piper, so true lip-sync isn't on the table regardless of renderer — amplitude-driven is the cheap, well-worn substitute).
+- **Emotion overlay (v2)** — server can tag a reply with a coarse mood (happy/concerned/playful/apologetic); device shows some renderer-specific expression for it. Not built yet.
 
 ## Stat dashboard feature (e.g. "what's my Sonnet usage")
 
@@ -74,10 +73,11 @@ A second display mode alongside the face, not bolted onto it — Cog swaps from 
 
 ## Open questions
 
-- Validate WPE WebKit/Cog can render the `avatar-web` SVG output smoothly on the Pi 3 B before writing much client code
-- Enclosure design for the desk form factor (3D printed, separate from this BOM) — needs to account for the GPIO-stacked screen geometry above
-- Exact expression set and transition design for the state machine above (how many emotion presets, what triggers each)
+- **What replaces the scrapped avatar-lab renderer.** Options span a wide range — another SVG/browser-based library, a simpler framebuffer/LVGL-style approach, hand-drawn sprite animations, something else entirely — and the choice feeds back into whether a full browser engine (and therefore the current board) is even needed.
+- Whether the board choice (Pi 3 B, picked partly to run WPE WebKit + Cog) still holds once the above is decided, or whether a lighter/cheaper board becomes viable again.
+- Enclosure design for the desk form factor (3D printed, separate from the BOM) — needs to account for the GPIO-stacked screen geometry once a renderer is chosen.
+- Exact expression/mood set for the emotion overlay (how many, what triggers each) — deferred until there's a renderer to define them against.
 
 ## Status
 
-Board bought (Pi 3 Model B, $32). Rest of the BOM picked with real Amazon links, not yet ordered. Architecture and face/dashboard behavior designed. Step-by-step build plan: [BUILD_PLAN.md](BUILD_PLAN.md). No code in this folder yet.
+Board bought (Pi 3 Model B, $32). Server-side is real and working: `/ws/pi` (Vosk STT → LLM → Piper TTS, with idle/listening/thinking/searching/speaking state events), the Anthropic usage dashboard's Admin API design, and crash detection + Discord alerting for the device's future services are all built server-side (see [BUILD_PLAN.md](BUILD_PLAN.md)). The avatar-lab-based face implementation was built, tested, and scrapped (2026-08-23) — no visual renderer exists right now, that's the open piece.

@@ -1,15 +1,15 @@
-"""Dev-only convenience: keeps the companion server and avatar app's Vite
-dev server running while testing locally, restarting either one if it dies.
+"""Dev-only convenience: keeps the companion server running while testing
+locally, restarting it if it dies.
 
 This is NOT what runs on the actual Pi -- that's systemd's Restart=on-failure
 (see BUILD_PLAN.md's Phase 2/5 systemd units, already speced with crash
-reporting via pi-client/crash_reporter.py). This script exists because
-those two dev processes have no such supervisor at all right now -- they're
-just ad-hoc background processes, and they've already died silently once
-this session with nothing watching.
+reporting via pi-client/crash_reporter.py). This script exists because that
+dev process has no such supervisor at all right now -- it's just an ad-hoc
+background process, and it already died silently once this session with
+nothing watching.
 
 Usage: python sunny-companion/dev-watchdog.py
-Ctrl+C to stop both.
+Ctrl+C to stop.
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ import time
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-AVATAR_APP_DIR = REPO_ROOT / "sunny-companion" / "pi-client" / "avatar-app"
 RESTART_DELAY_SECONDS = 2
 
 SERVICES = {
@@ -28,10 +27,6 @@ SERVICES = {
         "cmd": [str(REPO_ROOT / "venv" / "Scripts" / "python.exe"), "-m", "uvicorn", "sunny_code.main:app",
                 "--host", "127.0.0.1", "--port", "5055"],
         "cwd": REPO_ROOT,
-    },
-    "avatar-vite": {
-        "cmd": ["npm", "run", "dev"],
-        "cwd": AVATAR_APP_DIR,
     },
 }
 
