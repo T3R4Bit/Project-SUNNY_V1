@@ -26,6 +26,11 @@ Running log of real changes, most recent first. Not every commit — the milesto
 - Claude can search the web from open-ended conversation (capped at 3 searches/call, off by default per question — it decides when a question genuinely needs current info, steered in `general-chat.md`).
 - A distinct "searching" cue (a third audio tone, different from the wake chime and the thinking cue) plays over voice while a search is in flight; the Pi companion gets a matching state event.
 
+**Spotify voice control**
+- "play `<song>`", "pause", "resume", "skip", "previous song", "volume up/down" or "set volume to N", "what's playing" — works from any voice or text interface, same as tasks/lists. Acts on whatever device Spotify itself considers active (no device-targeting concept in Sunny, matching how Siri/the Spotify app behave). Requires Spotify Premium.
+- OAuth (PKCE) mirrors the Google Sign-In pattern — a "Connect Spotify Account" card on `/console`, token stored/refreshed locally (`spotify_token.json`).
+- Found live: Spotify rejects any redirect URI over plain HTTP except the literal loopback `127.0.0.1` — a Tailscale IP doesn't qualify. Fixed by reusing the Tailscale-issued HTTPS cert already set up for Google's integration (`TLS_PORT` 5443) instead of a new cert.
+
 **Other**
 - "run health check" runs a real check on demand instead of only showing the last cached one — short spoken summary over voice, full report in text.
 - `/usage` — a dark-themed chart of daily Claude API cost, posted as a Discord image attachment (the one actually-paid API in this app).
