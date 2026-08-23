@@ -31,12 +31,12 @@ Scopes: `user-modify-playback-state`, `user-read-playback-state`, `user-read-cur
 ## Setup (do this once, outside the repo)
 
 1. **Spotify Developer Dashboard** → [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard) → log in → Create app.
-2. **Redirect URI**: add `http://127.0.0.1:5000/auth/spotify/callback` (testing directly on the machine running Sunny) or `http://<tailscale-ip>:5000/auth/spotify/callback` (over Tailscale) — Spotify's redirect-URI policy allows plain HTTP for loopback/private addresses, unlike Google's HTTPS-only policy, so this doesn't need the TLS setup Google's integration required.
+2. **Redirect URI**: Spotify requires HTTPS for every redirect URI *except* the literal loopback `http://127.0.0.1:<port>/...` — a Tailscale IP/hostname does **not** qualify as loopback, so a real-machine setup needs the same Tailscale-issued HTTPS cert Google's integration uses (see [[google-integration]]'s HTTPS section — `certs/tailscale.crt`/`tailscale.key`, `TLS_PORT` default `5443`). Add `https://<tailscale-hostname>.<tailnet>.ts.net:5443/auth/spotify/callback` (find the hostname via `tailscale status --self --json` → `DNSName`), or `http://127.0.0.1:5000/auth/spotify/callback` only if testing directly on the machine running Sunny.
 3. Copy the **Client ID** and **Client Secret** into `.env`:
    ```
    SPOTIFY_CLIENT_ID=...
    SPOTIFY_CLIENT_SECRET=...
-   SPOTIFY_OAUTH_REDIRECT_URI=http://<your-tailscale-ip>:5000/auth/spotify/callback
+   SPOTIFY_OAUTH_REDIRECT_URI=https://<your-tailscale-hostname>.<tailnet>.ts.net:5443/auth/spotify/callback
    ```
 4. Restart Sunny, open `/console`, and click **Connect Spotify Account** under the SPOTIFY card. Approve the consent screen. The card should flip to `CONNECTED` with your account name shown.
 5. Open Spotify somewhere (phone, desktop, speaker) before trying a voice command — with nothing active, every command replies "Open Spotify on a device first."

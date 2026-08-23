@@ -71,10 +71,12 @@ GOOGLE_CLIENT_SECRET=...
 GOOGLE_OAUTH_REDIRECT_URI=http://100.117.41.53:5000/auth/google/callback
 
 # Spotify (OAuth 2.0) — powers voice playback control. Requires Premium.
+# Spotify requires HTTPS for the redirect URI except literal 127.0.0.1, so
+# this needs the same Tailscale-issued cert as Google's TLS_PORT (5443).
 # Setup steps: sunny-vault/docs/architecture/spotify-integration.md
 SPOTIFY_CLIENT_ID=...
 SPOTIFY_CLIENT_SECRET=...
-SPOTIFY_OAUTH_REDIRECT_URI=http://100.117.41.53:5000/auth/spotify/callback
+SPOTIFY_OAUTH_REDIRECT_URI=https://sunshine-m700.wahoo-sidewinder.ts.net:5443/auth/spotify/callback
 
 # Discord bot — leave token/tasks-channel blank to run without the bot (console
 # chat still works). Tasks channel is the only one commands are read from.

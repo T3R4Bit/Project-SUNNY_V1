@@ -141,12 +141,16 @@ Requires a Spotify Premium account — playback control (play/pause/skip/
 volume) doesn't work on a Free account.
 
 1. developer.spotify.com/dashboard → log in → Create app.
-2. Add a Redirect URI: http://127.0.0.1:5000/auth/spotify/callback (or your
-   Tailscale IP/hostname equivalent, same pattern as Google's).
+2. Add a Redirect URI. Spotify requires HTTPS for everything except the
+   literal loopback http://127.0.0.1:5000/auth/spotify/callback — a
+   Tailscale IP doesn't count as loopback, so a real deployment needs the
+   same Tailscale-issued HTTPS cert Google's integration uses:
+   https://<your-tailscale-hostname>.<tailnet>.ts.net:5443/auth/spotify/callback
+   (find the hostname via `tailscale status --self --json` -> DNSName).
 3. Copy the Client ID/Secret into .env:
    SPOTIFY_CLIENT_ID=...
    SPOTIFY_CLIENT_SECRET=...
-   SPOTIFY_OAUTH_REDIRECT_URI=http://127.0.0.1:5000/auth/spotify/callback
+   SPOTIFY_OAUTH_REDIRECT_URI=https://<your-tailscale-hostname>.<tailnet>.ts.net:5443/auth/spotify/callback
 4. Restart Sunny, open /console, click "Connect Spotify Account" in the
    SPOTIFY card.
 
