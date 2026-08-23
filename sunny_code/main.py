@@ -204,8 +204,22 @@ class SunnyCore:
 
         # Sunny Companion hardware device -- /ws/pi (bypasses Discord entirely,
         # see sunny-companion/BUILD_PLAN.md Phase 6)
+        async def _post_to_warnings_if_configured(text: str) -> None:
+            # Lazy lookup, not a resolved value up front: _create_app() runs
+            # before self.discord_bot is assigned (see __init__), but by the
+            # time any request actually reaches this endpoint the app is
+            # fully constructed, so the attribute is there.
+            post_fn = getattr(self.discord_bot, "post_to_warnings", None)
+            if post_fn is not None:
+                await post_fn(text)
+
         pi_companion_router = create_pi_companion_router(
-            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine, self.project_engine
+            self.tasks_engine,
+            self.briefing_engine,
+            self.list_engine,
+            self.scheduled_engine,
+            self.project_engine,
+            post_to_warnings=_post_to_warnings_if_configured,
         )
         app.include_router(pi_companion_router)
 

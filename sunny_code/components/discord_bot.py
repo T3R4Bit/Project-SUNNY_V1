@@ -330,6 +330,19 @@ def create_discord_bot(
 
     client.post_to_health = post_to_health
 
+    async def post_to_warnings(text: str):
+        """Exposed for callers outside this module (currently pi_companion.py's
+        crash-report endpoint, for the Sunny Companion hardware device) that
+        want to post to the same #warnings channel this module already uses
+        for its own crash notice, without importing Discord internals. Same
+        not-ready no-op as post_to_health above, same reason."""
+        if not client.is_ready():
+            logger.warning("post_to_warnings: Discord client not ready, skipping")
+            return
+        await _post_to(warnings_channel_id, text, fallback_channel_id=chat_channel_id)
+
+    client.post_to_warnings = post_to_warnings
+
     async def refresh_dashboard(_change_message: str = None):
         """Post or edit the pinned dashboard message in the dashboard channel
         (read-only — nothing is ever read back from here)."""

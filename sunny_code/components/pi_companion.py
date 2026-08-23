@@ -24,9 +24,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from pydantic import BaseModel
 
 from sunny_code.components import stt, tts
 from sunny_code.components.assistant import handle_message
@@ -38,6 +39,21 @@ from sunny_code.components.tasks_engine import TaskEngine
 
 logger = logging.getLogger(__name__)
 
+PostFn = Callable[[str], Awaitable[None]]
+
+
+class CrashReport(BaseModel):
+    """Body for POST /api/pi/crash-report. The device has no Discord
+    credentials of its own (kept server-side only, same posture as the
+    Anthropic Admin API key -- see sunny-companion/README.md), so it can't
+    post to Discord directly the way the main server's own crash notice
+    does (see crash_check.py + discord_bot.py). Instead it detects its own
+    dirty restart locally (a marker file, same technique) and reports it
+    here; this endpoint relays it to the same #warnings channel."""
+
+    device: str
+    reason: str
+
 
 def create_pi_companion_router(
     tasks_engine: TaskEngine,
@@ -45,11 +61,26 @@ def create_pi_companion_router(
     list_engine: ListEngine,
     scheduled_engine: ScheduledEngine,
     project_engine: ProjectEngine,
+    post_to_warnings: Optional[PostFn] = None,
 ) -> APIRouter:
     """Create the /ws/pi router. Takes the same shared engine instances as
     create_chatbot_router() so a change made from the device stays in sync
-    with Discord/console state instead of forking a second copy of them."""
+    with Discord/console state instead of forking a second copy of them.
+
+    post_to_warnings mirrors main.py's health-check wiring (getattr(self.
+    discord_bot, "post_to_health", None)) -- None whenever Discord isn't
+    configured, so the crash-report endpoint below still accepts the report
+    and logs it locally either way, same fail-open posture as post_to_health
+    itself."""
     router = APIRouter()
+
+    @router.post("/api/pi/crash-report")
+    async def pi_crash_report(report: CrashReport) -> dict:
+        message = f"Sunny Companion device '{report.device}' crashed and restarted. Reason: {report.reason}"
+        logger.warning(message)
+        if post_to_warnings is not None:
+            await post_to_warnings(message)
+        return {"ok": True}
 
     @router.websocket("/ws/pi")
     async def pi_companion_socket(websocket: WebSocket) -> None:

@@ -71,6 +71,7 @@ Updating the device going forward is just `git pull` on the Pi + restarting the 
 - [x] Wake-on-LAN: `pi-client/wake_on_lan.py` — pure `socket`, no dependency, unit-tested (magic packet builds to the correct 102 bytes: 6×0xFF + 16×MAC)
 - [ ] Write `pi-client/systemd/sunny-client.service`: `After=network-online.target`, `Wants=network-online.target` (this one genuinely needs WiFi up before it can reach the server, unlike the face service), `Restart=on-failure`
 - [ ] `systemctl enable sunny-client.service` — confirm it waits for network before starting, and that a killed process gets restarted automatically
+- [ ] Both services call `crash_reporter.report_crash_if_needed(...)` at startup and `mark_running()`/`mark_clean_shutdown()` around their main loop (see `pi-client/crash_reporter.py`) — mirrors the main server's own crash_check.py + Discord #warnings notice (already live there), but relayed through the new `POST /api/pi/crash-report` endpoint since the device has no Discord credentials of its own. Test by killing a running service with `kill -9` (an unclean death, unlike `systemctl stop`) and confirming the *next* start posts to #warnings.
 
 ## Phase 6 — Server-side endpoint (new code in `sunny_code`)
 
