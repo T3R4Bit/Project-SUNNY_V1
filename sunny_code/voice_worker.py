@@ -540,8 +540,27 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
     # THINKING_SOUND_DELAY -- set by handle_utterance right after
     # dispatching, cancelled by speak() once a real reply is ready to
     # play, so the cue only ever appears for the gap it's meant to cover.
+    speech_generation = 0  # bumped every time a new wake word is heard --
+    # every queued/synthesized piece of a response is tagged with the
+    # generation active when it was dispatched, so a barge-in ("hey
+    # sunny" heard again while Sunny's still talking) can tell "this
+    # audio belongs to the request that just got interrupted" and drop
+    # it instead of playing it right after the chime.
 
     async def play_wake_chime():
+        """Also doubles as the barge-in handler: called the instant a new
+        wake word is detected (even mid-partial-hypothesis, before the
+        rest of the sentence is heard), so this is the earliest point to
+        both interrupt whatever's currently playing AND make sure
+        speech_player() doesn't just resume talking through whatever of
+        the old response was still queued behind it."""
+        nonlocal speech_generation
+        speech_generation += 1
+        while not speech_queue.empty():
+            try:
+                speech_queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
         if voice_client is None or not voice_client.is_connected():
             return
         logger.info(f"voice_worker: playing wake chime (thread={threading.get_ident()})")
@@ -605,6 +624,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
             "user_name": str(user),
             "text": command,
             "t_heard": t_heard,
+            "generation": speech_generation,
         })
         if pending_thinking_task is not None and not pending_thinking_task.done():
             pending_thinking_task.cancel()  # a stray earlier one, shouldn't
@@ -618,14 +638,33 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
     # back-to-back in order even though each one is synthesized as its
     # own separate call.
 
-    async def _synthesize_and_enqueue(text: str, error_context: str) -> None:
+    async def _synthesize_and_enqueue(text: str, error_context: str, generation: int) -> None:
         nonlocal pending_thinking_task
         if voice_client is None or not voice_client.is_connected():
             return
+        if generation != speech_generation:
+            logger.info(f"voice_worker: dropping stale {error_context} (barged in on) -- skipping synthesis")
+            return
+        # Diagnostic for a real, unexplained hang seen live (2026-08-21):
+        # both a streamed LLM reply and a plain hardcoded reply went
+        # silent right around here and never played, with no exception
+        # logged anywhere. dump_traceback_later prints every thread's
+        # real stack to stderr (-> journalctl) if this call doesn't
+        # finish in time, instead of guessing again. Remove once the
+        # actual cause is found and fixed.
+        faulthandler.dump_traceback_later(8, file=sys.stderr)
         try:
             pcm = await asyncio.to_thread(tts.synthesize_discord_pcm, text)
         except Exception as e:
+            faulthandler.cancel_dump_traceback_later()
             logger.error(f"voice_worker: {error_context} TTS synthesis failed: {e}")
+            return
+        faulthandler.cancel_dump_traceback_later()
+        if generation != speech_generation:
+            # Barged in on while synthesis (a real, non-instant TTS call)
+            # was in flight -- don't cancel the thinking cue or queue
+            # audio for a request that's no longer the active one.
+            logger.info(f"voice_worker: dropping stale {error_context} (barged in on) -- skipping playback")
             return
         # Cancelled here, right after synthesis of the first real piece
         # of audio -- not any earlier -- so the thinking cue (if it's
@@ -636,17 +675,18 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         if pending_thinking_task is not None and not pending_thinking_task.done():
             pending_thinking_task.cancel()
             pending_thinking_task = None
-        await speech_queue.put(pcm)
+        await speech_queue.put((generation, pcm))
+        logger.info(f"voice_worker: {error_context} queued ({len(pcm)} bytes) for playback")
 
-    async def speak(text: str) -> None:
-        await _synthesize_and_enqueue(text, "response")
+    async def speak(text: str, generation: int) -> None:
+        await _synthesize_and_enqueue(text, "response", generation)
 
-    async def speak_chunk(text: str) -> None:
+    async def speak_chunk(text: str, generation: int) -> None:
         """One sentence of a streamed reply -- see voice_session.py's
         on_chunk/"speak_chunk". Queued the same way as a full "speak"
         response; speech_player() is what actually plays it, in order,
         once every earlier chunk has finished."""
-        await _synthesize_and_enqueue(text, "chunk")
+        await _synthesize_and_enqueue(text, "chunk", generation)
 
     async def speech_player():
         """Plays queued response audio back-to-back, one item at a time,
@@ -661,10 +701,19 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         (silence_watchdog)."""
         while not stop_event.is_set():
             try:
-                pcm = await asyncio.wait_for(speech_queue.get(), timeout=COMMAND_POLL_TIMEOUT)
+                generation, pcm = await asyncio.wait_for(speech_queue.get(), timeout=COMMAND_POLL_TIMEOUT)
             except asyncio.TimeoutError:
                 continue
+            if generation != speech_generation:
+                # Queued before the last barge-in, missed by
+                # play_wake_chime()'s drain because it was still being
+                # synthesized at that moment -- drop it now instead of
+                # talking over the request that superseded it.
+                logger.info("voice_worker: speech_player dropping stale queued item (barged in on)")
+                continue
+            logger.info(f"voice_worker: speech_player dequeued {len(pcm)} bytes")
             if voice_client is None or not voice_client.is_connected():
+                logger.info("voice_worker: speech_player: voice_client not connected, dropping item")
                 continue
             try:
                 if voice_client.is_playing():
@@ -676,11 +725,23 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
                     # cuts off this queue's own audio.
                     voice_client.stop()
                 voice_client.play(discord.PCMAudio(io.BytesIO(pcm)))
+                logger.info("voice_worker: speech_player play() call returned, waiting for it to finish")
             except Exception as e:
                 logger.error(f"voice_worker: queued playback failed: {e}")
                 continue
+            # Diagnostic for a real, unexplained hang seen live
+            # (2026-08-21): dump every thread's real stack if this wait
+            # never ends, instead of guessing again. Remove once the
+            # actual cause is found and fixed. 30s, not 8s -- a single
+            # long reply's PCM chunk legitimately takes ~10s to play out
+            # (confirmed live: an 8s threshold false-alarmed mid-playback
+            # on a real, successfully-finishing chunk), so this only
+            # fires for a genuine stall well past any real chunk length.
+            faulthandler.dump_traceback_later(30, file=sys.stderr)
             while voice_client.is_playing():
                 await asyncio.sleep(0.02)
+            faulthandler.cancel_dump_traceback_later()
+            logger.info("voice_worker: speech_player: playback finished")
 
     def on_audio(user, data):
         """Sync callback — fires on voice_recv's own audio-decode thread,
@@ -772,9 +833,9 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
                 continue
             msg_type = msg.get("type")
             if msg_type == "speak":
-                await speak(msg["text"])
+                await speak(msg["text"], msg.get("generation", speech_generation))
             elif msg_type == "speak_chunk":
-                await speak_chunk(msg["text"])
+                await speak_chunk(msg["text"], msg.get("generation", speech_generation))
             elif msg_type == "speak_chunk_done":
                 pass  # sentinel only -- speech_queue already holds every
                 # chunk of this reply in arrival order; speech_player()
