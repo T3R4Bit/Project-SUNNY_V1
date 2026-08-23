@@ -42,10 +42,23 @@ main {
   position: relative;
   width: 100%;
   height: 100%;
-  border: 1px solid #dce1ea;
-  border-radius: 24px;
-  background: white;
   transform: scale(var(--speak-pulse, 1));
+}
+
+/* Fake-3D shading: a highlight + shadow overlay to read as a lit sphere
+   rather than a flat-colored disc. Pure CSS, blended over the SVG the
+   avatar library renders -- costs nothing in avatar-core's per-frame
+   geometry pass (see the earlier performance note in BUILD_PLAN.md). */
+#avatar::after {
+  content: '';
+  position: absolute;
+  inset: 6%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0) 46%),
+    radial-gradient(circle at 70% 78%, rgba(60, 30, 0, 0.4), rgba(60, 30, 0, 0) 58%);
+  mix-blend-mode: overlay;
+  pointer-events: none;
 }
 
 .connection {
