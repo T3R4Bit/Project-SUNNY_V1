@@ -72,6 +72,11 @@ document.querySelectorAll<HTMLButtonElement>('[data-emotion]').forEach(button =>
 // (--speak-pulse custom property on #avatar) layered on top of whichever
 // named animation is already looping, not an internal morph.
 
+// Element lookups use `!` (they're always present on a real load, including
+// the eventual Cog kiosk deployment, which has no HMR at all). Seen once
+// during Vite dev-server HMR: a stale module instance briefly ran against an
+// outdated DOM and threw here with a much less useful error -- if that ever
+// resurfaces, it means a hard refresh is needed, not a real markup bug.
 const avatarHost = document.querySelector<HTMLDivElement>('#avatar')!
 const wsUrlInput = document.querySelector<HTMLInputElement>('#ws-url')!
 const wsConnectButton = document.querySelector<HTMLButtonElement>('#ws-connect')!
