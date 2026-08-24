@@ -14,6 +14,24 @@ Running log of real changes, most recent first. Not every commit — the milesto
 
 ## 2026-08-24
 
+**Service orchestration** (closes out the backlog section of the same name)
+- Per-service runtime toggle: `service_registry.py`, a flat JSON file (`service_registry.json`) tracking six services (`dashboard_refresh`, `scheduled_check`, `usage_refresh`, `health_check`, `morning_prep`, `voice_join`). `/service <name> enable|disable` in Discord flips one live — every loop checks `is_enabled()` at the top of its tick, so it takes effect within one tick, not just at next boot. `/services` shows overall status.
+- Autostart-per-service: a second `autostart` flag alongside `enabled` in the same registry, checked once at boot to decide whether to start a given loop at all.
+- Vacation mode: "vacation mode on"/"off" (or `/vacation` in Discord) suppresses the proactive morning-prep lookahead entirely — no pre-warming, no nudging — while still leaving a direct "good morning"/"good night" working normally.
+- Real Claude rate-limit data: both `llm_client.py` call paths now capture Anthropic's own `anthropic-ratelimit-*` response headers into an in-memory current-window snapshot, surfaced via the dashboard API, `/usage`, and a new "what's my usage" intent — distinct from the self-tracked spend chart, which is this app's own cost estimate, not Anthropic's authoritative numbers.
+
+**Proactive-architecture foundation** (personal-assistant-vision.md's hybrid-AI-layers section, first working slice)
+- `sensors.py` + `rules_engine.py`: calendar and vault-file-change detection feeding two seed rules (both log-only, no action taken yet), evaluated on a new 30-minute loop. GitHub watchers not built yet.
+- `context_engine.py`: a pure read-time aggregator over tasks/lists/today's calendar/project folders — no new storage, no real caller yet.
+- `vault_permissions.py`: `request_vault_write()` classifies and logs every vault-write request by confidence (>95% auto, 80-95% suggest, <80% ask, Level 3/destructive always asks regardless of confidence) — decides, doesn't yet get called by anything that actually touches the vault on its own initiative.
+- `suggestion_tracker.py`: records suggestion outcomes (accepted/rejected/ignored/snoozed) to an append-only vault log — no real caller yet either, waiting on the first feature that actually emits a proactive suggestion.
+- All four are real, tested infrastructure without a live feature wired to them yet — the "no caller yet" pattern is deliberate groundwork, not unfinished work.
+
+**Milestone 3: knowledge health check, TTS delivery, exam-prep**
+- Weekly health check gained `knowledge_health_summary()` — broken wikilinks, orphaned/untagged/stale (180+ day) notes — folded into the same Sunday report, plus a one-line mention in the spoken summary. Duplicate-content detection is explicitly out of scope (would need semantic comparison, not just filename matching).
+- `tts_delivery.py`: deterministic pace (`length_scale`) multipliers per message type, composing with the user's own `PIPER_LENGTH_SCALE` tuning. First real caller: `/speak text delivery:warning|reminder|casual`. Also threaded through `voice_worker.py`'s speak functions but left unused there — nothing in the live `/join` pipeline classifies a reply's type yet.
+- `exam_prep.py`: built against a real, user-confirmed vault convention (`sunny-vault/KSU/<semester>/<class>/*.md`, one file per topic), not guessed. Exam dates come from Google Calendar, matching class name and an exam keyword independently (a strict substring match is too fragile against real event titles like "BUS 2100 Midterm Exam"). The vision doc's 5-stage spaced-review pipeline simplified to 3 real persisted states (new/weak/mastered) — modeling all 5 added complexity with no behavioral difference for a single-user tool. "study review for `<class>`" is the one real LLM-backed feature (Sonnet, reads actual note content); the ~1-week-out study plan stage isn't built, only the night-before review.
+
 **Google Calendar write access**
 - Sunny can now create and delete real calendar events by natural language — "add dentist appointment to my calendar at 3pm tomorrow", "cancel dentist appointment from my calendar" — from any interface (Discord, console, voice, Pi companion), same routing pattern as tasks/lists/alarms.
 - Required widening the OAuth scope from `calendar.readonly` to the full `calendar` scope (`google_auth.py`) — anyone already connected has to reconnect via `/console`, since Google doesn't retroactively expand an existing token's scope.

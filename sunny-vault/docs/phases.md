@@ -295,7 +295,7 @@ Cost: <$1/month expected
 
 ## Backlog
 
-Deferred items not yet slotted into a phase — see [[BACKLOG.md]]. Service orchestration's systemd unit and single-command startup are done; per-service runtime toggle, autostart-per-service config, and vacation mode are still open. Task-system rework, Spotify voice control, and web search — all previously listed here as unslotted — are built; see [[CHANGELOG.md]] for what shipped and when. What's still genuinely unslotted: the rest of service orchestration above, and the large college/fitness/knowledge/proactivity section (see [[architecture/personal-assistant-vision]]) — that one's explicitly vision-level, not yet scoped feature-by-feature, and several of its items are gated on external accounts/data sources the user still needs to provide (see the "blocked" notes inline in BACKLOG.md).
+Deferred items not yet slotted into a phase — see [[BACKLOG.md]]. Service orchestration is now fully closed out — systemd unit, single-command startup, per-service runtime toggle (`service_registry.py`, `/service`/`/services` in Discord), autostart-per-service config, and vacation mode are all built. Task-system rework, Spotify voice control, web search, Google Calendar write, and the proactive-architecture foundation (`sensors.py`/`rules_engine.py`/`context_engine.py`/`vault_permissions.py`) are also built — see [[CHANGELOG.md]] for what shipped and when. What's still genuinely unslotted: most of the large college/fitness/knowledge/proactivity section (see [[architecture/personal-assistant-vision]]) — that one's explicitly vision-level, not yet scoped feature-by-feature, and several of its items are gated on external accounts/data sources the user still needs to provide (see the "blocked" notes inline in BACKLOG.md). Exam-prep and the knowledge health check are the two pieces of that section that did get built.
 
 ---
 
@@ -311,7 +311,7 @@ A single command-channel bot is built and connected to a live server — see [[a
 - [x] `#warnings` (named `#errors` on the live server) — API errors, missing credentials; live and configured, posts here instead of the chat channel
 - [x] `#chat` — this **is** the existing command channel (`DISCORD_CHAT_CHANNEL_ID`), name it whatever you like
 - [x] `#briefings` — Briefing output, cross-posted whenever "morning"/"evening" is typed in the command channel
-- [ ] `#calendar-actions` — Calendar updates — **blocked**: Calendar is read-only Q&A today (see [[architecture/google-integration]]), nothing ever *takes an action* on it to log
+- [ ] `#calendar-actions` — Calendar updates — Calendar can create/delete events now (see [[architecture/google-integration]]), but nothing posts a log message to a channel when it does — same gap as `#task-updates` before that got built, just not wired up for calendar yet
 - [ ] `#email-actions` — Email processing — **blocked**: same reason, Gmail is read-only Q&A today
 - [ ] `#state-changes` — Sleep/wake mode — **blocked**: this concept isn't tracked anywhere in the codebase yet
 - [ ] `#notion-sync` — What got pushed to Notion — **blocked**: no Notion integration exists at all
