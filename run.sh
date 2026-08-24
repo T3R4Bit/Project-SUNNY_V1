@@ -78,13 +78,17 @@ SPOTIFY_CLIENT_ID=...
 SPOTIFY_CLIENT_SECRET=...
 SPOTIFY_OAUTH_REDIRECT_URI=https://sunshine-m700.wahoo-sidewinder.ts.net:5443/auth/spotify/callback
 
-# Discord bot — leave token/tasks-channel blank to run without the bot (console
-# chat still works). Tasks channel is the only one commands are read from.
+# Discord bot — leave token/chat-channel blank to run without the bot (console
+# chat still works). Chat channel is the only one commands are read from.
 # See sunny-vault/docs/architecture/discord-bot.md for setup steps
 DISCORD_BOT_TOKEN=
+DISCORD_CHAT_CHANNEL_ID=
+# Optional — a separate, read-only home for the pinned task dashboard so it
+# doesn't get buried in a busy chat channel. Falls back to the chat channel
+# above if left blank (nothing breaks either way).
 DISCORD_TASKS_CHANNEL_ID=
 # Optional output-only channels — leave blank to keep everything posting to
-# the tasks channel above instead (nothing breaks either way)
+# the chat channel above instead (nothing breaks either way)
 DISCORD_BRIEFINGS_CHANNEL_ID=
 DISCORD_WARNINGS_CHANNEL_ID=
 DISCORD_TASK_UPDATES_CHANNEL_ID=

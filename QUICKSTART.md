@@ -21,6 +21,8 @@ No manual Python setup needed — `run.sh` creates and manages its own virtual e
 ```bash
 ./run.sh # Start web server (default)
 ./run.sh chatbot # Console, non-reload mode
+./run.sh reload # Web server with auto-reload (local dev only)
+./run.sh chat # Terminal chat — same router as everywhere else, no browser
 ./run.sh cli briefing # Interactive briefing CLI
 ./run.sh cli tasks # Interactive task CLI
 ./run.sh test all # Run all tests
@@ -40,6 +42,13 @@ add milk to my grocery list → Add to a list (creates it if new)
 what's on my grocery list → Show a list
 set an alarm for 7am → Create an alarm
 remind me to call Mom at 5pm → Create a reminder
+add dentist appointment to my calendar at 3pm tomorrow → Real Google Calendar event
+cancel dentist appointment from my calendar → Deletes it (no confirmation step)
+play Reptilia by The Strokes → Spotify playback (needs "setup spotify" first)
+new project → Answer 3 quick questions, get a real project folder drafted
+study review for BUS 2100 → Night-before review from your real class notes
+storm mode → Live web-searched weather updates on a timer, not the API
+health check → Latest weekly report (or triggers one on demand)
 What's the weather? → Weather info
 Tell me a joke / what's the capital of France → Anything open-ended gets
                                 a real answer from Claude, not a canned reply
@@ -47,9 +56,20 @@ Tell me a joke / what's the capital of France → Anything open-ended gets
 
 Everything above also works as plain-text chat in Sunny's Discord channel — same router, same answers, no separate setup.
 
+## Discord-Only Slash Commands
+
+Beyond `/speak`/`/join`/`/leave` (below), a few more real registered slash commands, no plain-text equivalent:
+
+```
+/category         → Add or remove a task category
+/service, /services → Enable/disable a background service, check status
+/vacation         → Pause proactive morning/evening nudging
+/usage            → Chart of Claude API cost over the last N days
+```
+
 ## Talk to Sunny in Discord Voice
 
-Three real slash commands (not plain text) — see
+Three more real slash commands — see
 `sunny-vault/docs/architecture/voice-join.md` and `tts-piper.md` for how
 they work under the hood:
 
