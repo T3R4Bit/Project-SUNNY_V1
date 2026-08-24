@@ -39,7 +39,7 @@ from typing import Literal
 import discord
 from discord.ext import tasks
 
-from sunny_code.components import category_store, storm_mode, token_tracker, tts, usage_chart, voice_session
+from sunny_code.components import category_store, service_registry, storm_mode, token_tracker, tts, usage_chart, voice_session
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.crash_check import check_previous_crash
@@ -285,6 +285,11 @@ def create_discord_bot(
                 "Use /join in the chat channel.", ephemeral=True
             )
             return
+        if not service_registry.is_enabled("voice_join"):
+            await interaction.response.send_message(
+                "Voice is turned off right now (/service voice_join enable to turn it back on).", ephemeral=True
+            )
+            return
         await interaction.response.defer(thinking=True, ephemeral=True)
 
         async def _notify_voice_crash(text: str):
@@ -327,6 +332,48 @@ def create_discord_bot(
         await interaction.followup.send(message, ephemeral=True)
         await refresh_dashboard()
 
+    @tree.command(name="services", description="Show on/off + autostart status for every background service")
+    async def services_command(interaction: discord.Interaction):
+        if interaction.channel_id != chat_channel_id:
+            await interaction.response.send_message(
+                "Use /services in the chat channel.", ephemeral=True
+            )
+            return
+        lines = service_registry.status_lines()
+        lines.append(f"vacation_mode: {'on' if service_registry.is_vacation_mode() else 'off'}")
+        await interaction.response.send_message("\n".join(lines), ephemeral=True)
+
+    @tree.command(name="service", description="Enable/disable a service, or toggle whether it autostarts on boot")
+    async def service_command(
+        interaction: discord.Interaction,
+        name: Literal["dashboard_refresh", "scheduled_check", "usage_refresh", "health_check", "morning_prep", "voice_join"],
+        action: Literal["enable", "disable", "autostart_on", "autostart_off"],
+    ):
+        if interaction.channel_id != chat_channel_id:
+            await interaction.response.send_message(
+                "Use /service in the chat channel.", ephemeral=True
+            )
+            return
+        if action == "enable":
+            _, message = service_registry.set_enabled(name, True)
+        elif action == "disable":
+            _, message = service_registry.set_enabled(name, False)
+        elif action == "autostart_on":
+            _, message = service_registry.set_autostart(name, True)
+        else:
+            _, message = service_registry.set_autostart(name, False)
+        await interaction.response.send_message(message, ephemeral=True)
+
+    @tree.command(name="vacation", description="Pause morning-prep and morning/evening nudges until turned back off")
+    async def vacation_command(interaction: discord.Interaction, mode: Literal["on", "off"]):
+        if interaction.channel_id != chat_channel_id:
+            await interaction.response.send_message(
+                "Use /vacation in the chat channel.", ephemeral=True
+            )
+            return
+        _, message = service_registry.set_vacation_mode(mode == "on")
+        await interaction.response.send_message(message, ephemeral=True)
+
     @tree.command(name="usage", description="Chart of Claude API cost over the last N days (the one paid API here)")
     async def usage_command(interaction: discord.Interaction, days: int = 30):
         if interaction.channel_id != chat_channel_id:
@@ -341,8 +388,22 @@ def create_discord_bot(
             logger.error(f"/usage chart render failed: {e}")
             await interaction.followup.send("Couldn't render the usage chart — check the logs.", ephemeral=True)
             return
+        content = None
+        limits = token_tracker.get_latest_rate_limits()
+        if limits:
+            req_remaining = limits.get("anthropic-ratelimit-requests-remaining")
+            req_limit = limits.get("anthropic-ratelimit-requests-limit")
+            tok_remaining = limits.get("anthropic-ratelimit-tokens-remaining")
+            tok_limit = limits.get("anthropic-ratelimit-tokens-limit")
+            parts = []
+            if req_remaining and req_limit:
+                parts.append(f"**{req_remaining}**/{req_limit} requests left this window")
+            if tok_remaining and tok_limit:
+                parts.append(f"**{tok_remaining}**/{tok_limit} tokens left this window")
+            if parts:
+                content = "Anthropic-reported: " + " · ".join(parts)
         await interaction.followup.send(
-            file=discord.File(io.BytesIO(png_bytes), filename="usage.png"), ephemeral=True
+            content=content, file=discord.File(io.BytesIO(png_bytes), filename="usage.png"), ephemeral=True
         )
 
     async def _post_to(channel_id: int, text: str, fallback_channel_id: int = None):
@@ -611,10 +672,14 @@ def create_discord_bot(
 
     @tasks.loop(minutes=5)
     async def refresh_loop():
+        if not service_registry.is_enabled("dashboard_refresh"):
+            return
         await refresh_dashboard()
 
     @tasks.loop(hours=1)
     async def usage_refresh_loop():
+        if not service_registry.is_enabled("usage_refresh"):
+            return
         await refresh_usage_dashboard()
         await check_usage_alerts()
 
@@ -632,13 +697,17 @@ def create_discord_bot(
         alarm even though the loop itself runs every 30s."""
         now = datetime.now()
 
-        upcoming_alarms = scheduled_engine.db.get_active_items(kind="alarm")
-        if upcoming_alarms:
-            next_alarm = upcoming_alarms[0]  # get_active_items orders by trigger_at ASC
-            seconds_out = (datetime.fromisoformat(next_alarm["trigger_at"]) - now).total_seconds()
-            if 0 <= seconds_out <= MORNING_PREP_LOOKAHEAD_SECONDS and state["morning_prep_alarm_id"] != next_alarm["id"]:
-                state["morning_prep_alarm_id"] = next_alarm["id"]
-                asyncio.create_task(briefing_engine.prewarm_morning_briefing())
+        if service_registry.is_enabled("morning_prep") and not service_registry.is_vacation_mode():
+            upcoming_alarms = scheduled_engine.db.get_active_items(kind="alarm")
+            if upcoming_alarms:
+                next_alarm = upcoming_alarms[0]  # get_active_items orders by trigger_at ASC
+                seconds_out = (datetime.fromisoformat(next_alarm["trigger_at"]) - now).total_seconds()
+                if 0 <= seconds_out <= MORNING_PREP_LOOKAHEAD_SECONDS and state["morning_prep_alarm_id"] != next_alarm["id"]:
+                    state["morning_prep_alarm_id"] = next_alarm["id"]
+                    asyncio.create_task(briefing_engine.prewarm_morning_briefing())
+
+        if not service_registry.is_enabled("scheduled_check"):
+            return
 
         due = scheduled_engine.db.get_due_items(now)
         if not due:
@@ -669,11 +738,16 @@ def create_discord_bot(
             f"Discord bot connected as {client.user} "
             f"(chat channel: {chat_channel_id}, dashboard: {dashboard_channel_id})"
         )
-        if not refresh_loop.is_running():
+        if not refresh_loop.is_running() and service_registry.is_autostart("dashboard_refresh"):
             refresh_loop.start() # runs immediately, then every 5 minutes
+        # scheduled_check_loop also drives morning-prep lookahead, not just
+        # alarms/reminders -- always start it and let the per-tick is_enabled
+        # checks above decide what actually happens, since gating the whole
+        # loop on either service's autostart flag alone would silently kill
+        # the other one too.
         if not scheduled_check_loop.is_running():
             scheduled_check_loop.start() # runs immediately, then every 30s
-        if not usage_refresh_loop.is_running():
+        if not usage_refresh_loop.is_running() and service_registry.is_autostart("usage_refresh"):
             usage_refresh_loop.start() # runs immediately, then every hour
 
         # Guild-scoped sync (instant) rather than global (~1hr to propagate) —

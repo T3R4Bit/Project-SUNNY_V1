@@ -20,7 +20,7 @@ Claude is the one clearly-paid API in this app (OpenWeatherMap/Google Calendar/G
 | `/usage [days]` Discord chart command | Built — `usage_chart.py` |
 | Persistent hourly-updated usage dashboard in Discord | Built (2026-08-23) |
 | Daily spend/expiry alert ping | Built (2026-08-23) |
-| Real Anthropic-reported usage/rate-limit data (not just self-tracked cost) | Not built — see BACKLOG.md |
+| Real Anthropic-reported usage/rate-limit data (not just self-tracked cost) | Built (2026-08-24) |
 
 ## How Cost Is Calculated
 
@@ -39,6 +39,14 @@ Both live in `discord_bot.py`, in the same Discord channel as the weekly health 
 
 Both fall back to `chat_channel_id` if `discord_health_channel_id` isn't set, same pattern as the health check's own posting.
 
+## Real Anthropic Rate-Limit Data (2026-08-24)
+
+Everything above is this app's own self-tracked cost estimate. Separately, `token_tracker.get_latest_rate_limits()` holds Anthropic's own real-time numbers — `anthropic-ratelimit-{requests,tokens,input-tokens,output-tokens}-{limit,remaining,reset}` — straight from the response headers on the most recent Claude call:
+
+- `llm_client.py`'s non-streaming path calls `client.messages.with_raw_response.create(...)` instead of a plain `.create()`, then `.parse()`s the same `Message` object back out — everything else about that function is unchanged. The streaming path (`ask_claude_stream`) reads `stream.response.headers` right after entering the stream context, before any chunks are consumed.
+- **In-memory only, current-window snapshot** — not persisted to `sunny.db`, not logged historically, resets on every restart. These headers describe "how much is left in the current rate window," not a fact worth keeping after the next call overwrites it.
+- Surfaced via `GET /api/dashboard/usage/live`, an extra line on Discord's `/usage` chart when data exists, and a new cross-interface "what's my usage" voice/text intent (`assistant.py`) that answers with both the self-tracked spend and (when available) the real remaining-tokens number — works identically from console, Discord, and the Pi companion, since it's routed through the same `handle_message()` everything else uses. This is distinct from `sunny-companion/BUILD_PLAN.md`'s still-open item to wire Anthropic's separate **Admin API** (`cost_report`, org-level, needs its own Admin API key) into a visual dashboard payload on the Pi's screen — that's a different, richer feature this doesn't replace.
+
 ## History: the #health channel consolidation (2026-08-23)
 
 This dashboard originally lived in its own dedicated channel (`DISCORD_USAGE_CHANNEL_ID`). Moved into `#health` the same day as the weekly health check's own embed rework, for one consistent place to look for "is anything wrong or costing more than expected" — same embed style (bold key figures), same channel. `DISCORD_USAGE_CHANNEL_ID` no longer exists as a setting; both now read `discord_health_channel_id`.
@@ -48,7 +56,9 @@ This dashboard originally lived in its own dedicated channel (`DISCORD_USAGE_CHA
 - `sunny_code/components/token_tracker.py` — recording, cost calculation, `check_budget()` circuit breaker, `get_today_usage()`/`get_month_cost()`/`get_daily_costs()`
 - `sunny_code/components/usage_chart.py` — chart rendering
 - `sunny_code/components/discord_bot.py` — `refresh_usage_dashboard()`, `check_usage_alerts()`, `usage_refresh_loop`
-- `sunny_code/components/dashboard.py` — `token_usage` table schema, `/api/dashboard/spend/*` endpoints
+- `sunny_code/components/dashboard.py` — `token_usage` table schema, `/api/dashboard/spend/*` and `/usage/live` endpoints
+- `sunny_code/components/llm_client.py` — `with_raw_response`/`stream.response.headers` capture
+- `sunny_code/components/assistant.py` — the cross-interface "what's my usage" intent
 - `sunny_code/config.py` — `daily_spend_cap`, `monthly_spend_cap`, `discord_health_channel_id`
 
 ## Dependencies
@@ -66,5 +76,5 @@ This dashboard originally lived in its own dedicated channel (`DISCORD_USAGE_CHA
 - [x] Persistent hourly-updated dashboard, delete-and-resend to dodge Discord's image cache
 - [x] Daily 70%-of-cap / key-expiring-soon alert, deduped per calendar day
 - [x] Consolidated into `#health` alongside the weekly health check
-- [ ] Real Anthropic-reported usage/rate-limit data from API response headers (not just self-tracked cost) — see BACKLOG.md
+- [x] Real Anthropic-reported usage/rate-limit data from API response headers (not just self-tracked cost) — `GET /api/dashboard/usage/live`, `/usage`'s extra line, and a cross-interface "what's my usage" intent
 - [ ] Hard cap set at the Anthropic account level (external, manual, separate from the in-app cap) — see [[llm-readiness]]

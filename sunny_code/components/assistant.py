@@ -19,7 +19,7 @@ import random
 import time
 from typing import Dict, Optional
 
-from sunny_code.components import category_store, health_check, setup_guides
+from sunny_code.components import category_store, health_check, service_registry, setup_guides, token_tracker
 from sunny_code.components.briefing import BriefingEngine, OnChunk, OnSearchStart
 from sunny_code.components.calendar_engine import CalendarEngine
 from sunny_code.components.device import device_from_session
@@ -68,6 +68,9 @@ BRIEFINGS
   health check — latest weekly system report (runs Sunday 4am on its own)
   run health check — run one right now instead of waiting for Sunday
     (short spoken summary over voice, full report everywhere else)
+  what's my usage — today's/this month's Claude spend, plus Anthropic's
+    real remaining-tokens-this-window number if a call has been made
+    since the last restart
 
 VOICE (Discord slash commands, not plain text)
   /speak <text> — one-shot: Sunny says it out loud in the channel
@@ -79,6 +82,13 @@ VOICE (Discord slash commands, not plain text)
 DISCORD-ONLY COMMANDS
   /category add|remove <name> — manage the task category list
   /usage [days] — chart of Claude API cost over the last N days (default 30)
+  /services — on/off + autostart status for every background service
+  /service <name> enable|disable|autostart_on|autostart_off
+  /vacation on|off — same as saying "vacation mode on"/"off" below
+
+ANY INTERFACE
+  vacation mode on/off — pauses morning-prep pre-warming and the
+    proactive morning/evening nudge cycle until turned back off
 
 SERVER ADMIN (Discord only — needs a live server to act on)
   create/delete channel <name> — text channels
@@ -117,6 +127,12 @@ _EVENING_TRIGGERS = (
     "going to bed", "hey sunny im going to bed", "hey sunny i'm going to bed",
 )
 _BRIEFING_KEYWORDS = _MORNING_TRIGGERS + _EVENING_TRIGGERS
+_VACATION_ON_TRIGGERS = ("vacation mode on", "vacation mode", "turn on vacation mode", "start vacation mode")
+_VACATION_OFF_TRIGGERS = ("vacation mode off", "turn off vacation mode", "stop vacation mode", "end vacation mode")
+_USAGE_QUERY_TRIGGERS = (
+    "what's my usage", "whats my usage", "what is my usage", "how much have i spent",
+    "how much have i spent on claude", "my usage", "usage", "claude usage",
+)
 # Exact-phrase, not a regex -- this launches a multi-question wizard, so a
 # false positive (an unrelated sentence that happens to contain "project")
 # is worse than a false negative (a real phrasing that doesn't match).
@@ -205,6 +221,10 @@ def _looks_like_a_command(stripped: str, lowered: str) -> bool:
         return False
     if lowered in _HELP_TRIGGERS or lowered in _BRIEFING_KEYWORDS:
         return True
+    if lowered in _VACATION_ON_TRIGGERS or lowered in _VACATION_OFF_TRIGGERS:
+        return True
+    if lowered in _USAGE_QUERY_TRIGGERS:
+        return True
     task_cmd_type, _, _ = TaskCommandParser.parse_command(stripped)
     if task_cmd_type not in ("unknown", "add"):
         return True
@@ -213,6 +233,27 @@ def _looks_like_a_command(stripped: str, lowered: str) -> bool:
     if ScheduledCommandParser.parse(stripped) is not None:
         return True
     return False
+
+
+def _describe_usage() -> str:
+    """Plain-text, TTS-safe answer to "what's my usage" -- same numbers the
+    /console dashboard and Discord's /usage chart show, just as one spoken-
+    friendly line instead of an image (which no voice interface, including
+    the Pi companion, can render). Answers the open "wire a what's-my-usage
+    intent" item from sunny-companion/BUILD_PLAN.md's Phase 6 -- this is
+    that intent, and it works from every interface since it's routed here,
+    not Discord-command-only like /usage's chart."""
+    today = token_tracker.get_today_usage()
+    month_cost = token_tracker.get_month_cost()
+    parts = [f"${today['cost']:.2f} spent today, ${month_cost:.2f} this month"]
+
+    limits = token_tracker.get_latest_rate_limits()
+    tok_remaining = limits.get("anthropic-ratelimit-tokens-remaining")
+    tok_limit = limits.get("anthropic-ratelimit-tokens-limit")
+    if tok_remaining and tok_limit:
+        parts.append(f"{tok_remaining} of {tok_limit} tokens left in the current rate window")
+
+    return ". ".join(parts) + "."
 
 
 async def _run_health_check_now(session_id: str) -> str:
@@ -395,6 +436,14 @@ async def handle_message(
     if lowered in _HELP_TRIGGERS:
         return HELP_TEXT
 
+    if lowered in _VACATION_ON_TRIGGERS:
+        _, message = service_registry.set_vacation_mode(True)
+        return message
+
+    if lowered in _VACATION_OFF_TRIGGERS:
+        _, message = service_registry.set_vacation_mode(False)
+        return message
+
     if lowered in _PROJECT_TRIGGERS:
         if project_engine is None:
             return "Project system isn't available right now."
@@ -465,6 +514,9 @@ async def handle_message(
     # simpler and more robust than trying to enumerate every verb someone
     # might use ("check" itself is ambiguous, since it's also half of the
     # bare phrase this branch has to leave alone).
+    if lowered in _USAGE_QUERY_TRIGGERS:
+        return _describe_usage()
+
     if lowered in ("health check", "health report"):
         report = health_check.latest_report()
         return report if report else "No health check report yet — the first one runs Sunday at 4am."

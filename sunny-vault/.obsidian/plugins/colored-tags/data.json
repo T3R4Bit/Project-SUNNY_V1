@@ -84,6 +84,7 @@
     "setup": 58,
     "speak": 91,
     "specifications": 53,
+    "spend": 101,
     "spotify": 99,
     "state": 29,
     "storage": 83,
@@ -96,12 +97,14 @@
     "todo": 71,
     "tts": 34,
     "ui": 44,
+    "usage": 102,
     "vault": 84,
     "vision": 60,
     "voice": 35,
     "vosk": 93,
     "warnings": 36,
-    "weather": 80
+    "weather": 80,
+    "wizard": 103
   },
   "tagColors": {},
   "_version": 4

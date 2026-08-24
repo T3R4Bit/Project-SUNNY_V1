@@ -197,6 +197,16 @@ class DashboardAPI:
                 "remaining": max(0.0, settings.monthly_spend_cap - cost),
             }
 
+        @self.router.get("/usage/live")
+        async def usage_live():
+            """Anthropic's own real-time rate-limit numbers (requests/tokens
+            remaining in the current window, when each resets), straight from
+            the response headers on the most recent Claude call -- distinct
+            from spend/today and spend/month above, which are this app's own
+            self-tracked cost estimate. Empty dict if no Claude call has
+            happened yet this process (nothing to report, not an error)."""
+            return {"rate_limits": token_tracker.get_latest_rate_limits()}
+
         @self.router.get("/status")
         async def status():
             """Overall dashboard status."""

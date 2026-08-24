@@ -177,3 +177,51 @@ def check_budget() -> Tuple[bool, str]:
         return False, f"monthly spend cap reached (${month_cost:.2f} >= ${settings.monthly_spend_cap:.2f})"
 
     return True, ""
+
+
+# Anthropic's own real-time usage/rate-limit numbers, from the response
+# headers on every Messages API call — distinct from everything above,
+# which is this app's own self-tracked cost estimate. Deliberately just an
+# in-memory snapshot of the most recent call, not persisted to sunny.db or
+# logged historically: these headers describe Anthropic's *current* rate
+# window (e.g. "here's how many tokens you have left in this minute"), not
+# a fact about a point in time worth keeping around after the next call
+# overwrites it. Reset to empty on every process restart, same as any other
+# "as of the last call" snapshot in this app.
+_RATE_LIMIT_HEADER_KEYS = (
+    "anthropic-ratelimit-requests-limit",
+    "anthropic-ratelimit-requests-remaining",
+    "anthropic-ratelimit-requests-reset",
+    "anthropic-ratelimit-tokens-limit",
+    "anthropic-ratelimit-tokens-remaining",
+    "anthropic-ratelimit-tokens-reset",
+    "anthropic-ratelimit-input-tokens-limit",
+    "anthropic-ratelimit-input-tokens-remaining",
+    "anthropic-ratelimit-input-tokens-reset",
+    "anthropic-ratelimit-output-tokens-limit",
+    "anthropic-ratelimit-output-tokens-remaining",
+    "anthropic-ratelimit-output-tokens-reset",
+)
+_latest_rate_limits: Dict[str, str] = {}
+
+
+def record_rate_limit_headers(headers) -> None:
+    """Called after every real Anthropic API response (both the
+    non-streaming and streaming paths in llm_client.py) with the response's
+    headers -- anything httpx.Headers-like (a .get(key) lookup is all this
+    needs). Silently keeps only the subset of headers this app recognizes;
+    an Anthropic response missing one (older API version, a header rename)
+    just leaves that key out rather than erroring."""
+    global _latest_rate_limits
+    found = {key: headers.get(key) for key in _RATE_LIMIT_HEADER_KEYS if headers.get(key) is not None}
+    if found:
+        _latest_rate_limits = found
+
+
+def get_latest_rate_limits() -> Dict[str, str]:
+    """A copy of the most recent call's rate-limit headers, or {} if no
+    real Anthropic call has happened yet this process. Values are strings
+    (as Anthropic sends them) -- e.g. a *-reset header is an ISO 8601
+    timestamp, not a number of seconds; left as-is rather than parsed,
+    since nothing here does arithmetic on it, only displays it."""
+    return dict(_latest_rate_limits)

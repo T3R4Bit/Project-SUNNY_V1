@@ -33,7 +33,7 @@ from sunny_code.components.spotify_engine import SpotifyEngine
 from sunny_code.components.spotify_routes import create_spotify_auth_router
 from sunny_code.components.calendar_engine import CalendarEngine
 from sunny_code.components.crash_check import check_previous_crash
-from sunny_code.components import health_check
+from sunny_code.components import health_check, service_registry
 from sunny_code.components.health_check import run_weekly_health_check
 from sunny_code.components.weather_routes import create_weather_router
 from sunny_code.components.location_routes import create_location_router
@@ -140,6 +140,8 @@ class SunnyCore:
 
         @tasks.loop(time=dtime(hour=4, tzinfo=tz))
         async def health_check_loop():
+            if not service_registry.is_enabled("health_check"):
+                return
             if datetime.now(tz).weekday() != 6:  # Monday=0 ... Sunday=6
                 return
             await run_weekly_health_check()
@@ -178,7 +180,8 @@ class SunnyCore:
             # servers both fire this hook against the same app) — same guard.
             if not self._health_check_started:
                 self._health_check_started = True
-                self.health_check_loop.start()
+                if service_registry.is_autostart("health_check"):
+                    self.health_check_loop.start()
 
             yield
             if discord_task is not None:

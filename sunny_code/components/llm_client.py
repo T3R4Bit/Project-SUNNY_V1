@@ -287,6 +287,10 @@ async def ask_claude_stream(
         try:
             client = _get_async_client(settings.claude_api_key)
             async with client.messages.stream(**kwargs) as stream:
+                # Headers are on the response as soon as it starts, well
+                # before the stream finishes -- same rate-limit capture as
+                # the non-streaming path in _call_claude_sync above.
+                token_tracker.record_rate_limit_headers(stream.response.headers)
                 buffer = ""
                 async for event in stream:
                     if event.type == "content_block_start":
@@ -363,7 +367,13 @@ def _call_claude_sync(
         kwargs["temperature"] = temperature
     if enable_web_search:
         kwargs["tools"] = [{"type": _WEB_SEARCH_TOOL, "name": "web_search", "max_uses": _WEB_SEARCH_MAX_USES}]
-    return client.messages.create(**kwargs)
+    # with_raw_response instead of a plain .create() so the real Anthropic
+    # rate-limit headers are reachable -- .parse() below gives back the
+    # exact same Message object .create() would have, so nothing else in
+    # this file changes.
+    raw = client.messages.with_raw_response.create(**kwargs)
+    token_tracker.record_rate_limit_headers(raw.headers)
+    return raw.parse()
 
 
 def log_llm_call(
