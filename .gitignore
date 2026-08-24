@@ -1,3 +1,8 @@
+# Environment
+.env
+.env.local
+.env.*.local
+
 # Virtual environment
 venv/
 env/
@@ -9,6 +14,21 @@ __pycache__/
 *$py.class
 *.so
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
 # IDE
 .vscode/
@@ -37,7 +57,9 @@ piper_voices/
 # Vosk STT model — downloaded automatically on first use, not source
 vosk_models/
 
-# Database
+# Logs and database
+logs/
+*.log
 *.db
 *.sqlite
 *.sqlite3
@@ -52,10 +74,6 @@ sunny-vault/state/alarms-reminders.md
 # which *.db above already covered — these are directories, so need their own line)
 tasks_test_vault/
 tasks_test2_vault/
-
-# Logs
-logs/
-*.log
 
 # OS
 .DS_Store
@@ -76,3 +94,6 @@ node_modules/
 # Obsidian Vault temp
 .obsidian/
 Project-SUNNY/
+
+# Project-specific
+sunny.db
