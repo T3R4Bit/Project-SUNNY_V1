@@ -61,6 +61,16 @@ Updating the device going forward is just `git pull` on the Pi + restarting the 
 - [ ] Decide the renderer approach (see README's Open Questions — this decision also feeds back into whether the Pi 3 B board choice still holds)
 - [ ] Everything below is a placeholder shape, not a committed plan, until that's decided: design/build whatever the face actually is, wire it to the state machine (idle/listening/thinking/searching/speaking + emotion overlay) that `pi_companion.py` already emits over `/ws/pi`, get it running standalone on a dev machine, then validate it actually renders smoothly on the real Pi 3 B hardware before investing further
 
+**2026-08-23: leaning candidate for the restart — Python/pygame direct-to-framebuffer, not another browser attempt.** Not yet decided/built, but the reasoning: every other device-side piece (`wake_word_listener.py`, `voice_worker.py`, `pi_companion.py`) is already Python, so a Python renderer means wake-word → state → amplitude is a same-process function call/shared variable instead of a WebSocket hop into a browser page (the scrapped attempt's browser-connects-directly-to-`/ws/pi` pattern was explicitly a testing shortcut, not the real design — see Phase 4.5). pygame's SDL2 backend can run `SDL_VIDEODRIVER=kmsdrm` straight to DRM/KMS with no X11/Wayland compositor, mirroring the no-compositor constraint Phase 2 already proved out for `cog`. This sidesteps the WPE WebKit CPU-cost risk that never got validated on real Pi 3 B hardware before the scrap.
+
+- [ ] Prototype standalone on a dev machine first: a simple amplitude-reactive shape (ring or blob — cheap primitives, no image assets) in pygame, `SDL_VIDEODRIVER=kmsdrm` on the Pi once it's on real hardware
+- [ ] Amplitude source per state — same `amplitude` variable, three different feeds, no separate code paths per shape:
+  - **Listening** (post-wake-word) — raw mic RMS (`audioop.rms` or numpy), read directly off the same stream `wake_word_listener.py`/STT already taps
+  - **Thinking** — no real audio available yet (waiting on the server's LLM reply); synthesize it instead — sum of 2 detuned low-frequency sines at low amplitude, a "breathing" idle animation rather than a frozen face
+  - **Speaking** — TTS playback buffer RMS as it's fed to ALSA (no true viseme/phoneme timing from Piper, so this stays the amplitude-driven substitute the README already settled on)
+- [ ] Tone/emotion overlay — hue/color shift composited on top of whichever shape, driven by the server's mood tag (see Emotion overlay v2 below); cheap, no extra per-frame cost
+- [ ] Validate actual frame timing on real Pi 3 B hardware before building out more shapes — this is the exact validation step that got skipped last time
+
 ## Phase 4.5 — Wiring the renderer to the device client
 
 Regardless of what Phase 4 turns out to be, something needs to receive `/ws/pi`'s state events and audio and hand them to the renderer + speakers. That's genuinely new work either way (the scrapped attempt had the *browser page itself* connect directly to `/ws/pi` for convenience while testing — not how it should work for real, per Phase 5 below).

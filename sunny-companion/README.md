@@ -73,7 +73,7 @@ A second display mode alongside the face, not bolted onto it — Cog swaps from 
 
 ## Open questions
 
-- **What replaces the scrapped avatar-lab renderer.** Options span a wide range — another SVG/browser-based library, a simpler framebuffer/LVGL-style approach, hand-drawn sprite animations, something else entirely — and the choice feeds back into whether a full browser engine (and therefore the current board) is even needed.
+- **What replaces the scrapped avatar-lab renderer.** Options span a wide range — another SVG/browser-based library, a simpler framebuffer/LVGL-style approach, hand-drawn sprite animations, something else entirely — and the choice feeds back into whether a full browser engine (and therefore the current board) is even needed. **2026-08-23: leaning candidate — Python/pygame direct-to-framebuffer (`SDL_VIDEODRIVER=kmsdrm`), not another browser attempt**, so the renderer lives in the same process as the rest of the Python device client instead of behind a WebSocket hop; see [BUILD_PLAN.md](BUILD_PLAN.md)'s Phase 4 for the amplitude-reactive shape plan (mic RMS while listening, synthesized sine "breathing" while thinking, TTS buffer RMS while speaking, hue shift for the emotion overlay). Not yet built or validated on hardware.
 - Whether the board choice (Pi 3 B, picked partly to run WPE WebKit + Cog) still holds once the above is decided, or whether a lighter/cheaper board becomes viable again.
 - Enclosure design for the desk form factor (3D printed, separate from the BOM) — needs to account for the GPIO-stacked screen geometry once a renderer is chosen.
 - Exact expression/mood set for the emotion overlay (how many, what triggers each) — deferred until there's a renderer to define them against.
