@@ -1,124 +1,99 @@
 # Project SUNNY
 
-## A Self-Hosted Voice Assistant
+## A Self-Hosted Personal Assistant
 
-Sunny is an always-on personal voice assistant that lives on a bedside clock and Lenovo mini PC. It wakes you with personalized briefings, answers phone calls, and automates routine tasks—all while respecting privacy and minimizing API costs through deterministic logic.
+Sunny is an always-on personal assistant that runs on a Lenovo mini PC, reachable over Tailscale from a Discord bot, a web console, live voice conversation, or terminal chat — all routed through the same shared logic, so behavior is identical everywhere. Real tasks/lists/calendar data, deterministic templates for facts, Claude only for judgment and genuinely open-ended questions.
+
+A dedicated hardware companion device (Raspberry Pi, animated face, local wake word) is in active prototyping — see `sunny-companion/BUILD_PLAN.md`. Everything below already runs today without it.
 
 ---
 
 ## Core Features
 
-**Discord Voice** — `/speak`, `/join`, `/leave`. Say "Hey Sunny" and have a real spoken conversation with the exact same brain as text chat — fully local and free (Piper TTS, Vosk STT), no clock hardware required. Built and live ahead of the bedside-clock hardware below — see `sunny-vault/docs/architecture/voice-join.md`.
+**Tasks & Lists** — Natural language, no command prefix. Real, editable categories (not hardcoded); deleting or finishing a task archives it, nothing is ever actually lost. Named checkable lists (groceries, packing, anything) as a sibling system. Both stored as one markdown file per item directly in the Obsidian vault — readable/editable outside Sunny too.
 
-**Bedside Clock** — Battery-backed ESP32 device with wake word detection, voice I/O, and an alarm that survives power cuts. (Hardware phase, not yet built — Discord voice already delivers the same conversational capability today.)
+**Alarms & Reminders** — Time-based, natural phrasing ("set an alarm for 7am", "remind me to call mom at 5pm"), ping Discord when due.
 
-**Morning & Evening Briefings** — Personalized summaries pulled from calendar, weather, and tasks. No LLM calls for facts — just real API data in a fixed template; genuinely open-ended questions that don't fit a template get a real answer from Claude instead of a canned "I don't know."
+**Discord Bot** — The primary live interface: task dashboard (live-updating embed), health/usage dashboard, server administration (create/delete channels & roles), plus real slash commands (`/speak`, `/join`/`/leave`, `/category`, `/service`, `/vacation`).
 
-**Phone Interface** — Callable via Twilio. Execute voice commands, create tasks, and have real-time conversations while you hold the line. (Not yet built.)
+**Live Voice Conversation (`/join`)** — Join a Discord voice channel and have a real spoken conversation ("Hey Sunny" wakes it for each request) — free, fully local STT/TTS (Vosk + Piper), streaming replies (starts speaking the first sentence while Claude is still writing), barge-in support. Runs in an isolated process so a native audio-library crash can't take down the rest of the bot.
 
-**Smart Logging** — All actions logged to Discord, Obsidian, and Notion. Permanent audit trail, searchable, always in sync.
+**Google Calendar & Gmail** — Calendar is read *and* write (create/delete events by natural language: "add dentist appointment to my calendar at 3pm tomorrow"); Gmail is read-only (unread/important counts, subject lines, never bodies). One Google Sign-In connects both.
+
+**Spotify Voice Control** — Play/pause/skip/volume/what's-playing from any interface, acts on whatever device Spotify itself considers active (same as the Spotify app or Siri).
+
+**Weather & Storm Mode** — Real API data normally; "storm mode" switches to a real web-searched LLM update on a set interval/duration instead, for actively-developing weather.
+
+**Project Wizard** — Say "new project," answer three quick questions, get a real multi-file project folder drafted under `sunny-vault/projects/` via one Claude call.
+
+**Exam Prep & Spaced Review** — Reads real class notes (`sunny-vault/KSU/<semester>/<class>/*.md`), finds exam dates from Calendar, tracks per-topic review state (new/weak/mastered), and writes a focused night-before study review from actual note content.
+
+**Weekly Health Check** (Sunday 4am, or on demand) — Compacts logs/errors/unfulfilled-request patterns/API-key expiry into an LLM-written report, now including a knowledge health check (broken wikilinks, orphaned/untagged/stale notes across the vault).
+
+**Usage Tracking** — Self-tracked spend chart *and* Anthropic's own real-time rate-limit data (straight from API response headers), persistent Discord dashboard, daily/monthly spend-cap alerts.
+
+**Service Orchestration** — Per-service enable/disable and autostart-on-boot toggles (`/service`, `/services`) without restarting the whole process; "vacation mode" suppresses proactive morning/evening nudging without breaking direct "good morning"/"good night" requests.
+
+**Proactive-Architecture Foundation** — A hybrid sensors → rules-engine → context-engine → permission-check pipeline (calendar/vault-file-change detection, a compact context aggregator, confidence-gated vault-write permissions, suggestion-outcome tracking) — real, tested infrastructure with no live feature acting on it yet. First working slice of a longer-term proactive-assistant direction; see `sunny-vault/docs/architecture/personal-assistant-vision.md`.
+
+**Location** — Phone GPS via OwnTracks (free, self-hosted, no third-party cloud), staleness-windowed rather than polled constantly.
+
+**Web Search in Chat** — Claude can search the web from open-ended conversation when a question genuinely needs current information — it decides for itself, not on by default.
+
+**Open-Ended Q&A** — Anything that doesn't match a real command/data topic gets a real Claude answer instead of a canned "I don't know," with an honest "not connected" instead of a faked answer for anything genuinely missing (weather/calendar/etc. before they're set up).
 
 ---
 
 ## Design Philosophy
 
 **Templates First, Tokens Last**
-Briefings are fixed scripts with API-filled slots. No LLM overhead for facts.
+Real API/vault data in fixed templates wherever a fact is a fact. No LLM overhead for lookups.
 
 **LLM Only for Judgment**
-Claude API handles email triage, task interpretation, and freeform conversation. Never for lookups.
+Claude handles freeform conversation, study-review writing, and anything else that genuinely needs reasoning — never for retrieving a fact something else already has.
 
 **Fail Quietly**
-If weather API is down, briefing continues without it. Alarm still fires. System degrades, never crashes.
+An unconnected or failing integration says so honestly instead of faking data. The system degrades section-by-section, never crashes as a whole.
 
 **Local-First, Secure**
-Tailscale mesh keeps all devices off the public internet. No port forwarding, no exposed APIs, works from anywhere via DERP relays.
-
----
-
-## Architecture at a Glance
-
-```
-Clock (ESP32-S3) Brain (Lenovo Mini PC) External APIs
-   | | |
-   +-- Wake word ------+ | +-- Calendar API -----+
-   | | | |
-   +-- Microphone ---> | | +-- Weather API
-   | | ---> | |
-   +-- Speaker <------ | | +-- Email API
-   | | | |
-   +-- Battery Monitor | +-- Traffic API
-                       |
-                    Tailscale Mesh
-                       |
-                   Priority Queue
-                       |
-    +-- LLM (Claude) --+-- Direct APIs
-    |
-    +-- TTS (Sonic/Piper)
-    |
-    +-- Obsidian Staging --> Notion Sync
-    |
-    +-- Discord Logging
-```
+Tailscale mesh keeps every device off the public internet — no port forwarding, no exposed APIs, reachable from anywhere via DERP relays. Secrets live in a gitignored, `chmod 600` `.env`, never hardcoded or committed.
 
 ---
 
 ## Current Status
 
-**Phase 0** — Foundations (Complete)
-- Ubuntu Server 26.04 LTS on Lenovo mini PC
-- Briefing system with Q&A engine (real task data, real weather/calendar once connected, honest gaps elsewhere) plus a Claude-backed fallback for genuinely open-ended questions
-- Task management system — natural language, no command prefix needed
-- Lists (groceries, packing, anything checkable) — see `sunny-vault/docs/architecture/lists.md`
-- Alarms & Reminders — time-based, ping Discord when due — see `sunny-vault/docs/architecture/alarms-reminders.md`
-- Device/source tracking (web/discord/api) on every task, list item, and alarm
-- Discord bot for tasks/lists/alarms/reminders, plus three voice commands (`/speak`, `/join`, `/leave` — live spoken conversation, wake-word gated, fully local STT/TTS) — see `sunny-vault/docs/architecture/discord-bot.md` and `voice-join.md`
-- Console over Tailscale (`/console`, `/` and `/chatbot` redirect there) — chat plus live system stats (CPU, RAM, disk, network, temp) and Google sign-in status in one page
-- Weather (OpenWeatherMap) and Calendar/Gmail (Google Sign-In) connected with real data
-- Comprehensive documentation
+Foundations, networking, and the briefing engine (Phase 0-2) are essentially complete, well beyond their original scope — see the Core Features list above for what actually shipped on top of the original plan. The Sunny Companion hardware device (Phase 3+ equivalent: wake word, animated face, dedicated speaker/mic) is in active standalone prototyping, tracked separately in `sunny-companion/BUILD_PLAN.md` since it has its own phase structure.
 
-**Next** — Phase 1: Tailscale networking verified, Phase 2: Clock hardware (voice I/O itself is already live via Discord, ahead of the hardware)
-
-See `sunny-vault/docs/phases.md` for full build timeline.
+See `sunny-vault/docs/phases.md` for the full build timeline and `sunny-vault/docs/CHANGELOG.md` for a dated history of what shipped when.
 
 ---
 
 ## Documentation
 
-- **Architecture** — `sunny-vault/docs/architecture/` (component docs with cross-references)
-- **Build Timeline** — `sunny-vault/docs/phases.md` (phases 0-7 with checklists)
-- **Task System** — `sunny-vault/docs/TASK_SYSTEM.md` (natural-language commands + Discord bot)
-- **Lists** — `sunny-vault/docs/architecture/lists.md` (groceries, packing, anything checkable)
-- **Alarms & Reminders** — `sunny-vault/docs/architecture/alarms-reminders.md` (time-based, ping Discord when due)
-- **Dashboard** — `sunny-vault/docs/architecture/dashboard.md` (monitoring UI with Tailscale panel)
-- **Voice conversation (`/join`)** — `sunny-vault/docs/architecture/voice-join.md` (Vosk STT, wake word, the full pipeline and its history)
-- **Text-to-speech (`/speak`)** — `sunny-vault/docs/architecture/tts-piper.md`
-- **LLM integration** — `sunny-vault/docs/architecture/llm-integration.md` (what's judgment-only vs. real API data, and why)
+- **System overview** — `sunny-vault/docs/architecture/Mind-Map.md` (every component, one page)
+- **Architecture** — `sunny-vault/docs/architecture/` (one doc per component, cross-referenced)
+- **Build Timeline** — `sunny-vault/docs/phases.md`
+- **Changelog** — `sunny-vault/docs/CHANGELOG.md` (dated history of real changes)
+- **Backlog** — `sunny-vault/docs/BACKLOG.md` (what's next, and why some items are blocked on external accounts/API keys)
+- **Task System** — `sunny-vault/docs/TASK_SYSTEM.md`
+- **Sunny Companion hardware** — `sunny-companion/BUILD_PLAN.md`
 
 ---
 
 ## Estimated Costs
 
-**Today**: well under $1/month in practice — Piper (TTS) and Vosk (STT) are fully local and free, and Claude (Haiku) is only called for genuinely open-ended questions nothing else can answer, which is light, occasional personal-assistant traffic. Live numbers: `GET /api/dashboard/spend/today` / `/spend/month`, or ask "health check" for the weekly summary. Hard spend caps enforced both in-app (`daily_spend_cap`/`monthly_spend_cap` in `.env`) and at the Anthropic account level.
+**Today**: well under $1/month in practice — Piper (TTS) and Vosk (STT) are fully local and free, and Claude is only called for genuinely open-ended questions, study reviews, and the weekly health check — light, occasional traffic, mostly on the cheaper Haiku tier. Live numbers: `GET /api/dashboard/spend/today` / `/spend/month`, `/usage` in Discord, or ask "health check." Spend caps enforced both in-app (`daily_spend_cap`/`monthly_spend_cap` in `.env`) and at the Anthropic account level.
 
-Tasks, weather, and calendar/email (once each is connected — see "setup") are real API data, never LLM-guessed. Commute/health/news/motorsports still say "not connected" honestly instead of faking an answer (see `sunny-vault/log/requests.md` for what's actually being asked for).
-
-~USD 5-8/month additional once Phases 3-5 (phone) are live:
-
-- Twilio (phone calls): <$1
-- Traffic APIs: $3-4
-- Sonic API (hosted TTS, only if used instead of the free local Piper fallback): $0.12+
+Tasks, lists, weather, and calendar/email (once each is connected) are real data, never LLM-guessed. Commute/health/news/motorsports still say "not connected" honestly instead of faking an answer.
 
 ---
 
 ## Security
 
-- Caller ID allowlist + PIN for phone authentication
-- API keys in `.env` only — gitignored, `chmod 600`, never hardcoded or committed
-- Confirmation required for irreversible actions
-- Tailscale network (no open ports)
-- Hard spending caps at provider level
+- API keys and tokens in `.env`/`*_token.json` only — gitignored, `chmod 600`, never hardcoded or committed
+- Google/Spotify OAuth scopes kept as narrow as each real feature needs (e.g. Gmail stays read-only even though Calendar writes)
+- Tailscale network (no open ports); HTTPS via a Tailscale-issued cert for endpoints that need it (OAuth callbacks)
+- Destructive actions (delete a task, cancel a calendar event, delete a channel/role) run immediately with no confirmation step, matching this being a single-user personal tool — worth knowing if you're evaluating it for anything less trusted
 
 ---
 
@@ -135,22 +110,22 @@ chmod +x run.sh
 ### Full Setup
 See [SETUP_LINUX.md](SETUP_LINUX.md) for complete installation guide.
 
-### Lenovo Brain Deployment
-1. Install Ubuntu Server 26.04 LTS on Lenovo mini PC
+### Production Deployment
+1. Install Ubuntu Server 26.04 LTS on the target machine
 2. Clone this repo
-3. `chmod +x run.sh && ./run.sh` to start
-4. Create systemd service for auto-start (see SETUP_LINUX.md)
+3. `chmod +x run.sh && ./run.sh server` to start everything together
+4. Set up the systemd unit for auto-start on boot (see `SETUP_LINUX.md`)
 5. Access via Tailscale from anywhere
 
-See `sunny-vault/docs/phases.md` for full build timeline.
+Say "setup" (or "setup weather"/"setup calendar"/etc.) to any interface once running — it walks through exactly what's connected and what still needs an API key.
 
 ---
 
 ## Repository
 
 - **GitHub**: https://github.com/T3R4Bit/Project-SUNNY (Private)
-- **Vault**: `sunny-vault/` — Local Obsidian storage (inbox, staging, archive, logs, docs)
-- **Source**: Python async with FastAPI, SQLite, systemd integration
+- **Vault**: `sunny-vault/` — Local Obsidian storage (docs, instructions, state, logs); real class notes and a few other personal-content folders are gitignored
+- **Source**: Python async (FastAPI), Discord.py, googleapiclient, Piper/Vosk for local voice, Claude API for reasoning
 
 ---
 
