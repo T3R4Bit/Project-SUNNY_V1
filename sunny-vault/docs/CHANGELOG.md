@@ -12,6 +12,14 @@ Running log of real changes, most recent first. Not every commit — the milesto
 
 ---
 
+## 2026-08-24
+
+**Google Calendar write access**
+- Sunny can now create and delete real calendar events by natural language — "add dentist appointment to my calendar at 3pm tomorrow", "cancel dentist appointment from my calendar" — from any interface (Discord, console, voice, Pi companion), same routing pattern as tasks/lists/alarms.
+- Required widening the OAuth scope from `calendar.readonly` to the full `calendar` scope (`google_auth.py`) — anyone already connected has to reconnect via `/console`, since Google doesn't retroactively expand an existing token's scope.
+- New `calendar_parser.py` (regex, matches the "calendar"/"event" keyword requirement so it can't collide with tasks' much broader bare "delete X") + `calendar_engine.py` (stateless — Google Calendar itself is the only store) + `google_calendar.create_event`/`find_event_by_title`/`delete_event`. Delete resolves a title to an event via case-insensitive substring match across every calendar (soonest upcoming match wins on ambiguity) — no confirmation step before deleting, a real risk worth knowing about.
+- Deliberately narrow scope of what got built: create + delete only, no reschedule/move, no recurring events, no invites. See [[architecture/google-integration]] for the full breakdown.
+
 ## 2026-08-23
 
 **Task system rework**

@@ -364,7 +364,7 @@ Full breakdown: [[architecture/llm-readiness]].
     separate system
 - [ ] Nightly wind-down briefing (evening recap)
 - [ ] Auto-draft email replies (review before send)
-- [ ] Proactive calendar updates (detect changes, update automatically)
+- [ ] Proactive calendar updates (detect changes, update automatically) — different from the user-initiated calendar write below: this is Sunny noticing something and acting on its own
 
 ---
 

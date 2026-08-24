@@ -56,6 +56,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "personal-assistant-vision.md",
         "spotify-integration.md",
         "voice-join.md",
         "tts-piper.md",
@@ -196,6 +197,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "storm-mode.md",
         "project-scaffold.md",
         "general-chat.md",
         "weekly-health-check.md",
@@ -245,26 +247,45 @@
     "state": {
       "isPinned": false,
       "isHidden": false,
+      "sortOrder": "custom",
       "customOrder": [
         "alarms-reminders.md",
         "lists",
         "tasks"
-      ],
-      "sortOrder": "custom"
+      ]
     },
     "state/tasks": {
       "isPinned": false,
       "isHidden": false,
-      "customOrder": [],
-      "sortOrder": "custom"
+      "sortOrder": "custom",
+      "customOrder": [
+        "another-test-task.md",
+        "test-task.md"
+      ]
     },
     "state/lists": {
       "isPinned": false,
       "isHidden": false,
-      "customOrder": [],
-      "sortOrder": "custom"
+      "sortOrder": "custom",
+      "customOrder": []
     },
     "state/alarms-reminders.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/personal-assistant-vision.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "instructions/storm-mode.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/another-test-task.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/test-task.md": {
       "isPinned": false,
       "isHidden": false
     }

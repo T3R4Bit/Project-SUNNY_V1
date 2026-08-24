@@ -5,10 +5,19 @@ writes one JSON file (`google_token.json`, gitignored, chmod 600 like `.env`)
 holding the refresh token, and every caller reads through `get_credentials()`,
 which refreshes silently when the access token has expired.
 
-Scopes are read-only and intentionally narrow — Calendar + Gmail read access,
-nothing else. See sunny-vault/docs/architecture/google-integration.md for why,
-and for what a wider scope grant (sending email, writing calendar events) would
-need on top of this.
+Scopes are intentionally narrow — Calendar (read + write, since Sunny can
+now create/delete events) and Gmail (read-only), nothing else. See
+sunny-vault/docs/architecture/google-integration.md for why, and for what a
+still-wider scope grant (sending email) would need on top of this.
+
+Widening the calendar scope from read-only to read+write means an existing
+google_token.json's refresh token was issued under the *old*, narrower
+scope — Google doesn't retroactively expand it. Anyone already connected
+needs to reconnect (re-run the sign-in flow from /console) once this
+change is deployed; build_authorization_url()'s prompt="consent" already
+forces a fresh consent screen (and fresh token) on every sign-in, so this
+needs no special-cased re-auth code, just clicking "Connect Google
+Account" again.
 """
 
 import json
@@ -26,7 +35,7 @@ from sunny_code.config import get_settings, looks_configured
 logger = logging.getLogger(__name__)
 
 SCOPES = [
-    "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar",  # read + write -- see calendar_engine.py
     "https://www.googleapis.com/auth/gmail.readonly",
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",

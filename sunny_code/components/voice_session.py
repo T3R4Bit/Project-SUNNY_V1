@@ -71,6 +71,7 @@ async def start(
     scheduled_engine,
     project_engine,
     spotify_engine,
+    calendar_engine,
     notify_fn: Optional[Callable[[str], Awaitable[None]]] = None,
 ) -> str:
     """Joins the invoking user's current voice channel by spawning an
@@ -128,7 +129,7 @@ async def start(
         asyncio.create_task(
             _relay_from_worker(
                 process, from_worker, to_worker, tasks_engine, briefing_engine, list_engine,
-                scheduled_engine, project_engine, spotify_engine
+                scheduled_engine, project_engine, spotify_engine, calendar_engine
             )
         )
         asyncio.create_task(_watch_worker(process, notify_fn))
@@ -140,7 +141,7 @@ async def start(
 
 async def _relay_from_worker(
     process, from_worker, to_worker, tasks_engine, briefing_engine, list_engine, scheduled_engine, project_engine,
-    spotify_engine,
+    spotify_engine, calendar_engine,
 ) -> None:
     """Reads utterance events from the worker for the lifetime of one
     /join session, routes each through the same handle_message() every
@@ -211,6 +212,7 @@ async def _relay_from_worker(
                 scheduled_engine,
                 project_engine,
                 spotify_engine,
+                calendar_engine,
                 session_id=session_id,
                 on_chunk=on_chunk,
                 on_search_start=on_search_start,

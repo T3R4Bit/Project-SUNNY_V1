@@ -8,7 +8,9 @@ tags: [feature, google, oauth, calendar, gmail]
 
 # Google Sign-In (OAuth 2.0)
 
-One "Connect Google Account" button on [[dashboard|the console]] that authorizes Sunny to read your Calendar and Gmail. Code is complete; going live needs a Google Cloud OAuth client (one-time setup, external to this repo) and then a one-time sign-in.
+One "Connect Google Account" button on [[dashboard|the console]] that authorizes Sunny to read/write your Calendar and read your Gmail. Code is complete; going live needs a Google Cloud OAuth client (one-time setup, external to this repo) and then a one-time sign-in.
+
+**2026-08-24: the Calendar scope widened from `calendar.readonly` to the full `calendar` scope**, so Sunny can create/delete events, not just read them (see "What This Covers" below). Anyone already connected under the old scope needs to reconnect — Google doesn't retroactively expand a token's scope, and `build_authorization_url()`'s `prompt="consent"` already forces a fresh consent screen on every sign-in, so this is just "click Connect Google Account again," no special re-auth flow needed.
 
 ## Status
 
@@ -16,6 +18,7 @@ One "Connect Google Account" button on [[dashboard|the console]] that authorizes
 |-------|--------|
 | OAuth flow (login/callback/token storage/refresh) | Built and fixed — `sunny_code/components/google_auth.py`, `google_routes.py`. A real PKCE bug (`invalid_grant: Missing code verifier`) was found and fixed 2026-08-20 — see How It Works |
 | Calendar read | Built — `sunny_code/components/google_calendar.py`, wired into [[briefing-engine]] |
+| Calendar write (create/delete events) | Built 2026-08-24 — `google_calendar.create_event`/`find_event_by_title`/`delete_event`, natural-language layer in `calendar_parser.py` + `calendar_engine.py`, wired into `assistant.py` alongside every other command engine (tasks/lists/alarms/Spotify) — works from any interface (Discord, console, voice, Pi companion) |
 | Gmail read | Built — `sunny_code/components/google_gmail.py`, wired into [[briefing-engine]] |
 | Console "Connect Google Account" card | Built — `/console` |
 | Styled callback screens (connected/denied/error) | Built 2026-08-20 — was a bare unstyled `<p>` tag before, see How It Works |
@@ -25,21 +28,21 @@ One "Connect Google Account" button on [[dashboard|the console]] that authorizes
 
 ## What This Covers
 
-Two scopes, both read-only:
-
-- `calendar.readonly` — read events off the primary calendar (today's schedule, tomorrow's preview)
+- `calendar` — full read/write access to every calendar on the account (not just the primary one for reads — see `google_calendar.get_events()`; writes default to `primary`, see `create_event()`)
 - `gmail.readonly` — read message headers only, never bodies (unread count, "important"-flagged count, subject lines of the most recent unread)
 
 Plus `openid` + `userinfo.email` just to show which account is connected on the console.
 
+Calendar write is deliberately narrower than "do anything to the calendar": `calendar_engine.py` only exposes create and delete by natural language (e.g. "add dentist appointment to my calendar at 3pm tomorrow", "cancel dentist appointment from my calendar") — no reschedule/move, no recurring events, no attendees/invites. Delete resolves a title to an event via `find_event_by_title()` (case-insensitive substring match across every calendar, soonest upcoming match wins if more than one matches) — there's no confirmation step before deleting, so a substring that matches an unintended event is a real risk worth knowing about.
+
 ## What This Does NOT Cover (and why)
 
-Scopes are requested narrowly on purpose — a wider ask both increases what a leaked token could do and (for Gmail/Calendar specifically) pushes the OAuth consent screen into Google's "restricted scope" verification review. None of the following are wired up:
+Scopes are requested narrowly on purpose — a wider ask both increases what a leaked token could do and (for Gmail specifically) pushes the OAuth consent screen into Google's "restricted scope" verification review. None of the following are wired up:
 
 | Capability | Covered by Google sign-in? | Notes |
 |---|---|---|
 | **Sending / drafting email** | No | Needs `gmail.send` or `gmail.compose`, not requested. Would unlock the backlog's "Auto-draft email replies" item — add the scope + a `google_gmail.create_draft()` function when that's actually being built. |
-| **Writing/creating calendar events** | No | Needs the full `calendar` scope (this only has `calendar.readonly`). Would unlock "Proactive calendar updates (detect changes, update automatically)" from the backlog. |
+| **Rescheduling / moving calendar events, recurring events, invites** | No | Create/delete only (see What This Covers above) — the full `calendar` scope would technically allow more, but nothing calls `events().patch()`/`update()` yet. |
 | **Google Drive** | No | Nothing in Sunny's roadmap reads/writes Drive files. Not requested. |
 | **Contacts, Photos, Google Tasks** | No | Not referenced anywhere in [[../phases|phases.md]] or [[../BACKLOG]]. Not requested. |
 | **Commute / traffic** | **No — not part of Google sign-in at all**, even though it's a Google product. Google Maps Platform (Directions/Routes API) is billed and authenticated per-*project* via a plain API key, not per-*user* OAuth consent. Still needs its own `GOOGLE_MAPS_API_KEY` in `.env` and a small `google_maps.py`/similar — separate piece of work, unrelated to this sign-in flow. |
@@ -54,7 +57,7 @@ Scopes are requested narrowly on purpose — a wider ask both increases what a l
 2. **Enable APIs**: APIs & Services → Library → enable both **Google Calendar API** and **Gmail API**.
 3. **OAuth consent screen**: APIs & Services → OAuth consent screen.
    - User type: External.
-   - Add the two scopes above (`calendar.readonly`, `gmail.readonly`).
+   - Add the two scopes above (`calendar`, `gmail.readonly`).
    - **Branding**: app logo (`branding/sunny-logo-120.png`, 120×120), home page, privacy policy, and terms of service links — point these at Sunny's own self-hosted pages, not a third-party host (see Legal Pages below for why).
    - **Publishing status: stay in Testing**, and add your own Google account under **Test users**. This is the opposite of what was originally planned here (see below) but is what actually works for a personal single-user app without extra hoops.
 4. **Create credentials**: APIs & Services → Credentials → Create Credentials → OAuth client ID.
@@ -113,7 +116,7 @@ Fixed by capturing `flow.code_verifier` alongside the existing `_pending_state` 
 - `google_token.json` holds a long-lived refresh token — treated like `.env`: gitignored, `chmod 600` on write. Don't commit it, don't paste its contents anywhere.
 - CSRF protection on the OAuth callback is a single in-memory `state` value (`google_auth._pending_state`), and the flow now also relies on a matching single in-memory `code_verifier` (`google_auth._pending_code_verifier`, added with the PKCE fix) — sufficient because Sunny is single-user and this flow is only reachable over Tailscale, not the open internet.
 - `certs/tailscale.key` (the TLS private key) is gitignored and `chmod 600`, same posture as `google_token.json` and `.env`.
-- Scopes are read-only. A leaked token can read your calendar and email headers; it cannot send mail, create events, or read message bodies.
+- Gmail stays read-only; Calendar is now read+write (see the 2026-08-24 note above). A leaked token can read your calendar and email headers, and create/delete calendar events; it still cannot send mail or read message bodies.
 
 ## Files
 

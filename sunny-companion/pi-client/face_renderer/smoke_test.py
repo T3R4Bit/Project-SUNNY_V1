@@ -50,28 +50,56 @@ def _render_loop() -> None:
     pygame.init()
     screen = pygame.display.set_mode(renderer.WINDOW_SIZE)
     clock = pygame.time.Clock()
+    glow_surface = pygame.Surface(renderer.WINDOW_SIZE, pygame.SRCALPHA)
+    effect_surface = pygame.Surface(renderer.WINDOW_SIZE, pygame.SRCALPHA)
 
+    # listening/speaking normally use live mic RMS (renderer.MicAmplitude) --
+    # no mic device exists in a container, so these are synthetic stand-ins
+    # purely to exercise the halo/bars draw paths, same reasoning as
+    # Dockerfile.test's header re: live mic capture being untested here
     sources = {
         "idle": renderer.ZeroAmplitude(),
+        "listening": renderer.BreathingAmplitude(base_hz=0.4, detune_hz=0.11, level=0.6),
         "thinking": renderer.BreathingAmplitude(),
         "searching": renderer.BreathingAmplitude(base_hz=0.32, detune_hz=0.09, level=0.45),
+        "speaking": renderer.BreathingAmplitude(base_hz=0.5, detune_hz=0.13, level=0.7),
     }
 
     frame_count = 0
+    scan_angle = 0.0
+    mid_dash_angle = 0.0
+    thinking_dash_angle = 0.0
+    tick_rotation = 0.0
+    t = 0.0
+    prev_state = None
+    state_change_t = -renderer.TRANSITION_SECONDS
     for state, source in sources.items():
+        state_change_t = t  # deliberately exercises the crossfade path each state switch
         for _ in range(40):
             amplitude = source()
-            radius = int(renderer.BASE_RADIUS + amplitude * renderer.MAX_RADIUS_BOOST)
+            core_radius = int(renderer.BASE_RADIUS + amplitude * renderer.MAX_RADIUS_BOOST)
             color = renderer._hue_to_rgb(renderer.EMOTIONS["neutral"])
+            scan_angle = (scan_angle + renderer.SCAN_BASE_DEGREES_PER_SEC / 60.0) % 360
+            mid_dash_angle = (mid_dash_angle + renderer.MID_DASH_DEGREES_PER_SEC / 60.0) % 360
+            thinking_dash_angle = (thinking_dash_angle + renderer.THINKING_DASH_DEGREES_PER_SEC / 60.0) % 360
+            tick_rotation = (tick_rotation + renderer.TICK_DEGREES_PER_SEC / 60.0) % 360
+            t += 1 / 60.0
+            transition_blend = min(1.0, (t - state_change_t) / renderer.TRANSITION_SECONDS)
             screen.fill((18, 18, 24))
-            pygame.draw.circle(screen, color, (renderer.WINDOW_SIZE[0] // 2, renderer.WINDOW_SIZE[1] // 2), radius)
+            renderer._draw_face(
+                screen, glow_surface, effect_surface, state, prev_state, transition_blend,
+                core_radius, color, amplitude, t,
+                scan_angle, mid_dash_angle, thinking_dash_angle, tick_rotation,
+            )
             pygame.display.flip()
             clock.tick(60)
             frame_count += 1
+        prev_state = state
 
     pygame.quit()
-    if frame_count != 120:
-        raise RuntimeError(f"expected 120 frames, ran {frame_count}")
+    expected = len(sources) * 40
+    if frame_count != expected:
+        raise RuntimeError(f"expected {expected} frames, ran {frame_count}")
 
 
 def _hue_table() -> None:
@@ -87,7 +115,7 @@ def main() -> None:
     check("import openwakeword.model.Model", _import_openwakeword)
     check("import wake_word_listener/wake_on_lan/crash_reporter", _import_pi_client_scripts)
     check("hue table produces valid RGB for all 5 emotions", _hue_table)
-    check("headless render loop, 120 frames across idle/thinking/searching", _render_loop)
+    check("headless render loop, 200 frames across all 5 states", _render_loop)
 
     print()
     if FAILURES:

@@ -49,6 +49,7 @@ from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.server_admin_parser import ServerAdminParser
 from sunny_code.components.spotify_engine import SpotifyEngine
+from sunny_code.components.calendar_engine import CalendarEngine
 from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.time_parse import next_occurrence
 from sunny_code.config import get_settings
@@ -209,6 +210,7 @@ def create_discord_bot(
     scheduled_engine: ScheduledEngine,
     project_engine: ProjectEngine,
     spotify_engine: SpotifyEngine,
+    calendar_engine: CalendarEngine,
     chat_channel_id: int,
     dashboard_channel_id: int = 0,
     briefings_channel_id: int = 0,
@@ -295,7 +297,7 @@ def create_discord_bot(
 
         message = await voice_session.start(
             interaction, tasks_engine, briefing_engine, list_engine, scheduled_engine, project_engine,
-            spotify_engine, notify_fn=_notify_voice_crash
+            spotify_engine, calendar_engine, notify_fn=_notify_voice_crash
         )
         await interaction.followup.send(message, ephemeral=True)
 
@@ -792,7 +794,7 @@ def create_discord_bot(
         session_id = f"discord:{message.channel.id}:{message.author.id}"
         response = await handle_message(
             message.content, tasks_engine, briefing_engine, list_engine, scheduled_engine,
-            project_engine, spotify_engine, session_id=session_id
+            project_engine, spotify_engine, calendar_engine, session_id=session_id
         )
         for chunk in _chunk_message(response):
             await message.channel.send(chunk)

@@ -2,14 +2,17 @@
 and the Discord bot, so behavior stays identical across interfaces.
 
 Routing order: pending follow-up (if any) -> help trigger -> list command ->
-alarm/reminder command -> task command (natural phrasing or legacy !task) ->
-morning/evening briefing -> briefing Q&A fallback.
+alarm/reminder command -> calendar-event command -> Spotify command ->
+task command (natural phrasing or legacy !task) -> morning/evening briefing
+-> briefing Q&A fallback.
 
-Lists and alarms/reminders are checked *before* tasks on purpose: their
-trigger phrases require a specific keyword ("list"/"alarm"/"reminder"), while
-tasks' bare "delete X"/"mark X as done" patterns are deliberately broad and
-would otherwise swallow "delete my reminder to X" or "remove milk from my
-list" before the more specific parser ever saw it.
+Lists, alarms/reminders, and calendar-event commands are checked *before*
+tasks on purpose: their trigger phrases require a specific keyword
+("list"/"alarm"/"reminder"/"calendar"/"event"), while tasks' bare
+"delete X"/"mark X as done" patterns are deliberately broad and would
+otherwise swallow "delete my reminder to X", "remove milk from my list", or
+"cancel my dentist appointment from my calendar" before the more specific
+parser ever saw it.
 """
 
 import random
@@ -18,6 +21,7 @@ from typing import Dict, Optional
 
 from sunny_code.components import category_store, health_check, setup_guides
 from sunny_code.components.briefing import BriefingEngine, OnChunk, OnSearchStart
+from sunny_code.components.calendar_engine import CalendarEngine
 from sunny_code.components.device import device_from_session
 from sunny_code.components.lists_engine import ListEngine
 from sunny_code.components.lists_parser import ListCommandParser
@@ -336,6 +340,7 @@ async def handle_message(
     scheduled_engine: Optional[ScheduledEngine] = None,
     project_engine: Optional[ProjectEngine] = None,
     spotify_engine: Optional[SpotifyEngine] = None,
+    calendar_engine: Optional[CalendarEngine] = None,
     session_id: str = "default",
     on_chunk: Optional[OnChunk] = None,
     on_search_start: Optional[OnSearchStart] = None,
@@ -407,6 +412,11 @@ async def handle_message(
 
     if scheduled_engine is not None:
         handled, _, message = await scheduled_engine.try_execute(stripped, source=source)
+        if handled:
+            return message
+
+    if calendar_engine is not None:
+        handled, _, message = await calendar_engine.try_execute(stripped, source=source)
         if handled:
             return message
 
