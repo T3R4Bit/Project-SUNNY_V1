@@ -346,7 +346,10 @@ def create_discord_bot(
     @tree.command(name="service", description="Enable/disable a service, or toggle whether it autostarts on boot")
     async def service_command(
         interaction: discord.Interaction,
-        name: Literal["dashboard_refresh", "scheduled_check", "usage_refresh", "health_check", "morning_prep", "voice_join"],
+        name: Literal[
+            "dashboard_refresh", "scheduled_check", "usage_refresh", "health_check", "morning_prep",
+            "voice_join", "rules_engine",
+        ],
         action: Literal["enable", "disable", "autostart_on", "autostart_off"],
     ):
         if interaction.channel_id != chat_channel_id:

@@ -56,6 +56,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "proactive-architecture.md",
         "service-orchestration.md",
         "usage-tracking.md",
         "project-system.md",
@@ -117,6 +118,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "rules-engine.md",
         "requests.md",
         "README.md"
       ]
@@ -252,6 +254,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "sensor-vault-cursor.json",
         "alarms-reminders.md",
         "lists",
         "tasks"
@@ -262,6 +265,8 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "another-test-task-3.md",
+        "test-task-3.md",
         "another-test-task-2.md",
         "test-task-2.md",
         "another-test-task.md",
@@ -311,6 +316,26 @@
       "isHidden": false
     },
     "state/tasks/another-test-task-2.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/sensor-vault-cursor.json": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "log/rules-engine.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/test-task-3.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/another-test-task-3.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/proactive-architecture.md": {
       "isPinned": false,
       "isHidden": false
     }

@@ -47,6 +47,7 @@ location.json
 location_gps.json
 categories.json
 service_registry.json
+sunny-vault/state/sensor-*.json
 
 # TLS cert/key (Tailscale-issued, host-specific — see google-integration.md)
 certs/

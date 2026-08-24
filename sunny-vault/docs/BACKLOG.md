@@ -86,14 +86,18 @@ Full architecture and rationale in [[architecture/personal-assistant-vision]] �
 
 **Obsidian knowledge base** ([[architecture/personal-assistant-vision#7-obsidian-as-sunnys-knowledge-base]], [[architecture/personal-assistant-vision#8-weekly-knowledge-health-check]])
 
-- [ ] Permission-leveled vault write access (0 read-only / 1 safe edits / 2 rename-move / 3 destructive-requires-approval) with a confidence threshold (>95% auto, 80-95% suggest, <80% ask) and a log of automatic edits
+- [x] Permission-leveled vault write access (0 read-only / 1 safe edits / 2 rename-move / 3 destructive-requires-approval) with a confidence threshold (>95% auto, 80-95% suggest, <80% ask) and a log of automatic edits
+      *(built: `vault_permissions.py` — `request_vault_write(operation, confidence, description)` classifies and logs every call (not just autos) to `sunny-vault/log/vault-edits.md`. Level 3 always returns "ask" regardless of confidence, per the vision doc's own hard rule. No real caller yet — it only decides, nothing calls it to actually touch the vault on its own initiative today. See [[architecture/proactive-architecture]].)*
 - [ ] Extend the weekly health check into a knowledge health check (broken links, orphaned/duplicate/untagged/stale notes)
 
 **Proactivity / hybrid architecture** ([[architecture/personal-assistant-vision#10-hybrid-ai-architecture]], [[architecture/personal-assistant-vision#11-confidence-based-autonomy]], [[architecture/personal-assistant-vision#12-learning-from-behavior]])
 
-- [ ] Real Layer-1 sensors (calendar/file-change/GitHub watchers) feeding a Layer-2 rules engine, so proactive suggestions don't require an LLM call per check
-- [ ] A compact structured context-engine state (vs. full history) for when an LLM call is actually needed
-- [ ] Track suggestion outcomes (accepted/rejected/ignored/snoozed) and adjust future suggestion timing/confidence per pattern
+- [x] Real Layer-1 sensors (calendar/file-change/GitHub watchers) feeding a Layer-2 rules engine, so proactive suggestions don't require an LLM call per check
+      *(built: `sensors.py` (calendar + vault-file change detection, GitHub watchers still not built) + `rules_engine.py` (2 seed rules — vault note changed, calendar event changed — both log-only, no action taken yet). Evaluated on a new 30-minute `main.py` loop. See [[architecture/proactive-architecture]].)*
+- [x] A compact structured context-engine state (vs. full history) for when an LLM call is actually needed
+      *(built: `context_engine.py`'s `build_context()`/`format_context()` — pure read-time aggregator over tasks/lists/today's calendar/project folders, no new storage. No real caller yet.)*
+- [x] Track suggestion outcomes (accepted/rejected/ignored/snoozed) and adjust future suggestion timing/confidence per pattern
+      *(built: `suggestion_tracker.py` — `record_suggestion`/`record_outcome`/`acceptance_rate`, append-only vault log. No real caller yet — waits on the first feature that actually emits a proactive suggestion.)*
 
 **Travel intelligence** ([[architecture/personal-assistant-vision#17-travel-commute-intelligence]]) — same gap as the existing commute/traffic item elsewhere in this backlog; not built
 

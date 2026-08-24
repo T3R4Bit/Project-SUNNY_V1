@@ -39,6 +39,8 @@ Overview of Project SUNNY's major components and how they interact.
 ### Intelligence & Control
 - [[llm-integration]] — Claude API for reasoning, judgment, and real web search
 - [[llm-instructions]] — Hand-editable per-purpose system prompts in the vault
+- [[proactive-architecture]] — Layers 1-3 + permission-check (sensors, rules engine, context engine, vault write permissions) — first working slice, no real feature acts on it yet
+- [[service-orchestration]] — per-service on/off + autostart, vacation mode
 - Priority queue — not a real scheduler; `llm_client.py`'s `asyncio.Semaphore(1)` is a lightweight stand-in, sufficient for a single-user assistant with no concurrent-call scenario yet (see [[llm-integration]])
 
 ### Logging & Storage

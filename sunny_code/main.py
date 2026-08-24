@@ -33,7 +33,7 @@ from sunny_code.components.spotify_engine import SpotifyEngine
 from sunny_code.components.spotify_routes import create_spotify_auth_router
 from sunny_code.components.calendar_engine import CalendarEngine
 from sunny_code.components.crash_check import check_previous_crash
-from sunny_code.components import health_check, service_registry
+from sunny_code.components import health_check, rules_engine, service_registry
 from sunny_code.components.health_check import run_weekly_health_check
 from sunny_code.components.weather_routes import create_weather_router
 from sunny_code.components.location_routes import create_location_router
@@ -89,6 +89,9 @@ class SunnyCore:
         # Same guard, same reason, for the weekly health-check loop below.
         self._health_check_started = False
 
+        # Same guard, same reason, for the rules-engine loop below.
+        self._rules_engine_started = False
+
         self.app = self._create_app()
         self.discord_bot = self._create_discord_bot()
         # Registered once here (not re-fetched per run) so run_weekly_health_check()
@@ -98,6 +101,7 @@ class SunnyCore:
         # old getattr-every-time pattern.
         health_check.set_post_fn(getattr(self.discord_bot, "post_to_health", None) if self.discord_bot else None)
         self.health_check_loop = self._create_health_check_loop()
+        self.rules_engine_loop = self._create_rules_engine_loop()
 
     def _create_discord_bot(self):
         """Build the Discord bot if a token + chat channel are configured;
@@ -148,6 +152,25 @@ class SunnyCore:
 
         return health_check_loop
 
+    def _create_rules_engine_loop(self):
+        """Layer 1/2 proactive-architecture loop (see sunny_code/components/
+        rules_engine.py, sensors.py) — deterministic, no LLM calls, so a
+        30-minute interval is cheap. Standalone like the health-check loop
+        above, not Discord-attached: the sensors/rules don't need Discord to
+        do their (currently log-only) work, same "run and log regardless of
+        whether Discord is configured" reasoning."""
+
+        @tasks.loop(minutes=30)
+        async def rules_engine_loop():
+            if not service_registry.is_enabled("rules_engine"):
+                return
+            try:
+                await asyncio.to_thread(rules_engine.evaluate)
+            except Exception as e:
+                self.logger.error(f"rules_engine_loop: evaluate() failed: {e}", exc_info=True)
+
+        return rules_engine_loop
+
     def _create_app(self) -> FastAPI:
         """Create FastAPI application with all routes."""
 
@@ -183,11 +206,18 @@ class SunnyCore:
                 if service_registry.is_autostart("health_check"):
                     self.health_check_loop.start()
 
+            # Same double-start hazard, same guard, for the rules-engine loop.
+            if not self._rules_engine_started:
+                self._rules_engine_started = True
+                if service_registry.is_autostart("rules_engine"):
+                    self.rules_engine_loop.start()
+
             yield
             if discord_task is not None:
                 await self.discord_bot.close()
                 discord_task.cancel()
             self.health_check_loop.cancel()
+            self.rules_engine_loop.cancel()
 
         app = FastAPI(
             title=self.settings.app_name,

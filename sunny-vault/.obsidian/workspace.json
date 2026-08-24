@@ -206,6 +206,14 @@
   },
   "active": "b71858e4a6f616e0",
   "lastOpenFiles": [
+    "docs/architecture/Mind-Map.md.tmp.17964.a49085ac1ef1",
+    "docs/BACKLOG.md.tmp.17964.2bd8c897ae06",
+    "docs/BACKLOG.md.tmp.17964.526800311976",
+    "docs/architecture/proactive-architecture.md",
+    "state/tasks/another-test-task-3.md",
+    "state/tasks/test-task-3.md",
+    "log/rules-engine.md",
+    "state/sensor-vault-cursor.json",
     "state/tasks/another-test-task-2.md",
     "state/tasks/test-task-2.md",
     "docs/architecture/usage-tracking.md.tmp.17964.b8c7a51b12e7",
@@ -216,9 +224,6 @@
     "docs/BACKLOG.md.tmp.17964.c568c1f4b2ec",
     "docs/BACKLOG.md.tmp.17964.eb97103d5498",
     "docs/BACKLOG.md.tmp.17964.07680bf404a4",
-    "docs/architecture/Mind-Map.md.tmp.17964.83b1fc6caefc",
-    "docs/architecture/Mind-Map.md.tmp.17964.7ae45aab8c8b",
-    "docs/architecture/Mind-Map.md.tmp.17964.46c53e55a8df",
     "docs/architecture/usage-tracking.md",
     "docs/architecture/project-system.md",
     "docs/BACKLOG.md",
@@ -236,11 +241,6 @@
     "docs/architecture/voice-join.md",
     "docs/architecture/tts-piper.md",
     "docs/architecture/health-check.md",
-    "docs/architecture/llm-instructions.md",
-    "instructions/weekly-health-check.md",
-    "instructions/README.md",
-    "state/tasks/dashboard-check.md",
-    "state/tasks/emoji-test-task.md",
-    "docs/architecture/llm-readiness.md"
+    "docs/architecture/llm-instructions.md"
   ]
 }
