@@ -71,7 +71,7 @@ Project SUNNY is a self-hosted voice assistant for personal productivity and aut
 
 ## Core Features
 
-- **Discord Voice** — `/speak`, `/join`, `/leave`. Live, wake-word-gated spoken conversation over Discord, fully local STT/TTS (Vosk + Piper), routed through the same brain as text chat. Built and live ahead of the bedside-clock hardware below.
+- **Discord Voice** — `/speak` for one-shot TTS; persistent live conversation (wake-word-gated, no join command — Sunny just stays in a configured voice channel) fully local STT/TTS (Vosk + Piper), routed through the same brain as text chat, with session-scoped conversation memory. Built and live ahead of the bedside-clock hardware below.
 - **Bedside Clock + Alarm** — Battery-backed hardware with wake word detection (not yet built — Discord voice already delivers the conversational half of this today)
 - **Morning Briefing** — Calendar, weather, tasks; genuinely open-ended questions get a real Claude answer, with real web search when the question needs current info (see [[architecture/llm-integration]])
 - **Google Calendar + Gmail** — read via Sign-In; Calendar also supports natural-language create/delete ("add dentist appointment to my calendar at 3pm tomorrow") — see [[architecture/google-integration]]
@@ -88,7 +88,7 @@ Project SUNNY is a self-hosted voice assistant for personal productivity and aut
 - **Network**: Tailscale mesh connecting all devices securely
 
 ### Software Stack
-- **Voice**: Piper TTS (`/speak`, `/join`), Vosk STT (`/join`) — both fully local, CPU-only, free. Fast enough that TTS runs at roughly 16x real-time on this hardware (verified live, 2026-08-21) — real-world benchmarks for larger/GPU-oriented alternatives (Qwen3-TTS, Kokoro) don't hold up on this specific CPU, tested directly rather than assumed.
+- **Voice**: Piper TTS (`/speak`, persistent voice conversation), Vosk STT (persistent voice conversation) — both fully local, CPU-only, free. Fast enough that TTS runs at roughly 16x real-time on this hardware (verified live, 2026-08-21) — real-world benchmarks for larger/GPU-oriented alternatives (Qwen3-TTS, Kokoro) don't hold up on this specific CPU, tested directly rather than assumed.
 - **Backend**: FastAPI, Python asyncio. Storage is split: tasks/lists live as vault-markdown (one file per item, directly readable/editable in Obsidian — see [[architecture/vault-storage]]); alarms/reminders and usage/spend metrics still use SQLite (`sunny.db`) since they need reliable automatic background writes, not a hand-browsable file
 - **UI**: Console-style web dashboard
 - **Communication**: Twilio (planned), Discord bot (live — text + voice), Tailscale mesh network
@@ -100,7 +100,7 @@ Project SUNNY is a self-hosted voice assistant for personal productivity and aut
 **Phase 0 (Foundations)** — Mostly complete (a couple of small OS-config items open — see [[./phases.md]])
 - Briefing system with real task/weather/calendar data where connected, honest gaps elsewhere, and a Claude-backed fallback for anything genuinely open-ended
 - Task/list/alarm/reminder management — natural language, no command prefix needed, driven identically from the console, Discord text, and Discord voice (see [[./TASK_SYSTEM.md]])
-- Discord bot live: text commands plus `/speak`, `/join`, `/leave` voice commands
+- Discord bot live: text commands, `/speak` one-shot TTS, and persistent live voice conversation (no join command — `/service voice_join` toggles it)
 - One combined console at `/console` (`/` and the old `/chatbot` redirect there) — chat, live system stats, and Google sign-in status, accessible over Tailscale
 
 **Phase 1-7** — In planning (hardware phases; voice I/O itself is already live via Discord)

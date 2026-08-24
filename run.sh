@@ -93,6 +93,10 @@ DISCORD_BRIEFINGS_CHANNEL_ID=
 DISCORD_WARNINGS_CHANNEL_ID=
 DISCORD_TASK_UPDATES_CHANNEL_ID=
 DISCORD_HEALTH_CHANNEL_ID=
+# Optional — a voice channel for Sunny to stay connected to persistently
+# (say "Hey Sunny" before each request, same as before). Leave blank to skip
+# voice presence entirely; toggle on/off later with /service voice_join.
+DISCORD_VOICE_CHANNEL_ID=
 
 # Network (will bind to this on Lenovo in production)
 TAILSCALE_IP=100.117.41.53
@@ -125,11 +129,12 @@ PIPER_NOISE_SCALE=
 PIPER_NOISE_W_SCALE=
 PIPER_SPEAKER_ID=
 
-# Vosk STT (/join in Discord) — free, local, no API key needed. Model
-# downloads automatically on first use. See sunny-vault/docs/architecture/voice-join.md.
+# Vosk STT (Sunny's persistent Discord voice presence) — free, local, no
+# API key needed. Model downloads automatically on first use. See
+# sunny-vault/docs/architecture/voice-join.md.
 VOSK_LANG=en-us
 # Specific model by name, bigger vocabulary than VOSK_LANG's small default.
-# Leave blank (small model) — vosk-model-en-us-0.22-lgraph crashes /join
+# Leave blank (small model) — vosk-model-en-us-0.22-lgraph crashes voice
 # outright (a real Kaldi assertion failure inside its own incremental
 # lattice decoder, not fixable from this app — see config.py and
 # sunny-vault/docs/architecture/voice-join.md). If accuracy ever needs

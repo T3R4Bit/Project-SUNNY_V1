@@ -83,6 +83,10 @@ class Settings(BaseSettings):
     discord_warnings_channel_id: int = 0
     discord_task_updates_channel_id: int = 0
     discord_health_channel_id: int = 0
+    # The voice channel Sunny stays connected to persistently (see
+    # voice_session.py) -- unlike the output-only channels above, unset
+    # means voice presence just doesn't start, not "falls back to chat."
+    discord_voice_channel_id: int = 0
 
     @field_validator(
         "discord_chat_channel_id",
@@ -91,6 +95,7 @@ class Settings(BaseSettings):
         "discord_warnings_channel_id",
         "discord_task_updates_channel_id",
         "discord_health_channel_id",
+        "discord_voice_channel_id",
         mode="before",
     )
     @classmethod

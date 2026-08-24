@@ -20,10 +20,12 @@ Also the only real delivery mechanism for alarms/reminders today: there's no
 clock/speaker hardware yet, so "sounding" an alarm means posting a message in
 the chat channel when it's due (see the scheduled-items loop below).
 
-Three real slash commands — /speak (Piper TTS, one-shot text-to-audio
-attachment), /join and /leave (live voice-channel conversation via
-stt.py/voice_session.py — see sunny-vault/docs/architecture/voice-join.md).
-Everything else here is plain-text via handle_message(). Registered via a
+Real slash commands: /speak (Piper TTS, one-shot text-to-audio attachment),
+/category, /services, /service, /vacation, /usage. No /join/leave anymore —
+live voice-channel conversation (stt.py/voice_session.py — see
+sunny-vault/docs/architecture/voice-join.md) is a persistent presence now,
+not a per-use command; see voice_presence_loop below. Everything else here
+is plain-text via handle_message(). Slash commands registered via a
 discord.app_commands.CommandTree bound directly to this bare discord.Client
 (no commands.Bot needed), synced to this bot's one guild in on_ready.
 
@@ -75,6 +77,10 @@ _STORM_MODE_STATUS_TRIGGERS = ("storm mode status", "is storm mode on", "storm m
 _WIZARD_CANCEL_WORDS = ("cancel", "nevermind", "never mind", "stop", "skip", "forget it")
 MAX_MESSAGE_LENGTH = 1900 # Discord's real limit is 2000; leave headroom
 SCHEDULED_CHECK_INTERVAL_SECONDS = 30
+VOICE_PRESENCE_INTERVAL_SECONDS = 30 # how often to reconcile actual voice
+# connection state against desired (service enabled + channel configured) --
+# same cadence as scheduled_check_loop, snappy enough that a reconnect
+# after a drop/crash doesn't leave Sunny absent for long
 MORNING_PREP_LOOKAHEAD_SECONDS = 5 * 60 # how far ahead of an alarm to
 # prewarm the morning briefing -- "5min max" per the backlog item this implements
 SPEAK_MAX_CHARS = 1000 # practical cap on synthesis time/file size, well under
@@ -217,13 +223,16 @@ def create_discord_bot(
     warnings_channel_id: int = 0,
     task_updates_channel_id: int = 0,
     health_channel_id: int = 0,
+    voice_channel_id: int = 0,
 ) -> discord.Client:
     """Build (but don't start) the Discord client. chat_channel_id is the only
     channel commands are read from. dashboard_channel_id is where the pinned
     task dashboard lives — falls back to chat_channel_id if unset, so leaving
     it unconfigured reproduces the old single-channel behavior exactly. The
-    remaining optional *_channel_id args are output-only destinations —
-    see sunny-vault/docs/architecture/discord-bot.md."""
+    remaining optional *_channel_id args are output-only destinations, except
+    voice_channel_id — the voice channel Sunny stays persistently connected
+    to (see voice_presence_loop below) when unset, no voice presence starts
+    at all — see sunny-vault/docs/architecture/discord-bot.md."""
     dashboard_channel_id = dashboard_channel_id or chat_channel_id
 
     intents = discord.Intents.default()
@@ -231,7 +240,7 @@ def create_discord_bot(
 
     client = discord.Client(intents=intents)
     tree = discord.app_commands.CommandTree(client)
-    client.tree = tree # exposed for introspection/testing, and for future slash commands (e.g. /join) to extend
+    client.tree = tree # exposed for introspection/testing, and for future slash commands to extend
     state = {
         "dashboard_message_id": None,
         "health_message_id": None,
@@ -278,49 +287,15 @@ def create_discord_bot(
             file=discord.File(io.BytesIO(wav_bytes), filename="speech.wav"), ephemeral=True
         )
 
-    @tree.command(name="join", description="Join your voice channel for a live conversation (Vosk STT + Piper TTS)")
-    async def join_command(interaction: discord.Interaction):
-        """Live conversation, not one-shot like /speak — see
-        sunny-vault/docs/architecture/voice-join.md. Same channel
-        restriction as every other command (the command itself is typed
-        in the chat channel; the bot then joins whichever voice channel
-        the caller is currently in)."""
-        if interaction.channel_id != chat_channel_id:
-            await interaction.response.send_message(
-                "Use /join in the chat channel.", ephemeral=True
-            )
-            return
-        if not service_registry.is_enabled("voice_join"):
-            await interaction.response.send_message(
-                "Voice is turned off right now (/service voice_join enable to turn it back on).", ephemeral=True
-            )
-            return
-        await interaction.response.defer(thinking=True, ephemeral=True)
-
-        async def _notify_voice_crash(text: str):
-            # /join's voice pipeline now runs in an isolated worker
-            # process specifically so a native crash there can't take
-            # the rest of the bot down with it — this is how that still
-            # becomes visible in Discord right away, same channel as
-            # every other warning. See voice_session.py/voice_worker.py.
-            await _post_to(warnings_channel_id, text, fallback_channel_id=chat_channel_id)
-
-        message = await voice_session.start(
-            interaction, tasks_engine, briefing_engine, list_engine, scheduled_engine, project_engine,
-            spotify_engine, calendar_engine, notify_fn=_notify_voice_crash
-        )
-        await interaction.followup.send(message, ephemeral=True)
-
-    @tree.command(name="leave", description="Leave the voice channel")
-    async def leave_command(interaction: discord.Interaction):
-        if interaction.channel_id != chat_channel_id:
-            await interaction.response.send_message(
-                "Use /leave in the chat channel.", ephemeral=True
-            )
-            return
-        await interaction.response.defer(thinking=True, ephemeral=True)
-        message = await voice_session.stop()
-        await interaction.followup.send(message, ephemeral=True)
+    async def _notify_voice_crash(text: str):
+        # The voice pipeline runs in an isolated worker process specifically
+        # so a native crash there can't take the rest of the bot down with
+        # it — this is how that still becomes visible in Discord right
+        # away, same channel as every other warning. See
+        # voice_session.py/voice_worker.py. voice_presence_loop below
+        # reconnects automatically on its next tick; this is purely a
+        # notice, not something that needs a manual response.
+        await _post_to(warnings_channel_id, text, fallback_channel_id=chat_channel_id)
 
     @tree.command(name="category", description="Add or remove a task category")
     async def category_command(interaction: discord.Interaction, action: Literal["add", "remove"], name: str):
@@ -691,6 +666,29 @@ def create_discord_bot(
         await refresh_usage_dashboard()
         await check_usage_alerts()
 
+    @tasks.loop(seconds=VOICE_PRESENCE_INTERVAL_SECONDS)
+    async def voice_presence_loop():
+        """Reconciles actual voice-connection state against the desired
+        state (the "voice_join" service enabled + a channel configured)
+        every tick — connects on the first tick after startup, reconnects
+        automatically after a drop or a worker crash, disconnects within
+        one tick of /service voice_join disable. Replaces the old per-use
+        /join/leave commands entirely; there's no manual trigger anymore,
+        "Hey Sunny" still gates each individual request once connected."""
+        should_be_connected = service_registry.is_enabled("voice_join") and voice_channel_id != 0
+
+        if should_be_connected and not voice_session.is_active():
+            channel = client.get_channel(voice_channel_id)
+            if channel is None:
+                logger.warning(f"voice_presence_loop: configured voice channel {voice_channel_id} not found")
+                return
+            await voice_session.start(
+                channel, tasks_engine, briefing_engine, list_engine, scheduled_engine, project_engine,
+                spotify_engine, calendar_engine, notify_fn=_notify_voice_crash,
+            )
+        elif not should_be_connected and voice_session.is_active():
+            await voice_session.stop()
+
     @tasks.loop(seconds=SCHEDULED_CHECK_INTERVAL_SECONDS)
     async def scheduled_check_loop():
         """Post a ping for any due alarm/reminder — the only real 'sounding'
@@ -757,6 +755,13 @@ def create_discord_bot(
             scheduled_check_loop.start() # runs immediately, then every 30s
         if not usage_refresh_loop.is_running() and service_registry.is_autostart("usage_refresh"):
             usage_refresh_loop.start() # runs immediately, then every hour
+        # Gated on voice_channel_id (a hard prerequisite -- nothing to
+        # connect to without it), not is_autostart("voice_join"): the
+        # per-tick is_enabled() check inside the loop is what /service
+        # voice_join enable|disable actually controls, same reasoning as
+        # scheduled_check_loop above.
+        if not voice_presence_loop.is_running() and voice_channel_id:
+            voice_presence_loop.start() # runs immediately, then every 30s
 
         # Guild-scoped sync (instant) rather than global (~1hr to propagate) —
         # this bot is single-server by design already (see discord-bot.md).

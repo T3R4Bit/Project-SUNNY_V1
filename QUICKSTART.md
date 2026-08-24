@@ -58,9 +58,11 @@ Everything above also works as plain-text chat in Sunny's Discord channel — sa
 
 ## Discord-Only Slash Commands
 
-Beyond `/speak`/`/join`/`/leave` (below), a few more real registered slash commands, no plain-text equivalent:
+Real registered slash commands, no plain-text equivalent:
 
 ```
+/speak <text>     → Sunny says it out loud in the channel (one-shot, no
+                    need to be in a voice channel)
 /category         → Add or remove a task category
 /service, /services → Enable/disable a background service, check status
 /vacation         → Pause proactive morning/evening nudging
@@ -69,27 +71,24 @@ Beyond `/speak`/`/join`/`/leave` (below), a few more real registered slash comma
 
 ## Talk to Sunny in Discord Voice
 
-Three more real slash commands — see
+No join command — Sunny stays connected to whatever channel is set as
+`DISCORD_VOICE_CHANNEL_ID`, automatically, all the time. Toggle it with
+`/service voice_join enable|disable`. See
 `sunny-vault/docs/architecture/voice-join.md` and `tts-piper.md` for how
-they work under the hood:
+it works under the hood.
 
-```
-/speak <text>   → Sunny says it out loud in the channel (one-shot, no
-                  need to be in a voice channel)
-/join           → Sunny joins your current voice channel for a live
-                  back-and-forth conversation
-/leave          → Ends the voice session
-```
+Say **"Hey Sunny"** before every request — there's no listening window,
+each request needs its own wake word (this is deliberate: an always-
+listening open mic reacting to any speech in the channel isn't what
+persistent presence means here). A short chime confirms she heard the
+wake word before you keep talking. Everything you say routes through the
+exact same brain as text chat — tasks, lists, alarms, weather, calendar,
+and open-ended questions all work the same way, just spoken back instead
+of typed, and recent exchanges are remembered within the conversation so
+a real follow-up ("what about tomorrow") makes sense.
 
-Once you say `/join`, say **"Hey Sunny"** before every request — there's
-no listening window, each request needs its own wake word. A short chime
-confirms she heard the wake word before you keep talking. Everything you
-say routes through the exact same brain as text chat — tasks, lists,
-alarms, weather, calendar, and open-ended questions all work the same
-way, just spoken back instead of typed.
-
-Both are entirely local and free (Piper for speech out, Vosk for speech
-in) — no API cost either direction, only the LLM fallback for open-ended
+Entirely local and free (Piper for speech out, Vosk for speech in) — no
+API cost either direction, only the LLM fallback for open-ended
 questions costs anything, and that's the same Claude Haiku call text
 chat already uses.
 

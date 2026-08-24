@@ -10,7 +10,7 @@ tags: [voice, audio, stt, tts, io]
 
 Audio input (speech-to-text) and output (text-to-speech) handling. Streams from [[clock]] microphone, processes on [[brain]], outputs back to [[clock]] speaker.
 
-**Both halves of this pipeline are already built and proven**, ahead of the hardware: [[tts-piper]] (Piper TTS via the `/speak` command) and [[voice-join]] (Vosk STT + Piper TTS via `/join`, a real live conversation loop — no wake word, no Sonic API, a Discord voice channel instead of a physical speaker, but genuinely bidirectional and real-time). Both exercise the same engines named as fallbacks/options below, just decoupled from the Clock hardware and delivered through Discord instead.
+**Both halves of this pipeline are already built and proven**, ahead of the hardware: [[tts-piper]] (Piper TTS via the `/speak` command) and [[voice-join]] (Vosk STT + Piper TTS, Sunny persistently connected to a Discord voice channel rather than a per-use command — "Hey Sunny" gates each request, same wake-phrase concept as the Clock hardware would need, no Sonic API, genuinely bidirectional and real-time). Both exercise the same engines named as fallbacks/options below, just decoupled from the Clock hardware and delivered through Discord instead.
 
 ## Overview
 

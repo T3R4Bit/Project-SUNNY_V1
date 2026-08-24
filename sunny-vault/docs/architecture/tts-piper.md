@@ -69,7 +69,7 @@ There's no single "right" setting — these three plus the voice choice are wort
 
 [[personal-assistant-vision#14-voice-delivery-personality-layer]]'s deterministic half — `sunny_code/components/tts_delivery.py`. Piper's `SynthesisConfig` doesn't expose a "tone" knob; `length_scale` (speaking rate) is the one lever that reliably maps to the vision doc's examples (reminder=calm, warning=deliberate/slower) without guessing at settings that would need real listening to tune. `_PACE_MULTIPLIERS` applies **on top of** the configured base `PIPER_LENGTH_SCALE`, not instead of it, so a user's own tuning still composes.
 
-`synthesize_wav_bytes()`/`synthesize_discord_pcm()` both gained an optional `message_type: Optional[str] = None` parameter — `None` (every existing caller) behaves exactly as before. Real first caller: `/speak text delivery:warning|reminder|casual|default` — a genuine, immediately-testable use of the layer. `voice_worker.py`'s `speak()`/`speak_chunk()` also accept the parameter now (pure plumbing, additive, same default-None-means-unchanged contract) but nothing in the live `/join` conversation pipeline classifies a reply's type yet, so it's always `None` there today — deliberately not touched further given how fragile that file's history is (see [[voice-join]]'s "The Four Crashes").
+`synthesize_wav_bytes()`/`synthesize_discord_pcm()` both gained an optional `message_type: Optional[str] = None` parameter — `None` (every existing caller) behaves exactly as before. Real first caller: `/speak text delivery:warning|reminder|casual|default` — a genuine, immediately-testable use of the layer. `voice_worker.py`'s `speak()`/`speak_chunk()` also accept the parameter now (pure plumbing, additive, same default-None-means-unchanged contract) but nothing in the live voice-conversation pipeline classifies a reply's type yet, so it's always `None` there today — deliberately not touched further given how fragile that file's history is (see [[voice-join]]'s "The Four Crashes").
 
 Deterministic only, per the vision doc's own preference to reserve an LLM call for nuanced delivery decisions — no LLM-driven prosody path exists.
 
@@ -88,17 +88,17 @@ Registering a slash command requires the bot's Discord invite to include the `ap
 
 ## Known Limitations
 
-- **One-shot, not streaming/conversational.** You type text, you get a file back — no live back-and-forth, no STT. That's the deferred `/join` work below.
+- **One-shot, not streaming/conversational.** You type text, you get a file back — no live back-and-forth, no STT. That's the live voice conversation work below.
 - **First call after a restart is slower** (~1s model load) than subsequent calls (cached, near-instant synthesis). Not user-visible thanks to `defer()`, but worth knowing if debugging latency.
 - **1000-character cap.** Longer text needs to be split into multiple `/speak` calls for now.
 
-## `/join` — Live Voice Channel Conversation
+## Live Voice Channel Conversation
 
-✅ Built (2026-08-20) — see [[voice-join]]. The follow-up requested when `/speak` shipped: the bot joins a live Discord voice channel for real-time conversation (Vosk STT + this module's `synthesize_wav_bytes()`), rather than posting one-shot audio attachments. `tts.py` gained one new function for it, `synthesize_discord_pcm()` — everything else here (`synthesize_wav_bytes()`, voice/tuning config) is shared unchanged between `/speak` and `/join`.
+✅ Built (2026-08-20) — see [[voice-join]]. The follow-up requested when `/speak` shipped: the bot joins a live Discord voice channel for real-time conversation (Vosk STT + this module's `synthesize_wav_bytes()`), rather than posting one-shot audio attachments. `tts.py` gained one new function for it, `synthesize_discord_pcm()` — everything else here (`synthesize_wav_bytes()`, voice/tuning config) is shared unchanged with `/speak`. Originally a per-use `/join`/`/leave` command pair; **2026-08-24**: replaced by a persistent voice presence — see [[voice-join]]'s dated section for the change.
 
 ## Files
 
-- `sunny_code/components/tts.py` — `synthesize_wav_bytes()`, `is_voice_downloaded()`, `synthesize_discord_pcm()` (used by [[voice-join|/join]])
+- `sunny_code/components/tts.py` — `synthesize_wav_bytes()`, `is_voice_downloaded()`, `synthesize_discord_pcm()` (used by [[voice-join|Sunny's persistent voice presence]])
 - `sunny_code/components/tts_delivery.py` — the deterministic pace-multiplier mapping
 - `sunny_code/components/discord_bot.py` — `/speak` command (+ `delivery` param), `CommandTree` setup, guild sync
 - `sunny_code/components/setup_guides.py` — `"setup piper"`/`"setup speak"` guide
@@ -118,5 +118,5 @@ Registering a slash command requires the bot's Discord invite to include the `ap
 - [x] Guild-scoped command sync, guarded against re-sync on reconnect
 - [x] `"setup piper"` guide + overview entry
 - [x] Voice/tuning knobs — `PIPER_VOICE`, `PIPER_LENGTH_SCALE`, `PIPER_NOISE_SCALE`, `PIPER_NOISE_W_SCALE`, `PIPER_SPEAKER_ID`, all live (no restart)
-- [x] `/join` — live voice channel conversation, see [[voice-join]]
+- [x] `/join` — live voice channel conversation, see [[voice-join]] (historical name — persistent presence, no join command, as of 2026-08-24)
 - [x] Delivery/prosody layer — deterministic pace multipliers, `/speak`'s `delivery` param as a real first caller, plumbing threaded through `voice_worker.py` (unused there today — nothing classifies a live reply's type yet)

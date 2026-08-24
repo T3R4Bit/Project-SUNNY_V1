@@ -1,8 +1,9 @@
-"""Isolated child process owning /join's entire live voice pipeline —
+"""Isolated child process owning Sunny's entire live voice pipeline —
 Discord voice connect, DAVE encrypt/decrypt, Opus decode, Vosk STT,
 wake-word detection, chime, Piper TTS playback. Runs as its own OS
 process (see sunny_code/components/voice_session.py, the parent-side
-coordinator that spawns this via multiprocessing.Process).
+coordinator that spawns this via multiprocessing.Process — started/
+stopped by discord_bot.py's voice_presence_loop, not a per-use command).
 
 Why a separate process: this pipeline crashed the *entire* bot process
 repeatedly in one evening (2026-08-20) — native heap-corruption aborts
@@ -11,7 +12,8 @@ _patch_dave_session_locking below) but not all fully explained yet even
 after those fixes. davey 0.1.6 and discord-ext-voice-recv 0.5.2-alpha are
 both young/unofficial enough that no fix can *prove* no other native
 crash trigger exists. Running this in its own OS process means a native
-crash here can only end this one /join session — the rest of the bot
+crash here can only end this one voice session (the presence loop
+reconnects automatically) — the rest of the bot
 (Discord text commands, the web dashboard, tasks, alarms) is
 structurally unaffected, a guarantee from real process isolation rather
 than another hopeful patch. See sunny-vault/docs/architecture/voice-join.md.

@@ -78,12 +78,12 @@ BRIEFINGS
   study review for <class> — Claude writes a focused review from your
     actual notes on whatever hasn't been marked mastered yet
 
-VOICE (Discord slash commands, not plain text)
-  /speak <text> — one-shot: Sunny says it out loud in the channel
-  /join — Sunny joins your voice channel for a live conversation; say
-    "Hey Sunny" before every request (no listening window — each request
-    needs its own wake word)
-  /leave — ends the voice session
+VOICE
+  /speak <text> — one-shot: Sunny says it out loud in the channel (slash command)
+  Sunny stays connected to a configured voice channel for live conversation
+    (no join command) — say "Hey Sunny" before every request (no listening
+    window — each request needs its own wake word). Toggle with /service
+    voice_join enable|disable.
 
 DISCORD-ONLY COMMANDS
   /category add|remove <name> — manage the task category list
@@ -357,8 +357,9 @@ async def _run_health_check_now(session_id: str) -> str:
     it up, log it to the vault, flip the acknowledgment marker) — and
     returns a reply sized for the calling interface: a short, no-LLM
     spoken summary (health_check.short_summary()) for voice sessions
-    (Discord /join or the Pi companion, both session_id-prefixed
-    accordingly), the full written report everywhere else. The check
+    (Sunny's persistent Discord voice presence or the Pi companion, both
+    session_id-prefixed accordingly), the full written report everywhere
+    else. The check
     itself is identical either way; only what gets said back differs."""
     report = await health_check.run_weekly_health_check()
     if session_id.startswith("voice:") or session_id.startswith("pi:"):
@@ -629,7 +630,9 @@ async def handle_message(
     if "health check" in lowered or "system health" in lowered:
         return await _run_health_check_now(session_id)
 
-    return await briefing_engine.answer_question(stripped, on_chunk=on_chunk, on_search_start=on_search_start)
+    return await briefing_engine.answer_question(
+        stripped, session_id=session_id, on_chunk=on_chunk, on_search_start=on_search_start
+    )
 
 
 def is_briefing_trigger(text: str) -> bool:

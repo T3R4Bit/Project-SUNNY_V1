@@ -20,7 +20,7 @@ from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.data_sources import is_configured, missing_requirement
 from sunny_code.components.llm_client import ask_claude, ask_claude_stream
 from sunny_code.components.request_log import log_unfulfilled
-from sunny_code.components import google_calendar, google_gmail, health_check, weather
+from sunny_code.components import conversation_memory, google_calendar, google_gmail, health_check, weather
 
 OnChunk = Callable[[str], Awaitable[None]]
 OnSearchStart = Callable[[], Awaitable[None]]
@@ -78,7 +78,7 @@ class BriefingTemplates:
         'not connected' note. The actual API call is a real network
         request through Google's (sync-only) client library — run off
         the event loop via to_thread so it never blocks anything else
-        the app is doing (Discord, the web console, /join's voice
+        the app is doing (Discord, the web console, the voice conversation
         pipeline) for however long that call takes."""
         if not is_configured("calendar"):
             if unconfigured is not None:
@@ -279,6 +279,7 @@ Sleep well and rest up for tomorrow!
     async def custom_briefing(
         question: str,
         tasks_db: TaskDB,
+        session_id: str = "default",
         on_chunk: Optional[OnChunk] = None,
         on_search_start: Optional[OnSearchStart] = None,
     ) -> str:
@@ -301,7 +302,12 @@ Sleep well and rest up for tomorrow!
         alongside on_chunk -- the non-streaming path has no live-progress
         channel to fire it through), gets called the instant a search
         starts, so a caller can play/show a distinct "searching" cue
-        for what's otherwise unexplained extra silence."""
+        for what's otherwise unexplained extra silence.
+
+        session_id scopes conversation memory (see conversation_memory.py)
+        for the LLM fallback specifically -- deliberately not applied to
+        the deterministic branches above (weather/calendar/tasks/etc.),
+        which are stateless by design and re-answered fresh every time."""
         question_lower = question.lower().strip()
 
         def unconfigured_reply(source: str, label: Optional[str] = None) -> str:
@@ -379,10 +385,11 @@ Total: {len(open_tasks) + len(in_progress)} tasks
         # prompt itself, sunny-vault/instructions/general-chat.md.
         else:
             settings = get_settings()
+            prompt = conversation_memory.format_for_prompt(session_id) + question
             if on_chunk is not None:
                 parts = []
                 async for sentence in ask_claude_stream(
-                    question,
+                    prompt,
                     model=settings.llm_chat_model,
                     max_tokens=settings.llm_chat_max_tokens,
                     temperature=settings.llm_chat_temperature,
@@ -395,7 +402,7 @@ Total: {len(open_tasks) + len(in_progress)} tasks
                 answer = " ".join(parts) if parts else None
             else:
                 answer = await ask_claude(
-                    question,
+                    prompt,
                     model=settings.llm_chat_model,
                     max_tokens=settings.llm_chat_max_tokens,
                     temperature=settings.llm_chat_temperature,
@@ -403,6 +410,8 @@ Total: {len(open_tasks) + len(in_progress)} tasks
                     enable_web_search=True,
                 )
             if answer:
+                conversation_memory.record_turn(session_id, "user", question)
+                conversation_memory.record_turn(session_id, "assistant", answer)
                 return answer
             log_unfulfilled("qa_question", f'"{question}" — not understood, no matching topic')
             return f'No good answer for "{question}" — try asking about tasks, or say "help".'
@@ -454,12 +463,17 @@ class BriefingEngine:
         return await BriefingTemplates.evening_briefing(self.tasks_db)
 
     async def answer_question(
-        self, question: str, on_chunk: Optional[OnChunk] = None, on_search_start: Optional[OnSearchStart] = None
+        self,
+        question: str,
+        session_id: str = "default",
+        on_chunk: Optional[OnChunk] = None,
+        on_search_start: Optional[OnSearchStart] = None,
     ) -> str:
         """Answer a natural language question about today's data. See
-        custom_briefing()'s docstring for on_chunk's streaming contract
-        and on_search_start's web-search cue contract."""
+        custom_briefing()'s docstring for on_chunk's streaming contract,
+        on_search_start's web-search cue contract, and session_id's
+        conversation-memory scope."""
         self.logger.info(f"Processing question: {question}")
         return await BriefingTemplates.custom_briefing(
-            question, self.tasks_db, on_chunk=on_chunk, on_search_start=on_search_start
+            question, self.tasks_db, session_id=session_id, on_chunk=on_chunk, on_search_start=on_search_start
         )

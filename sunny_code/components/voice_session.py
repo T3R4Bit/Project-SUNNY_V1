@@ -1,8 +1,16 @@
-"""Live voice-channel conversation: /join spawns an isolated child
+"""Persistent voice-channel presence: start() spawns an isolated child
 process (sunny_code/voice_worker.py) that owns the entire real-time
 audio pipeline — Discord voice connect, DAVE encrypt/decrypt, Opus
 decode, Vosk STT, wake-word detection, chime, Piper TTS playback —
-communicating over two multiprocessing.Queues. /leave ends it.
+communicating over two multiprocessing.Queues. stop() ends it.
+
+Not triggered by a slash command -- discord_bot.py's voice-presence loop
+calls start()/stop() based on DISCORD_VOICE_CHANNEL_ID being configured
+and the "voice_join" service being enabled (service_registry.py),
+reconnecting automatically after a drop or a crash. "Hey Sunny" is still
+required before each request once connected -- this only removes the
+per-use /join, not the wake-word gate. See sunny-vault/docs/architecture/
+voice-join.md.
 
 Why a separate process, not a function call in this one: this pipeline
 crashed the *entire* bot process four separate times in one evening
@@ -13,11 +21,10 @@ discord.py or this codebase) is now fixed — see voice_worker.py's
 _patch_dave_encrypt_lock(). But davey 0.1.6 and discord-ext-voice-recv
 0.5.2-alpha are both young/unofficial enough that no fix here can
 *prove* no other native crash trigger exists. Running the pipeline in
-its own OS process means a crash there can only end that one /join
+its own OS process means a crash there can only end that one voice
 session — the rest of the bot (Discord text commands, the web
 dashboard, tasks, alarms) is structurally unaffected, a guarantee from
-real process isolation rather than another hopeful patch. See
-sunny-vault/docs/architecture/voice-join.md.
+real process isolation rather than another hopeful patch.
 
 Routing stays here in the parent (handle_message() needs the live
 tasks_engine/briefing_engine/list_engine/scheduled_engine objects, which
@@ -64,7 +71,7 @@ def is_active() -> bool:
 
 
 async def start(
-    interaction,
+    channel,
     tasks_engine,
     briefing_engine,
     list_engine,
@@ -74,31 +81,32 @@ async def start(
     calendar_engine,
     notify_fn: Optional[Callable[[str], Awaitable[None]]] = None,
 ) -> str:
-    """Joins the invoking user's current voice channel by spawning an
-    isolated worker process and starts relaying between it and the
-    shared assistant router. Fails with an honest message (not a crash)
-    if the user isn't in a channel, a session (or connection attempt) is
-    already in progress, or the worker itself fails to join — always
-    returns a string, never lets an exception escape to the caller.
+    """Joins `channel` (a discord.VoiceChannel) by spawning an isolated
+    worker process and starts relaying between it and the shared assistant
+    router. Fails with an honest message (not a crash) if a session (or
+    connection attempt) is already in progress, or the worker itself fails
+    to join — always returns a string, never lets an exception escape to
+    the caller. Caller resolves `channel` itself (see discord_bot.py's
+    voice-presence loop) -- this module has no Discord-interaction
+    dependency, since nothing here is triggered by a slash command anymore
+    (voice presence is persistent, driven by DISCORD_VOICE_CHANNEL_ID +
+    the "voice_join" service toggle, not a per-use /join).
 
     notify_fn, if given, is called with a short message if the worker
     later dies unexpectedly (a crash) — this is how a mid-session native
     crash still becomes visible in Discord without taking the rest of
     the bot down with it (contrast crash_check.py, which only learns
     about a whole-process crash on the *next* startup — this parent is
-    alive the whole time a /join session runs and finds out instantly)."""
+    alive the whole time a session runs and finds out instantly). The
+    voice-presence loop notices is_active() went False on its next tick
+    and reconnects automatically -- no manual action needed after a crash."""
     global _worker, _to_worker, _connecting
 
     if is_active():
-        return "Already in a voice call — use /leave first."
+        return "Already in a voice call."
     if _connecting:
         return "Already joining a voice call — give it a moment."
 
-    voice_state = getattr(interaction.user, "voice", None)
-    if voice_state is None or voice_state.channel is None:
-        return "You need to be in a voice channel first."
-
-    channel = voice_state.channel
     settings = get_settings()
 
     to_worker: multiprocessing.Queue = multiprocessing.Queue()
@@ -117,7 +125,7 @@ async def start(
             msg = await asyncio.wait_for(asyncio.to_thread(from_worker.get), timeout=JOIN_TIMEOUT)
         except asyncio.TimeoutError:
             process.terminate()
-            return "Joining timed out — try /join again."
+            return "Joining timed out — will retry automatically."
 
         if msg.get("type") != "joined":
             process.terminate()
@@ -247,8 +255,9 @@ async def _watch_worker(process, notify_fn: Optional[Callable[[str], Awaitable[N
     of process.join() for a given worker — stop() below only ever polls
     the cheap, safe-from-multiple-callers is_alive()/terminate(), so two
     places never race to reap the same process. Always clears session
-    state either way, so /join works again immediately whether this was
-    a clean /leave or a crash."""
+    state either way, so the voice-presence loop's next tick can
+    reconnect immediately whether this was an intentional stop() or a
+    crash."""
     global _worker, _to_worker, _stopping
 
     await asyncio.to_thread(process.join)
@@ -267,7 +276,7 @@ async def _watch_worker(process, notify_fn: Optional[Callable[[str], Awaitable[N
     if notify_fn is not None:
         try:
             await notify_fn(
-                f"Voice session ended unexpectedly (worker crashed, exit code {exitcode}) — try /join again."
+                f"Voice session ended unexpectedly (worker crashed, exit code {exitcode}) — reconnecting automatically."
             )
         except Exception as e:
             logger.error(f"voice_session: failed to send crash notice: {e}")

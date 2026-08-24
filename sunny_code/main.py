@@ -125,6 +125,7 @@ class SunnyCore:
             warnings_channel_id=self.settings.discord_warnings_channel_id,
             task_updates_channel_id=self.settings.discord_task_updates_channel_id,
             health_channel_id=self.settings.discord_health_channel_id,
+            voice_channel_id=self.settings.discord_voice_channel_id,
         )
 
     def _create_health_check_loop(self):

@@ -1,7 +1,7 @@
 """Local text-to-speech via Piper (https://github.com/OHF-Voice/piper1-gpl) —
 free, fully local, no per-call API cost. The one place any TTS caller
-(the /speak Discord command, /join's live-voice-channel pipeline in
-voice_worker.py) calls through.
+(the /speak Discord command, the persistent live-voice-channel pipeline
+in voice_worker.py) calls through.
 
 This is deliberately just "text in, WAV bytes out" — no hardware, no
 STT, no wake word. See sunny-vault/docs/architecture/tts-piper.md for how

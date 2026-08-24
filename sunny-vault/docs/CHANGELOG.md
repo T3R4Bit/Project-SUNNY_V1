@@ -14,6 +14,11 @@ Running log of real changes, most recent first. Not every commit — the milesto
 
 ## 2026-08-24
 
+**Persistent voice presence + conversation memory**
+- `/join`/`/leave` are gone — Sunny now stays connected to `DISCORD_VOICE_CHANNEL_ID` persistently, via a new `voice_presence_loop` that reconciles actual connection state against the existing `voice_join` service toggle every 30s (`/service voice_join enable|disable` is the only control surface now). Reconnects automatically after a drop or a worker crash, no manual re-join needed. `voice_session.start()` refactored to take a `discord.VoiceChannel` directly instead of a Discord interaction, since nothing triggers it from a slash command anymore.
+- "Hey Sunny" is still required before every request — kept deliberately; an always-listening open mic reacting to any speech in the channel wasn't part of the ask and has real false-trigger/privacy implications.
+- New `conversation_memory.py`: session-scoped memory (last 3 exchanges) for the general-chat LLM fallback specifically — not command routing, which stays stateless. In-memory only, resets on restart, never written to the vault. Voice and text share memory naturally since both already used the same `session_id`.
+
 **Service orchestration** (closes out the backlog section of the same name)
 - Per-service runtime toggle: `service_registry.py`, a flat JSON file (`service_registry.json`) tracking six services (`dashboard_refresh`, `scheduled_check`, `usage_refresh`, `health_check`, `morning_prep`, `voice_join`). `/service <name> enable|disable` in Discord flips one live — every loop checks `is_enabled()` at the top of its tick, so it takes effect within one tick, not just at next boot. `/services` shows overall status.
 - Autostart-per-service: a second `autostart` flag alongside `enabled` in the same registry, checked once at boot to decide whether to start a given loop at all.
@@ -29,7 +34,7 @@ Running log of real changes, most recent first. Not every commit — the milesto
 
 **Milestone 3: knowledge health check, TTS delivery, exam-prep**
 - Weekly health check gained `knowledge_health_summary()` — broken wikilinks, orphaned/untagged/stale (180+ day) notes — folded into the same Sunday report, plus a one-line mention in the spoken summary. Duplicate-content detection is explicitly out of scope (would need semantic comparison, not just filename matching).
-- `tts_delivery.py`: deterministic pace (`length_scale`) multipliers per message type, composing with the user's own `PIPER_LENGTH_SCALE` tuning. First real caller: `/speak text delivery:warning|reminder|casual`. Also threaded through `voice_worker.py`'s speak functions but left unused there — nothing in the live `/join` pipeline classifies a reply's type yet.
+- `tts_delivery.py`: deterministic pace (`length_scale`) multipliers per message type, composing with the user's own `PIPER_LENGTH_SCALE` tuning. First real caller: `/speak text delivery:warning|reminder|casual`. Also threaded through `voice_worker.py`'s speak functions but left unused there — nothing in the live voice-conversation pipeline classifies a reply's type yet.
 - `exam_prep.py`: built against a real, user-confirmed vault convention (`sunny-vault/KSU/<semester>/<class>/*.md`, one file per topic), not guessed. Exam dates come from Google Calendar, matching class name and an exam keyword independently (a strict substring match is too fragile against real event titles like "BUS 2100 Midterm Exam"). The vision doc's 5-stage spaced-review pipeline simplified to 3 real persisted states (new/weak/mastered) — modeling all 5 added complexity with no behavioral difference for a single-user tool. "study review for `<class>`" is the one real LLM-backed feature (Sonnet, reads actual note content); the ~1-week-out study plan stage isn't built, only the night-before review.
 
 **Google Calendar write access**

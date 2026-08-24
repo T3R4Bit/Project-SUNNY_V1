@@ -93,7 +93,7 @@ response = claude.prompt(prompt, model="haiku")
 ### 3. Freeform Conversation (Phone)
 
 **Partially built, 2026-08-21** — a narrower "answer the question" slice of
-this exists today, reachable from both text chat and `/join` voice: when
+this exists today, reachable from both text chat and voice: when
 nothing else matches (no command, no known-topic keyword like weather/
 calendar), `briefing.py`'s `custom_briefing()` calls `ask_claude(purpose=
 "general_chat")` for a real answer instead of a canned "I don't know." The
@@ -152,7 +152,7 @@ Live numbers: `GET /api/dashboard/spend/today`, `GET /api/dashboard/spend/month`
 
 ## Implementation
 
-Built: `sunny_code/components/llm_client.py`. The one function any future feature calls through — `ask_claude(prompt, model="haiku", max_tokens=1024, system=None, purpose="...", enable_web_search=False)`, plus a streaming sibling `ask_claude_stream(...)` (sentence-boundary chunked, used by `/join`'s live voice replies — see [[voice-join]]). Real callers today: Freeform Conversation, the weekly health check, the project wizard, and Storm Mode (see Status above).
+Built: `sunny_code/components/llm_client.py`. The one function any future feature calls through — `ask_claude(prompt, model="haiku", max_tokens=1024, system=None, purpose="...", enable_web_search=False)`, plus a streaming sibling `ask_claude_stream(...)` (sentence-boundary chunked, used by Sunny's live voice replies — see [[voice-join]]). Real callers today: Freeform Conversation, the weekly health check, the project wizard, and Storm Mode (see Status above).
 
 ```python
 async def ask_claude(prompt: str, model: str = "haiku", ...) -> Optional[str]:

@@ -23,7 +23,7 @@ Tasks are one of three sibling subsystems that share the same routing entry poin
 
 - **Categories**: A real, editable list (`sunny_code/components/category_store.py`) — `/category add`/`/category remove` in Discord manage it. General/School/Motorsports ship as defaults; `General` can never be removed (permanent fallback). If a task's category isn't stated or clearly implied by phrasing, Sunny asks which one instead of silently defaulting.
 - **Storage**: Markdown in the Obsidian vault (`sunny-vault/state/tasks/`, one file per task) — see [[architecture/vault-storage]]. Finishing or deleting a task **archives** its file (`sunny-vault/archive/finished/` or `archive/deleted/`) rather than removing it — no task data is ever actually lost, and lifetime stats still count what finished.
-- **Interface today**: Console chat, Discord text, and Discord voice (`/join`) — all identical behavior through the same `handle_message()`
+- **Interface today**: Console chat, Discord text, and Discord voice (Sunny's persistent voice presence — see [[architecture/voice-join]]) — all identical behavior through the same `handle_message()`
 - **Logic**: Deterministic, no LLM calls
 
 ## Data Model

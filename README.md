@@ -14,9 +14,9 @@ A dedicated hardware companion device (Raspberry Pi, animated face, local wake w
 
 **Alarms & Reminders** — Time-based, natural phrasing ("set an alarm for 7am", "remind me to call mom at 5pm"), ping Discord when due.
 
-**Discord Bot** — The primary live interface: task dashboard (live-updating embed), health/usage dashboard, server administration (create/delete channels & roles), plus real slash commands (`/speak`, `/join`/`/leave`, `/category`, `/service`, `/vacation`).
+**Discord Bot** — The primary live interface: task dashboard (live-updating embed), health/usage dashboard, server administration (create/delete channels & roles), plus real slash commands (`/speak`, `/category`, `/service`/`/services`, `/vacation`, `/usage`).
 
-**Live Voice Conversation (`/join`)** — Join a Discord voice channel and have a real spoken conversation ("Hey Sunny" wakes it for each request) — free, fully local STT/TTS (Vosk + Piper), streaming replies (starts speaking the first sentence while Claude is still writing), barge-in support. Runs in an isolated process so a native audio-library crash can't take down the rest of the bot.
+**Persistent Live Voice** — Sunny stays connected to a configured voice channel and has a real spoken conversation ("Hey Sunny" still wakes it for each request — no open-mic listening) — free, fully local STT/TTS (Vosk + Piper), streaming replies (starts speaking the first sentence while Claude is still writing), barge-in support, session-scoped conversation memory for genuine follow-ups. Toggle on/off with `/service voice_join`, no per-use join command. Runs in an isolated process so a native audio-library crash can't take down the rest of the bot — reconnects automatically after one.
 
 **Google Calendar & Gmail** — Calendar is read *and* write (create/delete events by natural language: "add dentist appointment to my calendar at 3pm tomorrow"); Gmail is read-only (unread/important counts, subject lines, never bodies). One Google Sign-In connects both.
 

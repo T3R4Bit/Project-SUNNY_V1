@@ -6,9 +6,11 @@ created: 2026-08-20
 tags: [voice, stt, tts, vosk, piper, discord, join]
 ---
 
-# `/join` — Live Voice Conversation
+# Live Voice Conversation
 
-`/join` has Sunny join your current Discord voice channel and have a real spoken conversation: your speech gets transcribed locally (Vosk), routed through the exact same `assistant.handle_message()` router every other interface (console, terminal, Discord text) already uses, and the reply is spoken back (Piper — see [[tts-piper]]). `/leave` ends it. No API key, no per-minute cost, either direction.
+**2026-08-24: `/join`/`/leave` are gone.** Sunny now stays persistently connected to `DISCORD_VOICE_CHANNEL_ID` — a `voice_presence_loop` in `discord_bot.py` reconciles actual connection state against desired state (the `voice_join` service enabled + a channel configured) every 30s, reconnecting automatically after a drop or a crash, connecting/disconnecting within one tick of `/service voice_join enable|disable`. Everything below describing the pipeline itself, the crash history, and the fixes is unchanged and still accurate — only *what triggers* `voice_session.start()`/`stop()` changed, from a slash-command interaction to this loop. See "Persistent Voice Presence + Conversation Memory (2026-08-24)" further down for the full change.
+
+Sunny joins the configured voice channel and has a real spoken conversation: your speech gets transcribed locally (Vosk), routed through the exact same `assistant.handle_message()` router every other interface (console, terminal, Discord text) already uses, and the reply is spoken back (Piper — see [[tts-piper]]). No API key, no per-minute cost, either direction.
 
 Say **"Hey Sunny"** (or "Hello Sunny", or just "Sunny") to open a listening window — everything you say after that gets processed normally, no need to repeat it every sentence. The window stays open for `WAKE_WINDOW_SECONDS` (20s) after the wake phrase or after Sunny's last reply, whichever is more recent; after that long with no follow-up, it closes and the wake phrase is needed again. Outside the window, speech is transcribed (still real CPU work — see Known Risks) but never reaches the assistant router at all.
 
@@ -18,7 +20,7 @@ A short generated chime (~200ms, two rising tones) plays the instant the wake wo
 
 ## Status
 
-✅ Built — `sunny_code/components/stt.py`, `sunny_code/components/voice_session.py`, `sunny_code/voice_worker.py`, `/join`+`/leave` in `sunny_code/components/discord_bot.py`.
+✅ Built — `sunny_code/components/stt.py`, `sunny_code/components/voice_session.py`, `sunny_code/voice_worker.py`, `voice_presence_loop` in `sunny_code/components/discord_bot.py`.
 
 **2026-08-20, later the same night**: four separate native crashes (process-ending `SIGABRT`/`SIGSEGV`) during live testing, each taking the *entire bot* down — see "The Four Crashes" below for the full history, the verified root cause, and the two-layer fix (a real threading lock, plus moving the whole pipeline into an isolated worker process). Architecture diagram below reflects the post-fix design.
 
@@ -28,7 +30,7 @@ Everything else in this app is request/response. This is the first live, bidirec
 
 ## Architecture
 
-**Process-isolated as of 2026-08-20** (see "The Four Crashes" below for why): the entire real-time audio pipeline runs in its own OS process, spawned fresh by each `/join` and torn down by `/leave`. Only recognized command text and reply text cross the process boundary — a native crash inside the worker can only end that one session, never the rest of the bot.
+**Process-isolated as of 2026-08-20** (see "The Four Crashes" below for why): the entire real-time audio pipeline runs in its own OS process, spawned by `voice_presence_loop` (see the 2026-08-24 note above) and torn down the same way. Only recognized command text and reply text cross the process boundary — a native crash inside the worker can only end that one session, never the rest of the bot.
 
 ```
 PARENT PROCESS (the main bot — web dashboard, Discord text commands, tasks, alarms)
@@ -36,7 +38,7 @@ PARENT PROCESS (the main bot — web dashboard, Discord text commands, tasks, al
   │
   │  multiprocessing.Process(target=voice_worker.run_worker, ...)
   ▼
-WORKER PROCESS (one per /join session — sunny_code/voice_worker.py)
+WORKER PROCESS (one per voice session — sunny_code/voice_worker.py)
   Its own discord.Client, same bot token, a second independent gateway session
   │ (user speaks)
   ▼
@@ -70,7 +72,7 @@ WORKER: tts.py: synthesize_discord_pcm() → audioop resample (22050 mono → 48
 voice_client.play(discord.PCMAudio(pcm_stream))   ← spoken back into the channel
 ```
 
-**One session at a time.** Module-global state in `voice_session.py` (mirrors `tts.py`'s singleton pattern) — a second `/join` while one is active gets "Already in a voice call," not a second concurrent session. Matches this app's existing single-guild assumption (see [[discord-bot]]).
+**One session at a time.** Module-global state in `voice_session.py` (mirrors `tts.py`'s singleton pattern) — `voice_presence_loop` only calls `start()` when `is_active()` is already False, so this never actually races in practice, but `start()` still guards it directly ("Already in a voice call") for safety. Matches this app's existing single-guild assumption (see [[discord-bot]]).
 
 **A second `discord.Client`, same token, connecting to voice while the main bot's own client is already connected — verified empirically live against the real bot** (not assumed): confirmed both that Discord allows a bot token to hold two simultaneous independent gateway sessions, and that the main bot's own connection is completely unaffected while the second one connects, speaks, and disconnects.
 
@@ -106,7 +108,7 @@ voice_client.play(discord.PCMAudio(pcm_stream))   ← spoken back into the chann
 - **Continuous CPU cost while a session is active.** Vosk decoding is real, ongoing work — unlike everything else in this app, which is pure request/response. Small model keeps this modest, but it's a genuinely different resource profile, worth watching if the Lenovo ever feels loaded during a long `/join` session.
 - **Vosk's model choice trades accuracy for speed/size/download** — same kind of tradeoff already accepted for Piper's default voice and Haiku-tier LLM defaults, in keeping with "local and free." The default started on Vosk's tiniest model (~39MB) and had real accuracy problems in practice (2026-08-20) — now defaults to `vosk-model-en-us-0.22-lgraph` (~125MB, bigger vocabulary, verified against the real model list at alphacephei.com/vosk/models, not guessed) via the new `VOSK_MODEL_NAME` setting. Vosk's full model (`vosk-model-en-us-0.22`, ~1.8GB) is more accurate still, at a real CPU/RAM cost per session on hardware with no GPU — set `VOSK_MODEL_NAME` to it if `lgraph` still isn't accurate enough; blank falls back to the original small-model-by-language lookup.
 - **The wake phrase only gates what reaches the assistant, not what gets transcribed.** Being in the channel means Sunny's STT is running on everyone in it continuously (same as any other bot/human in a Discord voice channel could theoretically be recording) — the wake phrase decides what gets *acted on*, not what gets *heard*. No wire-level privacy indicator beyond Discord's own. `/leave` is how you stop all of it.
-- **All three commands' responses are ephemeral** ("only you can see this message") — `/speak`'s audio attachment, `/join`'s and `/leave`'s confirmations all use Discord's ephemeral flag, so the chat channel doesn't fill up with bot command noise. Set at `defer(ephemeral=True)` time; Discord automatically keeps every `followup.send()` for that interaction ephemeral too. `/join`/`/leave`'s actual *side effect* (the bot visibly joining/leaving the voice channel) is still seen by everyone in the channel regardless, same as any human — only the text confirmations are private.
+- **`/speak`'s responses are ephemeral** ("only you can see this message") — Discord's ephemeral flag, so the chat channel doesn't fill up with bot command noise. Set at `defer(ephemeral=True)` time; Discord automatically keeps every `followup.send()` for that interaction ephemeral too. Voice presence itself has no slash-command confirmation to make ephemeral anymore (see the 2026-08-24 note above) — the bot visibly joining/staying in the voice channel is seen by everyone in it regardless, same as any human.
 
 ## The Four Crashes (2026-08-20, later the same night)
 
@@ -154,6 +156,18 @@ Two follow-up improvements after the crash-fixing above, not yet reflected in th
 - Reused Anthropic API clients across calls instead of reconnecting per request (latency win, unrelated to voice specifically but most noticeable here).
 - A real regression fixed: the wake word plus a natural pause before the actual sentence could get split into two separate utterances, silently dropping the second half — the wake-window logic above now tolerates that pause correctly.
 
+## Persistent Voice Presence + Conversation Memory (2026-08-24)
+
+Two changes, requested together but genuinely separate:
+
+**Persistent presence, no more `/join`/`/leave`.** New `voice_presence_loop` (`discord_bot.py`, `@tasks.loop(seconds=30)`) reconciles actual state against desired state every tick: `service_registry.is_enabled("voice_join")` and `DISCORD_VOICE_CHANNEL_ID` configured → connected; either false → disconnected. This is the same "every loop checks `is_enabled()` at the top of its tick" pattern [[service-orchestration]] already established for the other five services — `voice_join` was already one of them, previously just gating whether `/join` was accepted at all; now it gates the persistent connection itself. `/service voice_join enable|disable` is the only control surface — takes effect within one tick, same as any other service. Reconnects automatically after a drop or a worker crash (previously required a manual `/join` again); `notify_fn`'s crash message updated accordingly.
+
+`voice_session.start()` no longer takes a Discord `interaction` — it takes a `discord.VoiceChannel` directly, resolved by the loop via `client.get_channel(voice_channel_id)`. There was no other real caller to update; the whole point of the old signature (deriving the channel from `interaction.user.voice.channel`) only made sense for a per-use slash command.
+
+**"Hey Sunny" is still required before every request** — explicitly kept, not removed, when this was scoped: an always-listening open mic that acts on any speech in the channel has real false-trigger and privacy implications neither asked for nor wanted here. Being persistently connected only changes *when* Sunny is in the channel, not the wake-word gate described above.
+
+**Session-scoped conversation memory** — new `conversation_memory.py`, wired into `briefing.py`'s `custom_briefing()` general-chat fallback (the genuinely open-ended LLM path, not the deterministic weather/calendar/task branches, which stay stateless by design). Up to 3 recent user/assistant exchanges per `session_id`, prepended as plain text to the next prompt, so a real follow-up ("why", "tell me another one") resolves instead of landing as a fresh, context-free question. In-memory only — resets on restart, never written to the vault, deliberately not the bigger "remembers things across days" scope. Same `session_id` voice already used for `handle_message()`'s pending-followup mechanism, so voice and text chat in the same session share memory naturally.
+
 ## Not Included This Pass
 
 - **No persistent transcript log** — exchanges are logged via the normal Python app logger only, not a new `sunny-vault/log/` file. A natural addition later if wanted; not built ahead of an actual need.
@@ -181,8 +195,9 @@ Not addressed by this pass: the *fixed* `SILENCE_TIMEOUT` (1.2s) is a guess, not
 - `sunny_code/components/tts.py` — `synthesize_discord_pcm()` (alongside the existing `synthesize_wav_bytes()` used by `/speak`)
 - `sunny_code/voice_worker.py` — the isolated worker process (see Architecture above): its own `discord.Client`/gateway session, the actual voice connect, all monkey-patches (`PacketRouter._do_run`, `PacketDecoder._process_packet`/`_dave_decrypt`/`_decode_packet`, `VoiceClient._get_voice_packet` — see Known Risks and "The Four Crashes"), per-user recognizers, wake-phrase gating, the generated wake chime, the `silence_watchdog()` coroutine, TTS playback, and the `multiprocessing.Queue`-based IPC with the parent (`run_worker()`, the process entry point)
 - `sunny_code/components/voice_session.py` — the parent-side coordinator: spawns/monitors the worker (`start()`/`_watch_worker()`), relays `"utterance"`/`"speak"` messages through `assistant.handle_message()` (`_relay_from_worker()`), tears it down (`stop()`)
-- `sunny_code/components/discord_bot.py` — `/join`, `/leave` commands; `/join` passes a `notify_fn` callback into `voice_session.start()` so a mid-session worker crash posts to the Discord warnings channel immediately, not just on the bot's next startup
-- `sunny_code/config.py` — `vosk_model_dir`, `vosk_lang`, `vosk_model_name`
+- `sunny_code/components/discord_bot.py` — `voice_presence_loop`; passes a `notify_fn` callback into `voice_session.start()` so a mid-session worker crash posts to the Discord warnings channel immediately, not just on the bot's next startup
+- `sunny_code/components/conversation_memory.py` — session-scoped memory for the general-chat LLM fallback (see the 2026-08-24 section above)
+- `sunny_code/config.py` — `vosk_model_dir`, `vosk_lang`, `vosk_model_name`, `discord_voice_channel_id`
 - `vosk_models/` (gitignored) — downloaded model files
 
 ## Dependencies
@@ -197,7 +212,7 @@ Not addressed by this pass: the *fixed* `SILENCE_TIMEOUT` (1.2s) is a guess, not
 - [x] `stt.py` — Vosk wrapper, verified via an automated loopback test (Piper → resample → Vosk → exact transcript match); `partial()` for low-latency wake detection, `finalize()` for the silence watchdog, `_get_model()` thread-safety verified with 5 concurrent callers
 - [x] `tts.py: synthesize_discord_pcm()` — verified PCM format/frame-padding math
 - [x] `voice_session.py` — connect/listen/dispatch/respond/disconnect, verified via mocked Discord objects (bot-user filtering, mid-utterance buffering, session_id construction, full response pipeline)
-- [x] `/join`/`/leave` slash commands, channel-restricted
+- [x] `/join`/`/leave` slash commands, channel-restricted (historical — removed 2026-08-24, see the persistent-presence section above; `channel.connect()`/registration verification below still stands, just triggered differently now)
 - [x] Connect + command registration verified live against the real Discord API (3 commands registered, `channel.connect()` succeeds)
 - [x] `libopus0` installed on the Lenovo (`sudo apt-get install -y libopus0`) — send-side re-verified after: real connect → real Piper synthesis → real Opus encode → real playback → clean disconnect, all against the live bot
 - [x] Real end-to-end attempts with a live human voice caught three real bugs in turn, each only findable live: the `PacketRouter` crash-on-single-decode-error, the DAVE requirement/decrypt issue (two wrong turns before the real fix — see Known Risks), and an unguarded `.listen()` failure leaving Discord's "thinking..." stuck forever with no response
@@ -217,3 +232,7 @@ Not addressed by this pass: the *fixed* `SILENCE_TIMEOUT` (1.2s) is a guess, not
 - [x] A real bug found during this build (not live): `client.start()`'s exception was never observed when only awaited as a background task, hanging the whole worker forever on a login failure — found via a deliberate bad-token test, fixed with `asyncio.wait(..., return_when=FIRST_COMPLETED)` racing it against the shutdown signal
 - [x] The "second `discord.Client`, same token, joins voice while the main bot is already connected" assumption behind the whole worker-process design — verified live against the real bot before building the rest, not assumed
 - [ ] Re-verify with a live human voice now that all four crash fixes and the process-isolation rebuild are deployed — this is the one thing that categorically needs a real person talking, not a script
+- [x] `voice_presence_loop` — connects/reconnects/disconnects based on `is_enabled("voice_join")` + `discord_voice_channel_id`, code-reviewed against the existing per-tick `is_enabled()` pattern from the other five services
+- [x] `voice_session.start()` refactored to take a `discord.VoiceChannel` directly instead of a Discord interaction — no other real caller existed to update
+- [x] `conversation_memory.py` — turn recording/formatting/per-session isolation/cap-at-6-turns, verified with a real test script (9/9 checks passing)
+- [ ] Live-verify the persistent-presence loop actually reconnects after a real crash/disconnect, and that conversation memory produces a coherent follow-up against real Claude output — both designed and unit-verified, neither confirmed live yet

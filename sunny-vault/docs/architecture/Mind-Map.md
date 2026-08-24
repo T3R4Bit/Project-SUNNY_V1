@@ -30,7 +30,7 @@ Overview of Project SUNNY's major components and how they interact.
 - [[project-system]] — "New project" wizard, drafts a real multi-file folder from one LLM call
 - [[google-integration]] — Google Sign-In: Calendar (read + create/delete), Gmail (read-only headers)
 - [[spotify-integration]] — Voice-controlled Spotify playback
-- [[voice-join]] — Live, real-time Discord voice conversation (`/join`), streaming replies, barge-in
+- [[voice-join]] — Live, real-time Discord voice conversation (persistent presence, no join command — `/service voice_join` toggles it), streaming replies, barge-in, session-scoped conversation memory
 - [[tts-piper]] — Local TTS, `/speak` one-shot attachments
 - [[health-check]] — Weekly (and on-demand) system health report
 - [[exam-prep]] — Class discovery, exam-date lookup, LLM-written study reviews from real notes
@@ -124,7 +124,7 @@ See [[../phases.md]] for the authoritative, detailed phase breakdown and checkli
 | Service | Type | Cost | Status |
 |---------|------|------|--------|
 | Claude API | LLM | Well under $1/mo in practice (Haiku default) | Live |
-| Piper + Vosk | TTS + STT | Free, local, CPU-only | Live (`/speak`, `/join`) |
+| Piper + Vosk | TTS + STT | Free, local, CPU-only | Live (`/speak`, persistent voice presence) |
 | Discord | Bot platform | Free | Live |
 | Tailscale | VPN | Free personal | Live |
 | Google Calendar + Gmail | Calendar/email | Free | Live via Sign-In (read + Calendar write) |

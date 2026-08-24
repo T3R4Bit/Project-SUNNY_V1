@@ -8,7 +8,7 @@ Discord-only by design: this is a proactive, repeats-over-time posting
 loop, not a request/response answer, so it's triggered directly in
 discord_bot.py (same reasoning server-admin commands are handled there
 instead of through the interface-agnostic assistant.handle_message()) --
-there's no "periodic channel" concept on the web console, /join, or the
+there's no "periodic channel" concept on the web console, voice, or the
 Pi companion to post updates into.
 
 Module-level state, not a class -- one active storm mode at a time,
@@ -66,9 +66,8 @@ def status() -> Optional[str]:
 
 async def start(interval_minutes: int, duration_minutes: int, post_fn: PostFn) -> None:
     """Starts the background update loop. Replaces any already-running
-    one outright (a fresh start always wins over a stale one, same as a
-    new /join elsewhere in this app) rather than requiring the caller to
-    stop() first."""
+    one outright (a fresh start always wins over a stale one) rather than
+    requiring the caller to stop() first."""
     global _task, _ends_at, _interval_minutes
     if _task is not None and not _task.done():
         _task.cancel()

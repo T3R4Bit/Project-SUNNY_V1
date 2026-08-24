@@ -52,7 +52,7 @@ brew install python3
 python3 --version
 ```
 
-### 2. Voice Support (Optional — /speak and /join in Discord)
+### 2. Voice Support (Optional — /speak and Sunny's persistent voice presence in Discord)
 
 `discord.py` needs the system Opus codec library for voice playback and receive — not something `pip`/`requirements.txt` can install. Skip this if you don't need Discord voice features; every other part of Sunny works fine without it.
 
@@ -61,7 +61,7 @@ python3 --version
 sudo apt install -y libopus0
 ```
 
-Found the hard way (2026-08-20): everything else about `/join` — connecting, command registration, Piper synthesis — worked without this installed; only the actual `voice_client.play()` call failed, with `OpusNotLoaded`. See `sunny-vault/docs/architecture/voice-join.md`.
+Found the hard way (2026-08-20): everything else about live voice conversation — connecting, command registration, Piper synthesis — worked without this installed; only the actual `voice_client.play()` call failed, with `OpusNotLoaded`. See `sunny-vault/docs/architecture/voice-join.md`.
 
 ### 3. Clone Repository
 

@@ -1,9 +1,9 @@
 """Per-service on/off + autostart-on-boot state for Sunny's background
 loops (dashboard refresh, alarm/reminder due-checks, usage refresh, the
-weekly health check, morning-prep pre-warming, and whether /join is
-accepted at all). Set through /service in Discord, not .env -- same
-"runtime state, not a secret" reasoning and live-takes-effect pattern as
-category_store.py/location_store.py.
+weekly health check, morning-prep pre-warming, and whether Sunny's
+persistent voice presence connects at all). Set through /service in
+Discord, not .env -- same "runtime state, not a secret" reasoning and
+live-takes-effect pattern as category_store.py/location_store.py.
 
 Two independent flags per service:
 - enabled:   is it allowed to act right now? Checked at the top of every

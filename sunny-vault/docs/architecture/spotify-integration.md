@@ -8,7 +8,7 @@ tags: [feature, spotify, oauth, voice, playback]
 
 # Spotify Voice Control (OAuth 2.0)
 
-Lets Sunny control Spotify playback the way Siri does — "play [song]", "pause", "skip", "what's playing" — spoken through the same voice pipeline (Discord `/join`, the Pi companion) or typed through the console/Discord chat. One "Connect Spotify Account" button on [[dashboard|the console]], same shape as [[google-integration|Google Sign-In]].
+Lets Sunny control Spotify playback the way Siri does — "play [song]", "pause", "skip", "what's playing" — spoken through the same voice pipeline (Discord's persistent voice presence, the Pi companion) or typed through the console/Discord chat. One "Connect Spotify Account" button on [[dashboard|the console]], same shape as [[google-integration|Google Sign-In]].
 
 ## What This Covers
 

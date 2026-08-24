@@ -39,8 +39,8 @@ Per-service on/off and autostart-on-boot control for Sunny's background loops, p
 
 ## How Toggling Actually Takes Effect
 
-- **`enabled`**: every loop checks `service_registry.is_enabled(name)` at the very top of its tick body and returns early if off — so a live toggle takes effect within one tick (30s-1hr depending on the loop), not just at the next boot. `discord_bot.py`'s `join_command` checks `is_enabled("voice_join")` directly before starting a session, so `/join` itself is refused immediately when off, not just the background loops.
-- **`autostart`**: checked once, at startup, before a loop's `.start()` call. `scheduled_check_loop` is the one exception — it's always started regardless of either `scheduled_check` or `morning_prep`'s autostart flag, since both services share that one loop and gating the whole loop on either flag alone would silently kill the other. The per-tick `enabled` checks inside the loop are what actually control behavior in that case.
+- **`enabled`**: every loop checks `service_registry.is_enabled(name)` at the very top of its tick body and returns early if off — so a live toggle takes effect within one tick (30s-1hr depending on the loop), not just at the next boot. `voice_join` used to be a special case (checked directly inside the now-removed `/join` slash command, before a session even started) — **2026-08-24**: `/join`/`/leave` are gone, replaced by a persistent voice presence (`voice_presence_loop`, see [[voice-join]]). `voice_join` now fits the normal loop pattern exactly like everything else: `is_enabled("voice_join")` checked at the top of that loop's tick, deciding whether Sunny should be connected right now.
+- **`autostart`**: checked once, at startup, before a loop's `.start()` call. Two exceptions, both because the loop itself has to always be running for the per-tick `enabled` check to mean anything: `scheduled_check_loop` (shared between `scheduled_check` and `morning_prep` — gating the whole loop on either flag alone would silently kill the other) and, as of 2026-08-24, `voice_presence_loop` (gated on `discord_voice_channel_id` being configured at all, a hard prerequisite, not on `is_autostart("voice_join")`). Practical effect: **`voice_join`'s `autostart` flag is currently a no-op** — `/service voice_join autostart_on|autostart_off` flips the stored flag but nothing reads it, since the loop already always starts whenever a voice channel is configured. Worth fixing if a real reason to actually skip starting voice presence at boot (while still allowing `enable` later) ever comes up; not built now because nothing needed it yet.
 
 ## Vacation Mode
 
@@ -60,7 +60,7 @@ All three are channel-restricted to the configured chat channel, same as every o
 
 - `sunny_code/components/service_registry.py` — storage, `is_enabled`/`is_autostart`/`set_enabled`/`set_autostart`/`is_vacation_mode`/`set_vacation_mode`/`status_lines`
 - `sunny_code/main.py` — health-check loop's `enabled`/`autostart` gating
-- `sunny_code/components/discord_bot.py` — the other five loops' gating, `/service`/`/services`/`/vacation`, `voice_join` gating on `/join`
+- `sunny_code/components/discord_bot.py` — all six loops' gating (including `voice_presence_loop` as of 2026-08-24), `/service`/`/services`/`/vacation`
 - `sunny_code/components/assistant.py` — vacation-mode natural-language triggers
 
 ## Dependencies
@@ -77,5 +77,6 @@ All three are channel-restricted to the configured chat channel, same as every o
 - [x] Vacation mode — global flag, suppresses proactive morning-prep only, not explicit requests
 - [x] `/service`, `/services`, `/vacation` Discord commands
 - [x] "vacation mode on/off" natural-language phrasing, cross-interface
-- [x] `voice_join` gates `/join` itself, not just a background loop
-- [ ] A manual-start path for a service whose `autostart` was off at boot (today, re-enabling autostart only takes effect on the next restart)
+- [x] `voice_join` gated the old `/join` command directly (historical — see [[voice-join]] for the 2026-08-24 replacement)
+- [x] `voice_presence_loop` — `voice_join` now controls a persistent connection through the normal per-tick `enabled` pattern, not a per-use command gate
+- [ ] A manual-start path for a service whose `autostart` was off at boot (today, re-enabling autostart only takes effect on the next restart) — moot for `voice_join` specifically, whose `autostart` flag is currently unread (see above)
