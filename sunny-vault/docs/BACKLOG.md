@@ -102,3 +102,16 @@ Full architecture and rationale in [[architecture/personal-assistant-vision]] �
 - [ ] Streaming/partial-hypothesis STT (the one real latency gap left — LLM/TTS streaming is already built)
 - [ ] A delivery/prosody layer that varies tone/pace by message type (reminder vs. opportunity vs. warning), beyond the text-register rewrite already done in `general-chat.md`
 - [ ] Revisit Kokoro once real GPU hardware exists (measured RTF 2.40 CPU-only this session vs. Piper's 0.06 — not viable today)
+
+---
+
+## Sunny Companion — Face audio visualizer
+
+**Problem**: The face renderer (`sunny-companion/BUILD_PLAN.md` Phase 4) needs some way to make the face look alive and reactive rather than static, without adding latency or blowing Pi 3 B's CPU budget. Not scoped or started — this is the "what does the face actually do frame-to-frame" piece, separate from the renderer-technology decision itself (leaning pygame direct-to-framebuffer, see the README's Open questions).
+
+- [ ] Amplitude-reactive shape (ring/blob — cheap primitives, no image assets) driven by one shared `amplitude` value, fed from three different sources depending on state:
+  - **Listening** (right after wake word) — raw mic RMS, read off the same stream the wake-word listener/STT already taps
+  - **Thinking** (waiting on the LLM reply) — no real audio yet, so synthesized instead: a muted, modulated sine wave (sum of 2 detuned low-frequency sines) as a "breathing" idle animation instead of a frozen face
+  - **Speaking** — TTS playback buffer RMS as it's fed to ALSA (amplitude-driven stand-in for lip-sync since Piper/Vosk give no real viseme/phoneme timing)
+- [ ] Tone/emotion overlay — a hue/color shift composited on top of whichever shape, driven by the server's mood tag (ties into the Emotion overlay v2 item already in the README's face states)
+- [ ] Validate real frame timing on Pi 3 B hardware before building out more shapes than the one core ring/blob — the scrapped avatar-lab attempt never actually did this validation before getting scrapped
