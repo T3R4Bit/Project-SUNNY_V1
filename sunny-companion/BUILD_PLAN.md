@@ -17,8 +17,9 @@ sunny-companion/
     ├── systemd/
     │   ├── sunny-face.service          (Phase 2 — kiosk display, renderer TBD)
     │   └── sunny-client.service        (Phase 5 — wake-word + network client)
-    └── <renderer TBD>/                 (Phase 4 -- the avatar-lab attempt here was
-                                          scrapped 2026-08-23; nothing lives here yet)
+    └── face_renderer/                  (Phase 4 -- the avatar-lab attempt was
+                                          scrapped 2026-08-23; this is the pygame
+                                          restart, standalone prototype only so far)
 ```
 
 The new server-side endpoint (Phase 6) stays in `sunny_code/`, alongside the existing `stt.py`/`tts.py`/`voice_worker.py` — not in `sunny-companion/`.
@@ -63,13 +64,15 @@ Updating the device going forward is just `git pull` on the Pi + restarting the 
 
 **2026-08-23: leaning candidate for the restart — Python/pygame direct-to-framebuffer, not another browser attempt.** Not yet decided/built, but the reasoning: every other device-side piece (`wake_word_listener.py`, `voice_worker.py`, `pi_companion.py`) is already Python, so a Python renderer means wake-word → state → amplitude is a same-process function call/shared variable instead of a WebSocket hop into a browser page (the scrapped attempt's browser-connects-directly-to-`/ws/pi` pattern was explicitly a testing shortcut, not the real design — see Phase 4.5). pygame's SDL2 backend can run `SDL_VIDEODRIVER=kmsdrm` straight to DRM/KMS with no X11/Wayland compositor, mirroring the no-compositor constraint Phase 2 already proved out for `cog`. This sidesteps the WPE WebKit CPU-cost risk that never got validated on real Pi 3 B hardware before the scrap.
 
-- [ ] Prototype standalone on a dev machine first: a simple amplitude-reactive shape (ring or blob — cheap primitives, no image assets) in pygame, `SDL_VIDEODRIVER=kmsdrm` on the Pi once it's on real hardware
-- [ ] Amplitude source per state — same `amplitude` variable, three different feeds, no separate code paths per shape:
-  - **Listening** (post-wake-word) — raw mic RMS (`audioop.rms` or numpy), read directly off the same stream `wake_word_listener.py`/STT already taps
-  - **Thinking** — no real audio available yet (waiting on the server's LLM reply); synthesize it instead — sum of 2 detuned low-frequency sines at low amplitude, a "breathing" idle animation rather than a frozen face
-  - **Speaking** — TTS playback buffer RMS as it's fed to ALSA (no true viseme/phoneme timing from Piper, so this stays the amplitude-driven substitute the README already settled on)
-- [ ] Tone/emotion overlay — hue/color shift composited on top of whichever shape, driven by the server's mood tag (see Emotion overlay v2 below); cheap, no extra per-frame cost
-- [ ] Validate actual frame timing on real Pi 3 B hardware before building out more shapes — this is the exact validation step that got skipped last time
+- [x] Prototype standalone on a dev machine first: a simple amplitude-reactive shape (ring or blob — cheap primitives, no image assets) in pygame, `SDL_VIDEODRIVER=kmsdrm` on the Pi once it's on real hardware
+      *(built: `pi-client/face_renderer/renderer.py` — a filled circle whose radius reacts to a live `amplitude` value, keyboard-driven state switching (1-5) for manual testing without the server wired up. Verified running on this dev machine — real window opens (`Sunny face renderer prototype`), event loop holds a steady frame rate, no crashes. Uses `pygame-ce`, not upstream `pygame` — upstream has no Python 3.14 wheel yet and fails to build from source without MSYS2; `pygame-ce` is a drop-in-compatible fork (`import pygame` unchanged) with a prebuilt 3.14 wheel. Not yet run on real Pi hardware or with `SDL_VIDEODRIVER=kmsdrm` — that's the still-open validation bullet below.)*
+- [x] Amplitude source per state — same `amplitude` variable, three different feeds, no separate code paths per shape:
+  - **Listening** (post-wake-word) — raw mic RMS, read directly off a `sounddevice` stream, same approach `wake_word_listener.py` uses. Built and verified live (real mic input drove the shape; hit a benign "input overflow" warning under load, handled the same non-fatal way `wake_word_listener.py` handles stream status)
+  - **Thinking** — no real audio available yet (waiting on the server's LLM reply); synthesize it instead — sum of 2 detuned low-frequency sines at low amplitude, a "breathing" idle animation rather than a frozen face. Built (`searching` reuses the same synthesized approach at a slightly different rate/amplitude to stay visually distinct, since the plan doesn't specify a separate source for it)
+  - **Speaking** — TTS playback buffer RMS as it's fed to ALSA (no true viseme/phoneme timing from Piper, so this stays the amplitude-driven substitute the README already settled on). **Not real yet** — no TTS pipeline exists in this standalone prototype, so `speaking` currently reuses the same mic-RMS feed as `listening` as a structural stand-in (proves the render path, not the real audio source). Swapping in the actual TTS playback buffer is Phase 4.5/6 work, once the renderer is wired to the device client
+- [x] Tone/emotion overlay — hue/color shift composited on top of whichever shape, driven by the server's mood tag (see Emotion overlay v2 below); cheap, no extra per-frame cost
+      *(built at prototype level: a 5-hue table (neutral/happy/concerned/playful/apologetic), cycled manually with the `e` key for now since the server doesn't emit a real mood tag yet — Emotion overlay v2 below is still unbuilt server-side, so there's nothing live to drive this from yet)*
+- [ ] Validate actual frame timing on real Pi 3 B hardware before building out more shapes — this is the exact validation step that got skipped last time. Still open — everything above was only run on a Windows dev machine
 
 ## Phase 4.5 — Wiring the renderer to the device client
 
