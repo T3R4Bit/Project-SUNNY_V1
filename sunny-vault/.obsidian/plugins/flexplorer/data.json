@@ -56,6 +56,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "exam-prep.md",
         "proactive-architecture.md",
         "service-orchestration.md",
         "usage-tracking.md",
@@ -202,6 +203,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "exam-prep-review.md",
         "storm-mode.md",
         "project-scaffold.md",
         "general-chat.md",
@@ -265,6 +267,12 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "another-test-task-6.md",
+        "test-task-6.md",
+        "another-test-task-5.md",
+        "test-task-5.md",
+        "another-test-task-4.md",
+        "test-task-4.md",
         "another-test-task-3.md",
         "test-task-3.md",
         "another-test-task-2.md",
@@ -336,6 +344,38 @@
       "isHidden": false
     },
     "docs/architecture/proactive-architecture.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/test-task-4.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/another-test-task-4.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "instructions/exam-prep-review.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/test-task-5.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/another-test-task-5.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/exam-prep.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/test-task-6.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/another-test-task-6.md": {
       "isPinned": false,
       "isHidden": false
     }

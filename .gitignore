@@ -72,6 +72,11 @@ logs/
 sunny-vault/state/tasks/
 sunny-vault/state/lists/
 sunny-vault/state/alarms-reminders.md
+sunny-vault/state/exam-review/
+# Real class notes and their review state — same reasoning: personal
+# content, not project source, never pushed even though this repo is
+# private. See sunny-vault/docs/architecture/exam-prep.md.
+sunny-vault/KSU/
 
 # test_tasks_complete.py's scratch vault dirs (replaces the old tasks_test*.db,
 # which *.db above already covered — these are directories, so need their own line)

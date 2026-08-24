@@ -65,6 +65,14 @@ Three optional knobs, all blank by default (meaning: use the voice model's own b
 
 There's no single "right" setting — these three plus the voice choice are worth auditing by ear: change one at a time, `/speak` the same test sentence, compare. Start with voice/quality-tier (biggest, most reliable improvement) before reaching for the noise knobs (subtler, easier to overshoot into "worse, differently").
 
+## Delivery/Prosody Layer (2026-08-24)
+
+[[personal-assistant-vision#14-voice-delivery-personality-layer]]'s deterministic half — `sunny_code/components/tts_delivery.py`. Piper's `SynthesisConfig` doesn't expose a "tone" knob; `length_scale` (speaking rate) is the one lever that reliably maps to the vision doc's examples (reminder=calm, warning=deliberate/slower) without guessing at settings that would need real listening to tune. `_PACE_MULTIPLIERS` applies **on top of** the configured base `PIPER_LENGTH_SCALE`, not instead of it, so a user's own tuning still composes.
+
+`synthesize_wav_bytes()`/`synthesize_discord_pcm()` both gained an optional `message_type: Optional[str] = None` parameter — `None` (every existing caller) behaves exactly as before. Real first caller: `/speak text delivery:warning|reminder|casual|default` — a genuine, immediately-testable use of the layer. `voice_worker.py`'s `speak()`/`speak_chunk()` also accept the parameter now (pure plumbing, additive, same default-None-means-unchanged contract) but nothing in the live `/join` conversation pipeline classifies a reply's type yet, so it's always `None` there today — deliberately not touched further given how fragile that file's history is (see [[voice-join]]'s "The Four Crashes").
+
+Deterministic only, per the vision doc's own preference to reserve an LLM call for nuanced delivery decisions — no LLM-driven prosody path exists.
+
 ## External Setup Step: `applications.commands` Scope
 
 Registering a slash command requires the bot's Discord invite to include the `applications.commands` OAuth2 scope, not just `bot`. If the original invite only checked `bot`, re-run the invite URL with `applications.commands` also checked and re-authorize — [[discord-bot]] already documents this exact non-destructive re-invite flow for adding permissions later (Discord updates the existing bot in place, no kick/re-invite needed); this is the same mechanism, just adding a scope instead of a permission.
@@ -91,7 +99,8 @@ Registering a slash command requires the bot's Discord invite to include the `ap
 ## Files
 
 - `sunny_code/components/tts.py` — `synthesize_wav_bytes()`, `is_voice_downloaded()`, `synthesize_discord_pcm()` (used by [[voice-join|/join]])
-- `sunny_code/components/discord_bot.py` — `/speak` command, `CommandTree` setup, guild sync
+- `sunny_code/components/tts_delivery.py` — the deterministic pace-multiplier mapping
+- `sunny_code/components/discord_bot.py` — `/speak` command (+ `delivery` param), `CommandTree` setup, guild sync
 - `sunny_code/components/setup_guides.py` — `"setup piper"`/`"setup speak"` guide
 - `sunny_code/config.py` — `piper_voice`, `piper_voices_dir`, `piper_length_scale`, `piper_noise_scale`, `piper_noise_w_scale`, `piper_speaker_id`
 - `piper_voices/` (gitignored) — downloaded model files
@@ -110,3 +119,4 @@ Registering a slash command requires the bot's Discord invite to include the `ap
 - [x] `"setup piper"` guide + overview entry
 - [x] Voice/tuning knobs — `PIPER_VOICE`, `PIPER_LENGTH_SCALE`, `PIPER_NOISE_SCALE`, `PIPER_NOISE_W_SCALE`, `PIPER_SPEAKER_ID`, all live (no restart)
 - [x] `/join` — live voice channel conversation, see [[voice-join]]
+- [x] Delivery/prosody layer — deterministic pace multipliers, `/speak`'s `delivery` param as a real first caller, plumbing threaded through `voice_worker.py` (unused there today — nothing classifies a live reply's type yet)

@@ -22,6 +22,7 @@ A once-a-week, LLM-written report on how Sunny's been doing: recurring errors, r
    - Unfulfilled-request counts by category, from `sunny-vault/log/requests.md`, last 7 days.
    - LLM call counts by purpose/status, from `sunny-vault/log/llm-usage.md` (see [[llm-integration]]'s call catalog), last 7 days — this is the "gets forced to an LLM" signal BACKLOG.md asked for.
    - Keys expiring within 7 days, via `key_status.expiring_within(7)`.
+   - A knowledge-health scan of the Obsidian vault (2026-08-24, [[personal-assistant-vision#8-weekly-knowledge-health-check]]) — `knowledge_health_summary()`: broken wikilinks, orphaned notes (no incoming links — real entry-point docs like README.md are expected to show up here too, not a bug), untagged notes, notes untouched 180+ days. True duplicate-*content* detection (semantic, not a filename collision) is explicitly out of scope. `short_summary()`'s spoken one-liner adds a broken-link count when nonzero.
 3. **Write it up** — `ask_claude(purpose="weekly_health_check", model="haiku", prompt=<summary>)`. The system prompt auto-loads from `sunny-vault/instructions/weekly-health-check.md` (see [[llm-instructions]]) — Haiku, matching this project's default tier and "keep usage low."
 4. **Record** — the report (or, if Claude's unreachable, the raw summary with a note saying so) gets appended to `sunny-vault/log/health-checks.md`, and `sunny-vault/state/health-check.md` flips to `status: unacknowledged`.
 5. **Notify** — posted to its own Discord channel (`DISCORD_HEALTH_CHANNEL_ID`, falling back to the chat channel if unset) if the bot is configured and connected (`client.post_to_health`, no-ops otherwise); always logged locally regardless. The next "morning"/"evening" briefing gets one extra line (`health_check.pending_notice()`) — a nudge only, never the report content itself, matching the "tells me to check it, not what it is" requirement.
@@ -63,4 +64,5 @@ The marker persists across days on purpose, not a same-day-only check: morning b
 - [x] `discord_bot.py` — `post_to_health`, its own `DISCORD_HEALTH_CHANNEL_ID`, ready-guarded
 - [x] Morning briefing nudge (`pending_notice()`)
 - [x] "health check" chat phrase (`latest_report()`, flips the marker)
+- [x] Knowledge health check folded into the same weekly report — `knowledge_health_summary()`, `_count_broken_wikilinks()` for the spoken one-liner
 - [ ] Supervised manual smoke test on the real box (temporarily move `time=` a few minutes ahead) before trusting the unattended Sunday schedule

@@ -29,6 +29,27 @@
       }
     },
     {
+      "query": "path:state  ",
+      "color": {
+        "a": 1,
+        "rgb": 5485024
+      }
+    },
+    {
+      "query": "path:instructions  ",
+      "color": {
+        "a": 1,
+        "rgb": 5460960
+      }
+    },
+    {
+      "query": "path:log  ",
+      "color": {
+        "a": 1,
+        "rgb": 14701489
+      }
+    },
+    {
       "query": "path:docs  ",
       "color": {
         "a": 1,
@@ -45,7 +66,7 @@
   ],
   "collapse-display": true,
   "showArrow": false,
-  "textFadeMultiplier": 0,
+  "textFadeMultiplier": 1,
   "nodeSizeMultiplier": 1,
   "lineSizeMultiplier": 1,
   "collapse-forces": true,

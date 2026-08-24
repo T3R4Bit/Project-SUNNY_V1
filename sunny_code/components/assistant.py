@@ -15,11 +15,13 @@ otherwise swallow "delete my reminder to X", "remove milk from my list", or
 parser ever saw it.
 """
 
+import asyncio
 import random
 import time
+from datetime import datetime
 from typing import Dict, Optional
 
-from sunny_code.components import category_store, health_check, service_registry, setup_guides, token_tracker
+from sunny_code.components import category_store, exam_prep, health_check, service_registry, setup_guides, token_tracker
 from sunny_code.components.briefing import BriefingEngine, OnChunk, OnSearchStart
 from sunny_code.components.calendar_engine import CalendarEngine
 from sunny_code.components.device import device_from_session
@@ -71,6 +73,10 @@ BRIEFINGS
   what's my usage — today's/this month's Claude spend, plus Anthropic's
     real remaining-tokens-this-window number if a call has been made
     since the last restart
+  my classes — classes found under sunny-vault/KSU/<semester>/<class>/
+  when is my <class> exam — looks for a matching event on your calendar
+  study review for <class> — Claude writes a focused review from your
+    actual notes on whatever hasn't been marked mastered yet
 
 VOICE (Discord slash commands, not plain text)
   /speak <text> — one-shot: Sunny says it out loud in the channel
@@ -133,6 +139,45 @@ _USAGE_QUERY_TRIGGERS = (
     "what's my usage", "whats my usage", "what is my usage", "how much have i spent",
     "how much have i spent on claude", "my usage", "usage", "claude usage",
 )
+_MY_CLASSES_TRIGGERS = ("my classes", "what classes am i tracking", "list my classes", "show my classes")
+_EXAM_DATE_PREFIXES = (
+    "when is my ", "when's my ", "whens my ", "when is the ", "when's the ", "whens the ",
+)
+_EXAM_DATE_SUFFIX = " exam"
+_STUDY_REVIEW_PREFIXES = ("study review for ", "exam review for ")
+_REVIEW_NOTES_PREFIXES = ("review my ", "review the ", "review ")
+_REVIEW_NOTES_SUFFIX = " notes"
+
+
+def _extract_exam_date_query(lowered: str) -> Optional[str]:
+    """The class name out of "when is my <class> exam", or None if this
+    isn't that phrasing at all."""
+    if not lowered.endswith(_EXAM_DATE_SUFFIX):
+        return None
+    for prefix in _EXAM_DATE_PREFIXES:
+        if lowered.startswith(prefix):
+            class_name = lowered[len(prefix):-len(_EXAM_DATE_SUFFIX)].strip()
+            return class_name or None
+    return None
+
+
+def _extract_study_review_query(lowered: str) -> Optional[str]:
+    """The class name out of "study review for <class>"/"exam review for
+    <class>"/"review my <class> notes", or None. Deliberately doesn't
+    accept a bare "review <anything>" -- too generic a word to risk
+    colliding with something else said in passing; every accepted form
+    here has both a specific lead-in and (for the "review ... notes" form)
+    a specific trailing anchor."""
+    for prefix in _STUDY_REVIEW_PREFIXES:
+        if lowered.startswith(prefix):
+            class_name = lowered[len(prefix):].strip()
+            return class_name or None
+    if lowered.endswith(_REVIEW_NOTES_SUFFIX):
+        for prefix in _REVIEW_NOTES_PREFIXES:
+            if lowered.startswith(prefix):
+                class_name = lowered[len(prefix):-len(_REVIEW_NOTES_SUFFIX)].strip()
+                return class_name or None
+    return None
 # Exact-phrase, not a regex -- this launches a multi-question wizard, so a
 # false positive (an unrelated sentence that happens to contain "project")
 # is worse than a false negative (a real phrasing that doesn't match).
@@ -225,6 +270,9 @@ def _looks_like_a_command(stripped: str, lowered: str) -> bool:
         return True
     if lowered in _USAGE_QUERY_TRIGGERS:
         return True
+    if (lowered in _MY_CLASSES_TRIGGERS or _extract_exam_date_query(lowered) is not None
+            or _extract_study_review_query(lowered) is not None):
+        return True
     task_cmd_type, _, _ = TaskCommandParser.parse_command(stripped)
     if task_cmd_type not in ("unknown", "add"):
         return True
@@ -254,6 +302,53 @@ def _describe_usage() -> str:
         parts.append(f"{tok_remaining} of {tok_limit} tokens left in the current rate window")
 
     return ". ".join(parts) + "."
+
+
+def _describe_classes() -> str:
+    classes = exam_prep.list_classes()
+    if not classes:
+        return (
+            "No classes found yet — add notes under sunny-vault/KSU/<semester>/<class name>/"
+            "<topic>.md and I'll pick them up next time you ask."
+        )
+    lines = [f"{c['semester']}/{c['class']} — {len(c['notes'])} note(s)" for c in classes]
+    return "Classes:\n" + "\n".join(lines)
+
+
+def _format_exam_time(event: Dict) -> str:
+    start = event.get("start", {})
+    if "dateTime" in start:
+        dt = datetime.fromisoformat(start["dateTime"])
+        return dt.strftime("%A, %B %d at %I:%M %p").replace(" 0", " ")
+    if "date" in start:
+        dt = datetime.fromisoformat(start["date"])
+        return dt.strftime("%A, %B %d") + " (all day)"
+    return "an unknown time"
+
+
+async def _describe_exam_date(class_name: str) -> str:
+    class_info = exam_prep.find_class(class_name)
+    if class_info is None:
+        return f'No class matching "{class_name}" found under sunny-vault/KSU/.'
+    event = await asyncio.to_thread(exam_prep.find_exam_date, class_info["class"])
+    if event is None:
+        return (
+            f'No upcoming exam found on the calendar for {class_info["class"]} in the next 60 days '
+            "(or Calendar isn't connected — see \"setup calendar\")."
+        )
+    return f'{event.get("summary", "Exam")} — {_format_exam_time(event)}'
+
+
+async def _run_study_review(class_name: str) -> str:
+    class_info = exam_prep.find_class(class_name)
+    if class_info is None:
+        return f'No class matching "{class_name}" found under sunny-vault/KSU/.'
+    if not exam_prep.topics_needing_review(class_info["class"]):
+        return f'Nothing to review for {class_info["class"]} — no notes found, or everything\'s already mastered.'
+    review = await exam_prep.generate_study_review(class_info["class"])
+    if review is None:
+        return "Couldn't reach Claude to write the review — try again in a moment."
+    return review
 
 
 async def _run_health_check_now(session_id: str) -> str:
@@ -514,6 +609,17 @@ async def handle_message(
     # simpler and more robust than trying to enumerate every verb someone
     # might use ("check" itself is ambiguous, since it's also half of the
     # bare phrase this branch has to leave alone).
+    if lowered in _MY_CLASSES_TRIGGERS:
+        return _describe_classes()
+
+    exam_date_query = _extract_exam_date_query(lowered)
+    if exam_date_query is not None:
+        return await _describe_exam_date(exam_date_query)
+
+    study_review_query = _extract_study_review_query(lowered)
+    if study_review_query is not None:
+        return await _run_study_review(study_review_query)
+
     if lowered in _USAGE_QUERY_TRIGGERS:
         return _describe_usage()
 

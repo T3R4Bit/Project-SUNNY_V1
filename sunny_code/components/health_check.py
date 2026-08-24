@@ -13,7 +13,7 @@ import re
 from collections import Counter
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Awaitable, Callable, Optional
+from typing import Awaitable, Callable, Dict, List, Optional
 
 from sunny_code.components import key_status, vault_io
 from sunny_code.components.llm_client import ask_claude
@@ -88,6 +88,100 @@ def _recent_llm_calls(days: int = 7) -> Counter:
     return counts
 
 
+# Knowledge health check -- personal-assistant-vision.md section 8,
+# extends this same weekly report rather than being a parallel system,
+# per that section's own framing ("Extend the existing weekly system
+# health check"). Wikilinks only (Obsidian's actual convention throughout
+# this vault, confirmed by every architecture doc's own [[cross-links]]),
+# not markdown-style [text](path.md) links -- not used here.
+_KNOWLEDGE_EXCLUDED_DIRS = {".obsidian", "archive", "log", "state", "instructions"}
+_WIKILINK_RE = re.compile(r"\[\[([^\]|#]+)")
+_STALE_DAYS = 180
+
+
+def _iter_vault_notes() -> List[Path]:
+    vault_root = get_settings().project_root / "sunny-vault"
+    if not vault_root.exists():
+        return []
+    return [
+        p for p in vault_root.rglob("*.md")
+        if not any(part in _KNOWLEDGE_EXCLUDED_DIRS for part in p.relative_to(vault_root).parts)
+    ]
+
+
+def knowledge_health_summary() -> str:
+    """Broken wikilinks, orphaned/untagged/stale notes -- same "compact,
+    pre-counted, not a raw dump" reasoning as _build_summary() below.
+    Caveat worth knowing: "orphaned" (no incoming links) will always flag
+    real entry-point docs like README.md/Mind-Map.md, which are meant to
+    be linked FROM, not TO -- there's no attempt here to distinguish those
+    from a genuinely forgotten note, so a nonzero orphan count isn't
+    automatically something to fix. True duplicate-CONTENT detection
+    (semantic, not just a filename collision) is out of scope entirely --
+    flagged as future work, not attempted."""
+    notes = _iter_vault_notes()
+    if not notes:
+        return "Knowledge health: no vault notes found."
+
+    notes_by_stem: Dict[str, Path] = {}
+    for p in notes:
+        notes_by_stem.setdefault(p.stem.lower(), p)
+
+    broken_links = []
+    linked_targets = set()
+    untagged = []
+    stale = []
+    cutoff = datetime.now(timezone.utc).timestamp() - (_STALE_DAYS * 86400)
+
+    for note in notes:
+        try:
+            text = note.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+
+        for match in _WIKILINK_RE.finditer(text):
+            target = match.group(1).strip().lower()
+            if target.endswith(".md"):
+                target = target[:-3]
+            resolved = notes_by_stem.get(target)
+            if resolved is None:
+                broken_links.append((note, match.group(1).strip()))
+            else:
+                linked_targets.add(resolved)
+
+        metadata, _body = vault_io.parse_frontmatter(text)
+        if not metadata.get("tags"):
+            untagged.append(note)
+
+        try:
+            if note.stat().st_mtime < cutoff:
+                stale.append(note)
+        except OSError:
+            pass
+
+    orphaned = [n for n in notes if n not in linked_targets]
+
+    lines = [f"Vault notes scanned: {len(notes)}"]
+    if broken_links:
+        examples = ", ".join(f'{n.name}->"{t}"' for n, t in broken_links[:5])
+        more = "..." if len(broken_links) > 5 else ""
+        lines.append(f"- Broken wikilinks: {len(broken_links)} ({examples}{more})")
+    else:
+        lines.append("- Broken wikilinks: none")
+    if orphaned:
+        names = ", ".join(n.name for n in orphaned[:5])
+        more = "..." if len(orphaned) > 5 else ""
+        lines.append(f"- Orphaned notes (no incoming links, entry-point docs expected here too): {len(orphaned)} ({names}{more})")
+    else:
+        lines.append("- Orphaned notes: none")
+    lines.append(f"- Untagged notes: {len(untagged)}" if untagged else "- Untagged notes: none")
+    lines.append(
+        f"- Stale notes (untouched {_STALE_DAYS}+ days): {len(stale)}" if stale else "- Stale notes: none"
+    )
+
+    return "\n".join(lines)
+
+
 def _build_summary(days: int = 7) -> str:
     """A compact, pre-counted text summary — not raw log dumps — so the
     prompt sent to Claude stays small. This is where the token-minimization
@@ -117,6 +211,9 @@ def _build_summary(days: int = 7) -> str:
     else:
         lines.append("- Keys expiring within 7 days: none")
 
+    lines.append("")
+    lines.append(knowledge_health_summary())
+
     return "\n".join(lines)
 
 
@@ -140,7 +237,32 @@ def short_summary(days: int = 7) -> str:
     if expiring:
         parts.append(f"{len(expiring)} key{'s' if len(expiring) != 1 else ''} expiring soon")
 
+    broken_link_count = _count_broken_wikilinks()
+    if broken_link_count:
+        parts.append(f"{broken_link_count} broken vault link{'s' if broken_link_count != 1 else ''}")
+
     return f"This week: {', '.join(parts)}."
+
+
+def _count_broken_wikilinks() -> int:
+    """Just the number, for short_summary()'s one-liner -- re-derives from
+    the same scan as knowledge_health_summary() rather than parsing that
+    function's rendered text for a count."""
+    notes = _iter_vault_notes()
+    notes_by_stem = {p.stem.lower(): p for p in notes}
+    count = 0
+    for note in notes:
+        try:
+            text = note.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for match in _WIKILINK_RE.finditer(text):
+            target = match.group(1).strip().lower()
+            if target.endswith(".md"):
+                target = target[:-3]
+            if target not in notes_by_stem:
+                count += 1
+    return count
 
 
 def _log_path() -> Path:

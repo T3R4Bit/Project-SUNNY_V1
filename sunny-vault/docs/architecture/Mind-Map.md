@@ -33,6 +33,7 @@ Overview of Project SUNNY's major components and how they interact.
 - [[voice-join]] — Live, real-time Discord voice conversation (`/join`), streaming replies, barge-in
 - [[tts-piper]] — Local TTS, `/speak` one-shot attachments
 - [[health-check]] — Weekly (and on-demand) system health report
+- [[exam-prep]] — Class discovery, exam-date lookup, LLM-written study reviews from real notes
 - [[usage-tracking]] — Claude spend tracking, spend caps, persistent Discord usage dashboard
 - [[location]] — Phone GPS via OwnTracks, staleness-windowed
 

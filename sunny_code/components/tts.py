@@ -1,7 +1,7 @@
 """Local text-to-speech via Piper (https://github.com/OHF-Voice/piper1-gpl) —
-free, fully local, no per-call API cost. The one place any current or future
-TTS caller (today: the /speak Discord command; later: the planned /join
-live-voice-channel command, see BACKLOG.md) calls through.
+free, fully local, no per-call API cost. The one place any TTS caller
+(the /speak Discord command, /join's live-voice-channel pipeline in
+voice_worker.py) calls through.
 
 This is deliberately just "text in, WAV bytes out" — no hardware, no
 STT, no wake word. See sunny-vault/docs/architecture/tts-piper.md for how
@@ -18,6 +18,7 @@ import wave
 from pathlib import Path
 from typing import Optional
 
+from sunny_code.components import tts_delivery
 from sunny_code.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -68,36 +69,56 @@ def _get_voice():
     return _voice
 
 
-def _syn_config():
+def _syn_config(message_type: Optional[str] = None):
     """Built fresh from current settings on every call (not cached) so a
     .env tuning edit — length_scale, noise_scale, noise_w_scale, speaker_id
     — takes effect on the very next /speak, no restart. None fields fall
     through to the voice model's own baked-in defaults — see
-    sunny-vault/docs/architecture/tts-piper.md's "Tuning Piper's Voice"."""
+    sunny-vault/docs/architecture/tts-piper.md's "Tuning Piper's Voice".
+
+    message_type (optional, default None): applies tts_delivery.py's pace
+    multiplier on top of the configured base length_scale — see that
+    module for why length_scale is the one knob touched here. None (the
+    default) means no change, so every existing caller is unaffected."""
     from piper.config import SynthesisConfig
 
     settings = get_settings()
+    multiplier = tts_delivery.pace_multiplier(message_type)
+    # settings.piper_length_scale is None by default (Piper's own baked-in
+    # default applies, effectively 1.0) -- multiply that implicit baseline
+    # rather than None itself, but only actually pass a length_scale at all
+    # if there's a real reason to (a configured base, or a real multiplier).
+    if settings.piper_length_scale is not None:
+        length_scale = settings.piper_length_scale * multiplier
+    elif multiplier != 1.0:
+        length_scale = multiplier
+    else:
+        length_scale = None
+
     return SynthesisConfig(
         speaker_id=settings.piper_speaker_id,
-        length_scale=settings.piper_length_scale,
+        length_scale=length_scale,
         noise_scale=settings.piper_noise_scale,
         noise_w_scale=settings.piper_noise_w_scale,
     )
 
 
-def synthesize_wav_bytes(text: str) -> bytes:
+def synthesize_wav_bytes(text: str, message_type: Optional[str] = None) -> bytes:
     """Synthesizes `text` to WAV audio bytes. Blocking (model load, on-disk
     I/O, CPU-bound inference) — callers on an event loop should run this via
     asyncio.to_thread, same as llm_client._call_claude_sync. Raises on
     failure (no network for a first-time model download, corrupt model,
     etc.) — callers are responsible for turning that into an honest
     user-facing message, matching this app's fail-loud-to-the-caller
-    contract rather than swallowing errors here."""
+    contract rather than swallowing errors here.
+
+    message_type: optional delivery hint (see tts_delivery.py) — None
+    (default) behaves exactly as before this parameter existed."""
     voice = _get_voice()
 
     buf = io.BytesIO()
     with wave.open(buf, "wb") as wav_file:
-        voice.synthesize_wav(text, wav_file, syn_config=_syn_config())
+        voice.synthesize_wav(text, wav_file, syn_config=_syn_config(message_type))
     return buf.getvalue()
 
 
@@ -108,16 +129,18 @@ def is_voice_downloaded() -> bool:
     return (settings.piper_voices_dir / f"{settings.piper_voice}.onnx").exists()
 
 
-def synthesize_discord_pcm(text: str) -> bytes:
+def synthesize_discord_pcm(text: str, message_type: Optional[str] = None) -> bytes:
     """synthesize_wav_bytes()'s output (22050Hz mono, per Piper's default
     voice) converted to Discord's required playback format for
     discord.PCMAudio: raw 16-bit 48kHz stereo PCM, no WAV header. Reads the
     actual rate/width/channel count from the WAV rather than assuming
     Piper's current defaults, so this stays correct if PIPER_VOICE ever
-    changes to a voice with different specs."""
+    changes to a voice with different specs.
+
+    message_type: same optional delivery hint as synthesize_wav_bytes()."""
     from discord.opus import Encoder as OpusEncoder
 
-    wav_bytes = synthesize_wav_bytes(text)
+    wav_bytes = synthesize_wav_bytes(text, message_type)
     with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
         raw = wf.readframes(wf.getnframes())
         rate = wf.getframerate()

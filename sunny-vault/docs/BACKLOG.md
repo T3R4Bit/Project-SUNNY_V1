@@ -69,8 +69,10 @@ Full architecture and rationale in [[architecture/personal-assistant-vision]] �
 
 **Exam prep** ([[architecture/personal-assistant-vision#3-proactive-test-exam-preparation]])
 
-- [ ] Track exam dates and Obsidian note coverage per class; generate a study plan ~1 week out and a short high-value review the night before
-- [ ] Spaced-review pipeline over old material (new → review → weak → retest → mastered)
+- [x] Track exam dates and Obsidian note coverage per class; generate a study plan ~1 week out and a short high-value review the night before
+      *(built: `exam_prep.py`, against the real `sunny-vault/KSU/<semester>/<class>/*.md` convention (confirmed with the user, not guessed). Exam dates come from Google Calendar (class name + exam keyword matched independently, not strict substring). "study review for `<class>`" generates the night-before review from real note content. The ~1-week-out study plan stage isn't built — only the night-before pass. See [[architecture/exam-prep]].)*
+- [x] Spaced-review pipeline over old material (new → review → weak → retest → mastered)
+      *(built, simplified to 3 persisted states — new/weak/mastered; Review and Retest are the act of calling `record_review()`, not separate stored states. No conversational way to record a review's outcome yet — `record_review()` is real, tested infrastructure without a caller. See [[architecture/exam-prep]].)*
 
 **Fitness / Garmin** ([[architecture/personal-assistant-vision#4-fitness-physical-life-assistant]], [[architecture/personal-assistant-vision#5-garmin-integration]])
 
@@ -88,7 +90,8 @@ Full architecture and rationale in [[architecture/personal-assistant-vision]] �
 
 - [x] Permission-leveled vault write access (0 read-only / 1 safe edits / 2 rename-move / 3 destructive-requires-approval) with a confidence threshold (>95% auto, 80-95% suggest, <80% ask) and a log of automatic edits
       *(built: `vault_permissions.py` — `request_vault_write(operation, confidence, description)` classifies and logs every call (not just autos) to `sunny-vault/log/vault-edits.md`. Level 3 always returns "ask" regardless of confidence, per the vision doc's own hard rule. No real caller yet — it only decides, nothing calls it to actually touch the vault on its own initiative today. See [[architecture/proactive-architecture]].)*
-- [ ] Extend the weekly health check into a knowledge health check (broken links, orphaned/duplicate/untagged/stale notes)
+- [x] Extend the weekly health check into a knowledge health check (broken links, orphaned/duplicate/untagged/stale notes)
+      *(built, folded into the same weekly report per this item's own wording — `health_check.knowledge_health_summary()`: broken wikilinks, orphaned notes, untagged notes, stale notes (180+ days untouched). True duplicate-CONTENT detection (semantic, not just a filename collision) is explicitly out of scope, flagged as future work. `short_summary()`'s spoken one-liner mentions broken-link count when nonzero.)*
 
 **Proactivity / hybrid architecture** ([[architecture/personal-assistant-vision#10-hybrid-ai-architecture]], [[architecture/personal-assistant-vision#11-confidence-based-autonomy]], [[architecture/personal-assistant-vision#12-learning-from-behavior]])
 
@@ -112,7 +115,8 @@ Full architecture and rationale in [[architecture/personal-assistant-vision]] �
 **Voice pipeline follow-ups** (mostly superseded by what's actually built — see the notes inline in [[architecture/personal-assistant-vision#13-voice-pipeline-revisit-vs-whats-actually-built]] and [[architecture/personal-assistant-vision#15-low-latency-voice-goal]])
 
 - [ ] Streaming/partial-hypothesis STT (the one real latency gap left — LLM/TTS streaming is already built)
-- [ ] A delivery/prosody layer that varies tone/pace by message type (reminder vs. opportunity vs. warning), beyond the text-register rewrite already done in `general-chat.md`
+- [x] A delivery/prosody layer that varies tone/pace by message type (reminder vs. opportunity vs. warning), beyond the text-register rewrite already done in `general-chat.md`
+      *(built: `tts_delivery.py` — deterministic pace (length_scale) multipliers per message type, composes with the user's own `PIPER_LENGTH_SCALE` tuning. Real first caller: `/speak text delivery:warning|reminder|casual`. Plumbing also threaded through `voice_worker.py`'s `speak()`/`speak_chunk()` but unused there today — nothing in the live `/join` pipeline classifies a reply's type yet, and that file's crash history (see [[architecture/voice-join]]) made a deeper change there feel like the wrong place to guess at one. See [[architecture/tts-piper]].)*
 - [ ] Revisit Kokoro once real GPU hardware exists (measured RTF 2.40 CPU-only this session vs. Piper's 0.06 — not viable today)
 
 ---

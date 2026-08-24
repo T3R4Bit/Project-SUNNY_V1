@@ -699,7 +699,9 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
     # back-to-back in order even though each one is synthesized as its
     # own separate call.
 
-    async def _synthesize_and_enqueue(text: str, error_context: str, generation: int) -> None:
+    async def _synthesize_and_enqueue(
+        text: str, error_context: str, generation: int, message_type: Optional[str] = None
+    ) -> None:
         nonlocal pending_thinking_task
         if voice_client is None or not voice_client.is_connected():
             return
@@ -715,7 +717,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         # actual cause is found and fixed.
         faulthandler.dump_traceback_later(8, file=sys.stderr)
         try:
-            pcm = await asyncio.to_thread(tts.synthesize_discord_pcm, text)
+            pcm = await asyncio.to_thread(tts.synthesize_discord_pcm, text, message_type)
         except Exception as e:
             faulthandler.cancel_dump_traceback_later()
             logger.error(f"voice_worker: {error_context} TTS synthesis failed: {e}")
@@ -739,15 +741,15 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         await speech_queue.put((generation, pcm))
         logger.info(f"voice_worker: {error_context} queued ({len(pcm)} bytes) for playback")
 
-    async def speak(text: str, generation: int) -> None:
-        await _synthesize_and_enqueue(text, "response", generation)
+    async def speak(text: str, generation: int, message_type: Optional[str] = None) -> None:
+        await _synthesize_and_enqueue(text, "response", generation, message_type)
 
-    async def speak_chunk(text: str, generation: int) -> None:
+    async def speak_chunk(text: str, generation: int, message_type: Optional[str] = None) -> None:
         """One sentence of a streamed reply -- see voice_session.py's
         on_chunk/"speak_chunk". Queued the same way as a full "speak"
         response; speech_player() is what actually plays it, in order,
         once every earlier chunk has finished."""
-        await _synthesize_and_enqueue(text, "chunk", generation)
+        await _synthesize_and_enqueue(text, "chunk", generation, message_type)
 
     async def speech_player():
         """Plays queued response audio back-to-back, one item at a time,

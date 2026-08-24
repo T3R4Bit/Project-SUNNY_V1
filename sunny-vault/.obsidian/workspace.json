@@ -20,23 +20,8 @@
               "icon": "lucide-file",
               "title": "ABOUT"
             }
-          },
-          {
-            "id": "b71858e4a6f616e0",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "docs/BACKLOG.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "BACKLOG"
-            }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -204,8 +189,24 @@
       "omnisearch:Omnisearch": false
     }
   },
-  "active": "b71858e4a6f616e0",
+  "active": "1d01bc107c8fadf5",
   "lastOpenFiles": [
+    "state/tasks/another-test-task-6.md",
+    "state/tasks/test-task-6.md",
+    "docs/architecture/health-check.md.tmp.17964.aef69c4bcb5e",
+    "docs/architecture/health-check.md.tmp.17964.9f06b66bb875",
+    "docs/BACKLOG.md.tmp.17964.85e67ab5ed0f",
+    "docs/architecture/personal-assistant-vision.md",
+    "docs/BACKLOG.md.tmp.17964.fb971eb4e1e9",
+    "docs/architecture/exam-prep.md",
+    "state/tasks/another-test-task-5.md",
+    "state/tasks/test-task-5.md",
+    "instructions/exam-prep-review.md",
+    "instructions/exam-prep-review.md.tmp.17964.54384df882d1",
+    "docs/BACKLOG.md",
+    "docs/architecture/llm-integration.md",
+    "state/tasks/another-test-task-4.md",
+    "state/tasks/test-task-4.md",
     "docs/architecture/Mind-Map.md.tmp.17964.a49085ac1ef1",
     "docs/BACKLOG.md.tmp.17964.2bd8c897ae06",
     "docs/BACKLOG.md.tmp.17964.526800311976",
@@ -217,30 +218,14 @@
     "state/tasks/another-test-task-2.md",
     "state/tasks/test-task-2.md",
     "docs/architecture/usage-tracking.md.tmp.17964.b8c7a51b12e7",
-    "docs/architecture/usage-tracking.md.tmp.17964.111859956dda",
-    "docs/architecture/usage-tracking.md.tmp.17964.24abac35c2c5",
-    "docs/architecture/usage-tracking.md.tmp.17964.ebc889940467",
     "docs/architecture/service-orchestration.md",
-    "docs/BACKLOG.md.tmp.17964.c568c1f4b2ec",
-    "docs/BACKLOG.md.tmp.17964.eb97103d5498",
-    "docs/BACKLOG.md.tmp.17964.07680bf404a4",
     "docs/architecture/usage-tracking.md",
     "docs/architecture/project-system.md",
-    "docs/BACKLOG.md",
     "state/alarms-reminders.md",
     "docs/architecture/spotify-integration.md",
     "docs/CHANGELOG.md",
     "state/tasks/another-test-task.md",
     "state/tasks/test-task.md",
-    "state/health-check.md",
-    "log/health-checks.md",
-    "log/llm-usage.md",
-    "docs/phases.md",
-    "docs/ABOUT.md",
-    "instructions/general-chat.md",
-    "docs/architecture/voice-join.md",
-    "docs/architecture/tts-piper.md",
-    "docs/architecture/health-check.md",
-    "docs/architecture/llm-instructions.md"
+    "state/health-check.md"
   ]
 }

@@ -245,7 +245,11 @@ def create_discord_bot(
     }
 
     @tree.command(name="speak", description="Speak this text out loud (Piper TTS, posted as an audio attachment)")
-    async def speak_command(interaction: discord.Interaction, text: str):
+    async def speak_command(
+        interaction: discord.Interaction,
+        text: str,
+        delivery: Literal["default", "warning", "reminder", "casual"] = "default",
+    ):
         """The bot's first slash command — everything else is plain-text via
         handle_message(). Restricted to the chat channel, same as every
         other command this bot has, and deferred since Piper's first call
@@ -263,8 +267,9 @@ def create_discord_bot(
             return
 
         await interaction.response.defer(thinking=True, ephemeral=True)
+        message_type = None if delivery == "default" else delivery
         try:
-            wav_bytes = await asyncio.to_thread(tts.synthesize_wav_bytes, text)
+            wav_bytes = await asyncio.to_thread(tts.synthesize_wav_bytes, text, message_type)
         except Exception as e:
             logger.error(f"/speak synthesis failed: {e}")
             await interaction.followup.send("Couldn't synthesize that — check the logs.", ephemeral=True)
