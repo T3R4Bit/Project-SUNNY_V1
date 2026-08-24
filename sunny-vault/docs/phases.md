@@ -32,7 +32,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 - [x] Set BIOS to restore power state on AC loss
 - [x] Secrets via env vars + config file — `.env` (gitignored, `chmod 600` on every `run.sh` start), loaded via `sunny_code/config.py`; startup logs + Discord post what's still missing (`sunny_code/components/key_status.py`)
-- [ ] Set up Sunny as a systemd unit with Restart=always
+- [x] Set up Sunny as a systemd unit with Restart=always
 - [ ] Disable unattended-upgrades auto-reboot, or pin to a window
 - [ ] Skip Featured Server Snaps at install (avoid snapd entirely rather than purging later)
 
@@ -83,7 +83,7 @@ Remote access: Works even away from home (DERP relays)
 - [x] Hardcoded briefing template (morning + evening)
 - [x] Text generation engine (slot-filling, no LLM)
 - [x] Q&A engine for freeform questions (weather, calendar, tasks, commute, etc.)
-- [x] Task summary queries — live against SQLite via [[../TASK_SYSTEM.md|task system]] (no longer mock)
+- [x] Task summary queries — live against the vault-markdown [[../TASK_SYSTEM.md|task system]] (no longer mock; moved off SQLite entirely 2026-08-19/20, see [[architecture/vault-storage]])
 - [x] Honest "not connected" messaging for every section without a real source + request logging to `sunny-vault/log/requests.md`
 - [x] Google Sign-In (OAuth) — one connect flow powering both Calendar and Gmail below. OAuth client configured, HTTPS + a PKCE bug both had to be fixed before a sign-in could complete — see [[architecture/google-integration]]
 - [x] Calendar API integration (Google Calendar, via Google Sign-In)
@@ -295,7 +295,7 @@ Cost: <$1/month expected
 
 ## Backlog
 
-Deferred items not yet slotted into a phase — see [[BACKLOG.md]] (currently: service orchestration — systemd unit, single-command startup for all services, per-service runtime toggle, autostart-per-service config).
+Deferred items not yet slotted into a phase — see [[BACKLOG.md]]. Service orchestration's systemd unit and single-command startup are done; per-service runtime toggle and autostart-per-service config are still open. BACKLOG.md has grown well beyond orchestration since this was last written — task-system rework, Spotify voice control, web search, and a large college/fitness/knowledge/proactivity section (see [[architecture/personal-assistant-vision]]) are also sitting there unslotted.
 
 ---
 
@@ -372,7 +372,7 @@ Full breakdown: [[architecture/llm-readiness]].
 
 | Milestone | Target | Status |
 |-----------|--------|--------|
-| Phase 0: Foundations | This week | Mostly complete — systemd autostart remaining |
+| Phase 0: Foundations | This week | Mostly complete — only minor OS config remaining (unattended-upgrades reboot window, skip Snaps at install) |
 | Phase 1: Networking | Week 2 | Mostly complete — phone verification + ACLs remaining |
 | Phase 2: Briefing | Week 3-4 | Templates/Q&A + Calendar/Gmail/Weather code-complete (needs sign-in/keys) — commute/health/news remaining |
 | Phase 3: Clock Hardware | Week 5-6 | Upcoming |
