@@ -32,9 +32,13 @@ Running log of real changes, most recent first. Not every commit — the milesto
 - Found live: Spotify rejects any redirect URI over plain HTTP except the literal loopback `127.0.0.1` — a Tailscale IP doesn't qualify. Fixed by reusing the Tailscale-issued HTTPS cert already set up for Google's integration (`TLS_PORT` 5443) instead of a new cert.
 
 **Other**
-- "run health check" runs a real check on demand instead of only showing the last cached one — short spoken summary over voice, full report in text.
-- `/usage` — a dark-themed chart of daily Claude API cost, posted as a Discord image attachment (the one actually-paid API in this app).
+- "run health check" runs a real check on demand instead of only showing the last cached one — short spoken summary over voice, full report in text; the #health channel is now one pinned message edited in place, with key figures **bolded**.
+- `/usage`'s chart is now a persistent dashboard — one pinned message in its own channel, updated hourly, plus a once-a-day ping when spend crosses 70% of the daily/monthly self-imposed cap or a key is expiring within a week.
 - Rewrote the LLM's conversational voice (`general-chat.md`) for a terser, three-part response style (acknowledgment / payload / optional tail), merged with the existing TTS-safety and no-fabricated-data constraints.
+- Fixed a real STT race: `on_audio()` (the voice decode thread) and `silence_watchdog()` (the asyncio loop) both called into the same Vosk recognizer with no lock — a feed landing mid-finalize corrupted it (Vosk's own "AcceptWaveform called after InputFinished" check, followed by invalid JSON on the next result). Same class of bug, same fix, as the DAVE-session race below.
+- Storm mode: "storm mode" in Discord asks for an update interval and a duration, then posts real, web-searched weather updates (not the API) on that interval until time's up or it's stopped early.
+- Morning prep: the scheduler now prewarms the morning briefing a few minutes ahead of the next alarm, so a real "good morning" right after returns instantly instead of waiting on live weather/calendar/email calls — while still keeping email fresh at wake-up.
+- The "new project" wizard now recaps and asks yes/no before actually building (a firm "no" skips the LLM entirely), with a few phrasing variants per question instead of one fixed line. Morning/evening briefing triggers broadened past bare "morning"/"evening" ("good morning sunny", "im up", "going to bed", etc.).
 
 ## 2026-08-21 – 2026-08-22
 
