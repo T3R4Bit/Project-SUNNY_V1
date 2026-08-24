@@ -1,0 +1,44 @@
+# Dev-only test image -- NOT how the real Pi gets deployed (that's a plain
+# `git pull` + systemd restart, see BUILD_PLAN.md's Repo layout section).
+# This exists purely to validate the pi-client software stack -- the same
+# requirements.txt, the same source files -- installs and runs cleanly on
+# arm64 Debian Bookworm before real Pi 3 B hardware is set up (BUILD_PLAN.md
+# Phase 0/1 aren't done yet). Build/run with QEMU emulation on a dev machine:
+#
+#   docker buildx build --platform linux/arm64 -t sunny-pi-test \
+#       -f Dockerfile.test .
+#   docker run --rm --platform linux/arm64 sunny-pi-test
+#
+# What this DOES prove: the exact pip dependency set resolves and installs
+# on the same OS/arch/Python the real Pi will run, and the renderer's pygame
+# draw loop runs without crashing headless.
+#
+# What this does NOT prove: real Pi 3 B frame timing (QEMU emulation on a
+# dev-machine x86 CPU is not representative either way -- that's still
+# Phase 4's real open validation step), kmsdrm/real display output (no GPU
+# passthrough here, uses SDL's dummy video driver instead), or live mic
+# capture (no audio hardware in a container -- that's Phase 3's job, on
+# real hardware).
+
+FROM arm64v8/debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3 \
+        python3-pip \
+        libsdl2-2.0-0 \
+        libportaudio2 \
+        libasound2 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN python3 -m pip install --break-system-packages --no-cache-dir -r requirements.txt
+
+COPY wake_word_listener.py wake_on_lan.py crash_reporter.py ./
+COPY face_renderer/ ./face_renderer/
+
+ENV SDL_VIDEODRIVER=dummy
+ENV SDL_AUDIODRIVER=dummy
+
+CMD ["python3", "face_renderer/smoke_test.py"]

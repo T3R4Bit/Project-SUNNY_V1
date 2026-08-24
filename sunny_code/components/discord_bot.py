@@ -62,9 +62,10 @@ HEALTH_MARKER = "⁠" # word joiner (U+2060) -- deliberately a *different*
 # can never accidentally match the other's message if both channels ever
 # end up configured to the same channel.
 USAGE_MARKER = "‌" # zero-width non-joiner (U+200C) -- a third distinct
-# invisible marker, same reasoning as HEALTH_MARKER. Lives in the plain
-# message content (not a footer) since the usage message's payload is an
-# image attachment, which has no embed/footer to hide a marker in.
+# invisible marker, same reasoning as HEALTH_MARKER. Lives in the embed
+# footer, same as HEALTH_MARKER -- both messages now live in the same
+# #health channel, so they need distinct footers to tell each other apart
+# on restart-rediscovery.
 USAGE_ALERT_THRESHOLD = 0.7 # fraction of daily_spend_cap/monthly_spend_cap
 # that triggers a ping -- "70%" per the backlog item this implements
 _STORM_MODE_TRIGGERS = ("storm mode", "activate storm mode", "start storm mode", "turn on storm mode", "enable storm mode")
@@ -214,7 +215,6 @@ def create_discord_bot(
     warnings_channel_id: int = 0,
     task_updates_channel_id: int = 0,
     health_channel_id: int = 0,
-    usage_channel_id: int = 0,
 ) -> discord.Client:
     """Build (but don't start) the Discord client. chat_channel_id is the only
     channel commands are read from. dashboard_channel_id is where the pinned
@@ -430,21 +430,23 @@ def create_discord_bot(
     client.post_to_health = post_to_health
 
     async def refresh_usage_dashboard():
-        """One pinned message with the Claude usage chart as an image
-        attachment, edited in place on every run — same pattern as
-        refresh_dashboard()/post_to_health(), except the payload is an
-        image, not text/an embed, so the pin-rediscovery marker lives in
-        the message's plain content (an attachment has no footer to hide
-        it in). Called on an hourly loop (see usage_refresh_loop below),
-        same "runs immediately, then every N" shape as the task dashboard's
-        own 5-minute backstop."""
-        target_channel_id = usage_channel_id or chat_channel_id
+        """The Claude usage chart, posted into the same #health channel as
+        the weekly health report and in the same embed style (title +
+        bold-figures description, see post_to_health above), with the
+        chart composited in via `set_image`. Unlike post_to_health and
+        refresh_dashboard, this is delete-and-resend, not edit-in-place —
+        Discord's embed image cache can hang onto a stale thumbnail after
+        an attachment-replacing edit, so a fresh message guarantees a
+        fresh image every time. Called on an hourly loop (see
+        usage_refresh_loop below), same "runs immediately, then every N"
+        shape as the task dashboard's own 5-minute backstop."""
+        target_channel_id = health_channel_id or chat_channel_id
         if not target_channel_id:
             return
         try:
             channel = await client.fetch_channel(target_channel_id)
         except (discord.NotFound, discord.Forbidden) as e:
-            logger.warning(f"Cannot access Discord usage channel {target_channel_id}: {e}")
+            logger.warning(f"Cannot access Discord health channel {target_channel_id}: {e}")
             return
 
         try:
@@ -453,7 +455,25 @@ def create_discord_bot(
             logger.error(f"usage dashboard: chart render failed: {e}")
             return
 
-        content = f"Claude API usage — last 30 days{USAGE_MARKER}"
+        settings = get_settings()
+        today_cost = token_tracker.get_today_usage()["cost"]
+        month_cost = token_tracker.get_month_cost()
+        description = f"**${today_cost:.2f}** today · **${month_cost:.2f}** this month"
+        caps = []
+        if settings.daily_spend_cap:
+            caps.append(f"**${settings.daily_spend_cap:.2f}**/day")
+        if settings.monthly_spend_cap:
+            caps.append(f"**${settings.monthly_spend_cap:.2f}**/month")
+        if caps:
+            description += f" (cap {', '.join(caps)})"
+
+        embed = discord.Embed(
+            title="Claude API usage — last 30 days",
+            description=description,
+            color=discord.Color.blue(),
+        )
+        embed.set_image(url="attachment://usage.png")
+        embed.set_footer(text=USAGE_MARKER)
 
         message = None
         if state["usage_message_id"]:
@@ -465,21 +485,18 @@ def create_discord_bot(
         if message is None:
             # Bot restarted — look for a usage message pinned by a previous run
             async for pin in channel.pins(limit=50):
-                if pin.author.id == client.user.id and pin.content.endswith(USAGE_MARKER):
+                if pin.author.id == client.user.id and pin.embeds and pin.embeds[0].footer.text and \
+                        pin.embeds[0].footer.text.endswith(USAGE_MARKER):
                     message = pin
                     break
 
         if message is not None:
-            state["usage_message_id"] = message.id
             try:
-                await message.edit(
-                    content=content, attachments=[discord.File(io.BytesIO(png_bytes), filename="usage.png")]
-                )
-                return
+                await message.delete()
             except discord.NotFound:
-                state["usage_message_id"] = None
+                pass
 
-        new_message = await channel.send(content=content, file=discord.File(io.BytesIO(png_bytes), filename="usage.png"))
+        new_message = await channel.send(embed=embed, file=discord.File(io.BytesIO(png_bytes), filename="usage.png"))
         try:
             await new_message.pin()
         except discord.Forbidden:
@@ -487,13 +504,13 @@ def create_discord_bot(
         state["usage_message_id"] = new_message.id
 
     async def check_usage_alerts():
-        """Pings the usage channel once per day when spend crosses 70% of
+        """Pings the health channel once per day when spend crosses 70% of
         the self-imposed daily/monthly cap, or a key is expiring within a
         week — same expiry check the weekly health report already does,
         surfaced immediately here instead of waiting for Sunday. Tracked
         by date, not a one-shot flag, so a genuinely new day's crossing
         still alerts even though yesterday's already did."""
-        target_channel_id = usage_channel_id or chat_channel_id
+        target_channel_id = health_channel_id or chat_channel_id
         if not target_channel_id:
             return
         today = datetime.now().date().isoformat()

@@ -73,6 +73,7 @@ Updating the device going forward is just `git pull` on the Pi + restarting the 
 - [x] Tone/emotion overlay — hue/color shift composited on top of whichever shape, driven by the server's mood tag (see Emotion overlay v2 below); cheap, no extra per-frame cost
       *(built at prototype level: a 5-hue table (neutral/happy/concerned/playful/apologetic), cycled manually with the `e` key for now since the server doesn't emit a real mood tag yet — Emotion overlay v2 below is still unbuilt server-side, so there's nothing live to drive this from yet)*
 - [ ] Validate actual frame timing on real Pi 3 B hardware before building out more shapes — this is the exact validation step that got skipped last time. Still open — everything above was only run on a Windows dev machine
+- [x] Validate the software stack (not timing) installs cleanly on the real target OS/arch — `pi-client/Dockerfile.test` builds a QEMU-emulated arm64 Debian Bookworm image (matching Raspberry Pi OS Lite 64-bit) with the real `requirements.txt` and runs `face_renderer/smoke_test.py` headless. Every dependency installed clean, including the risky native-extension ones (`pygame-ce`, `onnxruntime`, `sounddevice`, `openwakeword`); all imports and a 120-frame headless render loop passed. This does **not** substitute for the bullet above — QEMU emulation on an x86 dev machine says nothing about Pi 3 B's real CPU budget, and there's no GPU passthrough or mic in a container, so `kmsdrm` and live mic capture are still untested
 
 ## Phase 4.5 — Wiring the renderer to the device client
 
