@@ -39,7 +39,7 @@ from typing import Literal
 import discord
 from discord.ext import tasks
 
-from sunny_code.components import category_store, token_tracker, tts, usage_chart, voice_session
+from sunny_code.components import category_store, storm_mode, token_tracker, tts, usage_chart, voice_session
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.crash_check import check_previous_crash
@@ -67,8 +67,14 @@ USAGE_MARKER = "‌" # zero-width non-joiner (U+200C) -- a third distinct
 # image attachment, which has no embed/footer to hide a marker in.
 USAGE_ALERT_THRESHOLD = 0.7 # fraction of daily_spend_cap/monthly_spend_cap
 # that triggers a ping -- "70%" per the backlog item this implements
+_STORM_MODE_TRIGGERS = ("storm mode", "activate storm mode", "start storm mode", "turn on storm mode", "enable storm mode")
+_STORM_MODE_STOP_TRIGGERS = ("stop storm mode", "end storm mode", "turn off storm mode", "disable storm mode", "cancel storm mode")
+_STORM_MODE_STATUS_TRIGGERS = ("storm mode status", "is storm mode on", "storm mode on?")
+_WIZARD_CANCEL_WORDS = ("cancel", "nevermind", "never mind", "stop", "skip", "forget it")
 MAX_MESSAGE_LENGTH = 1900 # Discord's real limit is 2000; leave headroom
 SCHEDULED_CHECK_INTERVAL_SECONDS = 30
+MORNING_PREP_LOOKAHEAD_SECONDS = 5 * 60 # how far ahead of an alarm to
+# prewarm the morning briefing -- "5min max" per the backlog item this implements
 SPEAK_MAX_CHARS = 1000 # practical cap on synthesis time/file size, well under
 # Discord's own 6000-char slash-command string option limit
 
@@ -229,6 +235,8 @@ def create_discord_bot(
         "health_message_id": None,
         "usage_message_id": None,
         "usage_alert_date": None,
+        "storm_wizard": None,
+        "morning_prep_alarm_id": None,
         "posted_key_status": False,
         "commands_synced": False,
         "posted_crash_notice": False,
@@ -594,8 +602,26 @@ def create_discord_bot(
     @tasks.loop(seconds=SCHEDULED_CHECK_INTERVAL_SECONDS)
     async def scheduled_check_loop():
         """Post a ping for any due alarm/reminder — the only real 'sounding'
-        mechanism until there's a clock/speaker device."""
-        due = scheduled_engine.db.get_due_items(datetime.now())
+        mechanism until there's a clock/speaker device. Also looks ahead
+        for the next upcoming ALARM (not reminder) and, once it's within
+        MORNING_PREP_LOOKAHEAD_SECONDS out, kicks off a background
+        briefing_engine.prewarm_morning_briefing() -- so email is pulled
+        fresh right before wake-up (see briefing.py's docstring on why)
+        without making the alarm ping itself wait on live weather/
+        calendar/email calls. state["morning_prep_alarm_id"] tracks which
+        alarm occurrence was already prepped, so this only fires once per
+        alarm even though the loop itself runs every 30s."""
+        now = datetime.now()
+
+        upcoming_alarms = scheduled_engine.db.get_active_items(kind="alarm")
+        if upcoming_alarms:
+            next_alarm = upcoming_alarms[0]  # get_active_items orders by trigger_at ASC
+            seconds_out = (datetime.fromisoformat(next_alarm["trigger_at"]) - now).total_seconds()
+            if 0 <= seconds_out <= MORNING_PREP_LOOKAHEAD_SECONDS and state["morning_prep_alarm_id"] != next_alarm["id"]:
+                state["morning_prep_alarm_id"] = next_alarm["id"]
+                asyncio.create_task(briefing_engine.prewarm_morning_briefing())
+
+        due = scheduled_engine.db.get_due_items(now)
         if not due:
             return
 
@@ -672,11 +698,65 @@ def create_discord_bot(
                     fallback_channel_id=chat_channel_id,
                 )
 
+    async def _post_storm_update(text: str) -> None:
+        await _post_to(chat_channel_id, text)
+
     @client.event
     async def on_message(message: discord.Message):
         if message.author.bot:
             return
         if message.channel.id != chat_channel_id:
+            return
+
+        lowered = message.content.strip().lower()
+
+        # Storm mode: checked before the shared assistant router and before
+        # server-admin commands, same reasoning as both -- it's a Discord-
+        # only, proactive-posting feature (see storm_mode.py's own module
+        # docstring for why handle_message() can't express it), not a
+        # request/response answer.
+        if state["storm_wizard"] is not None:
+            step = state["storm_wizard"]["step"]
+            if lowered in _WIZARD_CANCEL_WORDS:
+                state["storm_wizard"] = None
+                await message.channel.send("No worries — cancelled.")
+                return
+            if step == "interval":
+                minutes = storm_mode.parse_minutes(message.content)
+                if minutes is None:
+                    await message.channel.send(
+                        'Didn\'t catch an interval — try something like "10 minutes" or "1 hour".'
+                    )
+                    return
+                state["storm_wizard"] = {"step": "duration", "interval": minutes}
+                await message.channel.send("How long should storm mode run before it turns off automatically?")
+                return
+            # step == "duration" -- the wizard's last step
+            duration = storm_mode.parse_minutes(message.content)
+            if duration is None:
+                await message.channel.send(
+                    'Didn\'t catch a duration — try something like "2 hours" or "90 minutes".'
+                )
+                return
+            interval = state["storm_wizard"]["interval"]
+            state["storm_wizard"] = None
+            await storm_mode.start(interval, duration, _post_storm_update)
+            await message.channel.send(f"Storm mode on — updates every {interval} min for {duration} min.")
+            return
+
+        if lowered in _STORM_MODE_STATUS_TRIGGERS:
+            await message.channel.send(storm_mode.status() or "Storm mode isn't running.")
+            return
+
+        if lowered in _STORM_MODE_STOP_TRIGGERS:
+            stopped = await storm_mode.stop(_post_storm_update)
+            if not stopped:
+                await message.channel.send("Storm mode isn't running.")
+            return
+
+        if lowered in _STORM_MODE_TRIGGERS:
+            state["storm_wizard"] = {"step": "interval"}
+            await message.channel.send('How often should I update you? (e.g. "10 minutes")')
             return
 
         # Checked before the shared assistant router, same reason lists/alarms

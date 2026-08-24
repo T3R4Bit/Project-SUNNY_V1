@@ -11,8 +11,9 @@ to sunny-vault/log/requests.md.
 
 import asyncio
 import logging
+import time
 from datetime import datetime
-from typing import Awaitable, Callable, Dict, List, Optional
+from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 from sunny_code.config import get_settings
 from sunny_code.components.tasks_db import TaskDB
@@ -407,6 +408,11 @@ Total: {len(open_tasks) + len(in_progress)} tasks
             return f'No good answer for "{question}" — try asking about tasks, or say "help".'
 
 
+_MORNING_PREWARM_MAX_AGE_SECONDS = 15 * 60 # a prep run more than this old is
+# stale enough that live data is worth the wait again -- covers the case
+# where nothing ever asked for the briefing near the alarm it was prepped for
+
+
 class BriefingEngine:
     """Generate templated briefings with Q&A support."""
 
@@ -414,9 +420,31 @@ class BriefingEngine:
         self.logger = logging.getLogger(__name__)
         settings = get_settings()
         self.tasks_db = TaskDB(settings.project_root / "sunny-vault" / "state" / "tasks")
+        # (text, generated_at) from the most recent prewarm_morning_briefing()
+        # call -- see that method and generate_morning_briefing() below.
+        self._prewarmed_morning: Optional[Tuple[str, float]] = None
+
+    async def prewarm_morning_briefing(self) -> None:
+        """Generates the morning briefing now (fresh weather/calendar/email,
+        same as a live request) and caches it, so a real request shortly
+        after — e.g. right after an alarm goes off — returns instantly
+        instead of waiting on live API calls. Meant to be called a few
+        minutes ahead of a known wake-up alarm (see discord_bot.py's
+        scheduled_check_loop) so the cached copy's email is fresh at the
+        moment it matters, not fetched hours earlier."""
+        self.logger.info("Pre-warming morning briefing ahead of an upcoming alarm...")
+        text = await BriefingTemplates.morning_briefing(self.tasks_db)
+        self._prewarmed_morning = (text, time.monotonic())
 
     async def generate_morning_briefing(self) -> str:
-        """Generate morning briefing."""
+        """Generate morning briefing — returns a recent prewarm_morning_briefing()
+        result instead of hitting live APIs again if one's fresh enough."""
+        if self._prewarmed_morning is not None:
+            text, generated_at = self._prewarmed_morning
+            self._prewarmed_morning = None  # one-shot -- the next call is either a fresh prewarm or a live fetch
+            if time.monotonic() - generated_at <= _MORNING_PREWARM_MAX_AGE_SECONDS:
+                self.logger.info("Using pre-warmed morning briefing")
+                return text
         self.logger.info("Generating morning briefing...")
         return await BriefingTemplates.morning_briefing(self.tasks_db)
 
