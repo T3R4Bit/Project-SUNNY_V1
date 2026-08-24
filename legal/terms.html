@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terms of Service — Project-Sunny</title>
+<style>
+  :root {
+    --bg: #f3f1ea;
+    --surface: #ffffff;
+    --border: #e2ddd0;
+    --text: #201d16;
+    --text-muted: #6b6455;
+    --accent: #b8720f;
+    --accent-strong: #8f5808;
+    --accent-soft: #f6e4c1;
+    --focus: #8f5808;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14131a;
+      --surface: #1c1a24;
+      --border: #2d2b38;
+      --text: #ece8dd;
+      --text-muted: #9b96a8;
+      --accent: #ffb703;
+      --accent-strong: #ffd166;
+      --accent-soft: #3a2f16;
+      --focus: #ffb703;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Public Sans", -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent-strong); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 1.1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 0.6rem; }
+  .mark {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, var(--accent-strong), var(--accent) 70%);
+    flex: none;
+  }
+  .word {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    font-size: 1.05rem;
+  }
+  .word small {
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 400;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    display: block;
+    margin-top: 0.1rem;
+  }
+  nav.toplinks { display: flex; gap: 1.2rem; font-size: 0.85rem; }
+  nav.toplinks a { color: var(--text-muted); text-decoration: none; }
+  nav.toplinks a:hover { color: var(--accent-strong); }
+
+  main { max-width: 700px; margin: 0 auto; padding: 3rem 1.5rem 5rem; }
+
+  .doclabel {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.9rem;
+  }
+
+  h1 {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(1.9rem, 5vw, 2.6rem);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0 0 0.6rem;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.2rem;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin: 0 0 2.6rem;
+    padding-bottom: 1.6rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .lede { font-size: 1.08rem; color: var(--text); max-width: 62ch; margin: 0 0 2.6rem; }
+
+  section { margin: 0 0 2.4rem; }
+
+  h2 {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600;
+    font-size: 1.32rem;
+    letter-spacing: -0.005em;
+    margin: 0 0 0.8rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+  }
+  h2 .n { font-family: "JetBrains Mono", monospace; font-weight: 500; font-size: 0.85rem; color: var(--accent); }
+
+  p, li { max-width: 66ch; }
+  p { margin: 0 0 0.9rem; color: var(--text); }
+  p:last-child { margin-bottom: 0; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem 1.3rem; margin: 1rem 0; }
+
+  .cross-link { margin-top: 3rem; padding-top: 1.6rem; border-top: 1px solid var(--border); font-size: 0.95rem; color: var(--text-muted); }
+
+  strong { color: var(--text); }
+
+  footer {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 0 1.5rem 3rem;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="mark" aria-hidden="true"></div>
+    <div class="word">Project-Sunny<small>PERSONAL ASSISTANT SOFTWARE</small></div>
+  </div>
+  <nav class="toplinks">
+    <a href="/legal/home">Home</a>
+    <a href="/legal/privacy">Privacy</a>
+  </nav>
+</div>
+
+<main>
+  <p class="doclabel">Legal &middot; Terms</p>
+  <h1>Terms of Service</h1>
+  <div class="meta">
+    <span>Effective 2026-08-20</span>
+    <span>Owner-operated, single-user software</span>
+  </div>
+
+  <p class="lede">Project-Sunny is personal software with one user: its owner. These terms exist mainly because Google's sign-in setup requires a terms-of-service link to exist — but they're written honestly, not as boilerplate for a service nobody else uses.</p>
+
+  <section>
+    <h2><span class="n">01</span> Who this applies to</h2>
+    <p>Sunny is not distributed, sold, or made available to the public. It runs on hardware its owner controls, for that owner's personal use only. There is no registration process because there is no one to register — these terms describe the relationship between the owner and the software they built and run, not a service being sold to a customer.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span> What Sunny does</h2>
+    <p>Sunny is an informational personal assistant: briefings, task and list tracking, reminders, and (where connected) summaries pulled from the owner's own Google Calendar and Gmail. See the <a href="/legal/privacy">Privacy Policy</a> for exactly what it accesses and why.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span> Provided as-is</h2>
+    <div class="card">
+      <p>Sunny is provided <strong>"as is,"</strong> with no warranty of any kind — no guarantee of uptime, accuracy, or availability. It's a personal project under active, ongoing development, not a finished commercial product.</p>
+    </div>
+    <p>It is an informational convenience, not a system of record. Nothing it reports — briefings, reminders, calendar or email summaries — should be relied on for anything time-critical, medical, financial, or safety-related without independently checking the original source (Google Calendar, Gmail, etc. directly).</p>
+  </section>
+
+  <section>
+    <h2><span class="n">04</span> No liability</h2>
+    <p>To the extent permitted by law, the owner isn't liable for any loss or damage arising from using, or being unable to use, Sunny — including missed reminders, inaccurate summaries, downtime, or data loss. Since the owner and the operator are the same person, this section mostly exists for completeness.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">05</span> Changes and discontinuation</h2>
+    <p>The owner may modify, extend, restrict, or shut down any part of Sunny — including revoking its own Google account access — at any time, without notice, since it's their own private software.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">06</span> Contact</h2>
+    <p>Questions about these terms can be sent to <a href="mailto:keatonstuff@gmail.com">keatonstuff@gmail.com</a>.</p>
+  </section>
+
+  <p class="cross-link">See also: <a href="/legal/privacy">Privacy Policy</a></p>
+</main>
+
+<footer>Project-Sunny — personal software, privately operated.</footer>
+</body>
+</html>

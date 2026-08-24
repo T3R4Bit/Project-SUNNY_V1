@@ -10,6 +10,18 @@ tags: [feature, briefing, morning, scheduler]
 
 Daily morning and evening briefings delivered via voice. A fixed-format script with slots filled from APIs — no LLM calls, deterministic output, fast and cheap.
 
+## Status
+
+| Section | Status |
+|---------|--------|
+| Tasks | Real — queried live from the vault (markdown, not a database) |
+| Calendar | OAuth client configured, sign-in not yet confirmed working end-to-end (see [[google-integration]]) |
+| Email | OAuth client configured, sign-in not yet confirmed working end-to-end (see [[google-integration]]) |
+| Weather | Code complete — needs `OPENWEATHERMAP_API_KEY` in `.env` **and** a location set on `/console` (a key alone isn't enough — see [[location]]) |
+| Commute, Health, News, Motorsports | Not connected — no integration built yet, and **not covered by Google sign-in** (see [[google-integration]] for why) |
+
+**The engine never fakes an answer for an unconnected source.** Instead of showing mock data as if it were real, each section/question says explicitly what's missing (e.g. "Not connected — needs OPENWEATHERMAP_API_KEY in .env"), and every time that happens it's logged to [[../../log/requests.md|sunny-vault/log/requests.md]] — see "Data Source Honesty & Request Logging" below. Calendar/email failures that happen *after* connecting (an expired grant, a live Google API error) get a distinct "temporarily unavailable — check logs" message instead, since that's a different problem than "nobody's built this yet."
+
 ## Concept
 
 Like a news anchor reading a teleprompter with live data inserted. Structure is fixed, content comes from direct API calls. Keeps token spend near zero while delivering personalized information.
@@ -24,26 +36,28 @@ Like a news anchor reading a teleprompter with live data inserted. Structure is 
 
 ## Briefing Structure
 
+The examples below show the **target format** once every source is connected. Today, only the tasks section shows real data — every other section renders a "Not connected" line instead of these example values (see Status above).
+
 ### Morning Briefing (7:00 AM)
 
 ```
-🌅 Good morning.
+Good morning.
 
-📅 You have 3 events today:
+You have 3 events today:
    - 9:00am: Biology lecture (in 2 hours)
    - 2:00pm: Lab practical (6 hours)
    - 7:00pm: Dinner with friends (expected duration 2 hours)
 
-🌡️ Weather: 72°F, partly cloudy, 20% chance of rain.
+Weather: 72°F, partly cloudy, 20% chance of rain.
 
-✅ Tasks open: 5 high-priority, 2 due today.
+Tasks open: 5 high-priority, 2 due today.
    Top priority: "Finish physics homework" (due 3:00pm)
 
-📧 Email summary: 12 new emails.
+Email summary: 12 new emails.
    Urgent: 2 (flagged)
    Action items: 3
    
-🚗 Commute: 28 minutes to campus via I-95. 
+Commute: 28 minutes to campus via I-95.
    Light traffic expected.
 
 Yesterday's incomplete:
@@ -56,22 +70,22 @@ Have a great day!
 ### Evening Briefing (9:00 PM)
 
 ```
-🌙 Good evening.
+Good evening.
 
-📊 Today recap:
+Today recap:
    - Completed 4 tasks
    - Attended 3 events
    - Processed 24 emails
 
-✅ Tasks status: 3 remaining (2 overdue)
+Tasks status: 3 remaining (2 overdue)
    Top: "Engine rebuild plan" (high priority, no due date)
 
-📅 Tomorrow preview:
+Tomorrow preview:
    - 8:30am: Gym
    - 10:00am: Physics lecture
    - 3:00pm: TA office hours
 
-🎯 Recommended: 
+Recommended:
    - Finish "physics homework" before 3pm event
    - Schedule time for "engine rebuild" planning
 
@@ -80,15 +94,38 @@ Sleep well!
 
 ## Data Sources (No LLM Required)
 
-| Data | Source | Fallback |
-|------|--------|----------|
-| Calendar events | Notion/Google Calendar API | Hardcoded example |
-| Weather | Weather API (OpenWeatherMap, etc.) | Last known forecast |
-| Tasks (open/due) | Notion or SQLite | Empty list |
-| Email (urgent/action) | Email API (header parsing) | Skip section |
-| Commute/traffic | Google Maps/traffic API | Hardcoded average time |
-| Location | Tailscale or location API | Home (default) |
-| Yesterday's incomplete | Obsidian vault or database | Query yesterday's log |
+| Data | Source | Status |
+|------|--------|--------|
+| Tasks (open/due) | Obsidian vault, markdown (`sunny-vault/state/tasks/`) | Live today |
+| Calendar events | Google Calendar API (OAuth, read-only) | Client configured, sign-in not yet confirmed, see [[google-integration]] |
+| Email (unread/important) | Gmail API (OAuth, read-only) | Client configured, sign-in not yet confirmed, see [[google-integration]] |
+| Weather | OpenWeatherMap (current + 5-day forecast) | Code complete — needs `OPENWEATHERMAP_API_KEY` + a location on `/console`, see [[location]] |
+| Commute/traffic | Google Maps/traffic API — **separate API key, not part of Google sign-in** | Not connected |
+| Location | Tailscale or location API | Not connected |
+| Yesterday's incomplete | Obsidian vault or database | Not connected |
+
+## Data Source Honesty & Request Logging
+
+The engine checks whether each source is actually wired up (`sunny_code/components/data_sources.py`) before answering with it:
+
+```python
+if is_configured("weather"):
+    ... # would call the real API (not built yet)
+else:
+    return "Not connected — needs OPENWEATHERMAP_API_KEY in .env"
+```
+
+For calendar/email, "configured" means Google sign-in is connected (`google_auth.is_connected()`), not just an env var — see [[google-integration]] for the OAuth flow and what it does and doesn't request access to.
+
+Every time a briefing section or a Q&A question hits an unconnected source — or a task command fails to parse or validate — it's appended to `sunny-vault/log/requests.md` (`sunny_code/components/request_log.py`):
+
+```
+**2026-08-19T07:00:00Z** [MORNING_BRIEFING] sections without a real data source: weather, calendar, email, commute, health, news
+**2026-08-19T09:14:02Z** [QA_QUESTION] "What's the weather?" — needs OPENWEATHERMAP_API_KEY in .env
+**2026-08-19T09:15:40Z** [TASK_COMMAND] "mark xyz as done" — Invalid update command format
+```
+
+**Why this matters**: instead of a vague TODO list, `requests.md` becomes a real usage log of exactly which integrations are actually being asked for — a natural way to prioritize which mock data source (weather, calendar, etc.) to wire up to a real API next.
 
 ## Text Generation (Hardcoded Templates)
 
@@ -101,7 +138,7 @@ def generate_morning_briefing(calendar, weather, tasks, email, traffic):
     # Calendar section
     events = calendar.get_today()
     event_text = "\n".join([
-        f"   - {e['time']}: {e['title']}" 
+        f" - {e['time']}: {e['title']}"
         for e in events
     ])
     
@@ -114,14 +151,14 @@ def generate_morning_briefing(calendar, weather, tasks, email, traffic):
     
     # ... more sections ...
     
-    return f"""🌅 {greeting}
+    return f"""{greeting}
 
-📅 You have {len(events)} events today:
+You have {len(events)} events today:
 {event_text}
 
-🌡️ Weather: {weather_text}
+Weather: {weather_text}
 
-✅ Tasks open: {len(open_tasks)} total, {task_count} high-priority...
+Tasks open: {len(open_tasks)} total, {task_count} high-priority...
 """
 ```
 
@@ -224,21 +261,23 @@ The [[dashboard]] shows:
 - [[email-processing]] — Email summary
 - [[llm-integration]] — Optional email triage
 - [[networking]] — API access
-- Calendar API — Event data
+- [[google-integration]] — Google sign-in, Calendar + Gmail API access
+- [[location]] — where weather looks, set on `/console`
 - Weather API — Forecast data
 - Traffic API — Commute data
 
 ## Implementation Checklist (Phase 2)
 
-- [ ] Calendar API integration
-- [ ] Weather API integration
-- [ ] Traffic API integration
-- [ ] Task summary query
-- [ ] Email header parsing
-- [ ] Template structure (hardcoded text)
+- [x] Template structure (hardcoded text)
+- [x] Task summary query — live against the vault (markdown, not a database)
+- [x] Honest "not connected" messaging for unconfigured sources + logging to `sunny-vault/log/requests.md`
+- [x] Calendar API integration — Google Calendar via OAuth, client configured (see [[google-integration]]), sign-in not yet confirmed working end-to-end
+- [x] Email header parsing — Gmail unread/important counts + subject lines via OAuth, same caveat as above
+- [x] Weather API integration — OpenWeatherMap current + forecast, code complete (see `sunny_code/components/weather.py`), needs `OPENWEATHERMAP_API_KEY` in `.env` + a location set on `/console` to go live (see [[location]])
+- [ ] Traffic API integration — separate from Google sign-in, needs its own Maps API key (see [[google-integration]])
 - [ ] Text-to-speech integration
 - [ ] Scheduler (7am, 9pm jobs)
-- [ ] Error handling for each API
+- [ ] Error handling for each API (once APIs exist — today's "not connected" state isn't a failure case, it's the default)
 - [ ] Dashboard integration
 - [ ] Test with [[clock]] speaker
 - [ ] Tune TTS speed/pauses

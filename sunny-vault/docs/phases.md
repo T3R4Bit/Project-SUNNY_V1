@@ -12,10 +12,10 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ---
 
-## Phase 0: Foundations (IN PROGRESS)
+## Phase 0: Foundations (MOSTLY COMPLETE)
 
-**Timeline**: This week  
-**Current Status**: Ubuntu Server 26.04 LTS install pending, BIOS decisions finalized  
+**Timeline**: This week
+**Current Status**: Ubuntu Server 26.04 LTS installed and running on the Lenovo (sunshine-m700) under a systemd unit (`Restart=always`, autostart on boot — see `SETUP_LINUX.md`). Core app — briefing engine, task system, [[architecture/lists.md|lists]], [[architecture/alarms-reminders.md|alarms/reminders]], the combined console (chat + system status, one page at `/console`), Discord bot (connected to a live server, split into a chat channel and a read-only dashboard channel — see [[architecture/discord-bot]]) — all built and working over Tailscale, now also over HTTPS (`TLS_CERTFILE`/`TLS_KEYFILE`, port 5443) for endpoints that need it, like the Google OAuth callback.
 **Deliverable**: Sunny process running locally, basic logging, systemd autostart
 
 ### Setup Tasks
@@ -23,103 +23,96 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 - [x] Decide on headless Linux OS (Ubuntu Server 26.04 LTS, switched from Debian)
 - [x] Decide on LiFePO4 battery swap and matching charger/cell sizing
 - [x] Decide on BIOS restore-on-AC-loss requirement
-- [ ] Install Ubuntu Server 26.04 LTS on Lenovo mini PC
-- [ ] Skip Featured Server Snaps at install (avoid snapd entirely rather than purging later)
-- [ ] Set BIOS to restore power state on AC loss
-- [ ] Set up Sunny as a systemd unit with Restart=always
+- [x] Install Ubuntu Server 26.04 LTS on Lenovo mini PC (headless, no GUI)
+- [x] Python env setup on the Lenovo (`run.sh` creates/manages `venv/` automatically — no manual venv step)
+- [x] Git repo + folder structure
+- [x] Logging from the start
+- [x] Set up local dashboard skeleton — now functional, not just skeleton: FastAPI app bound to `0.0.0.0:5000`, one combined console at `/console` (chat + live system/Google status — `/` and the old `/chatbot` both redirect there), sunny.db + scheduled.db via SQLite, tasks + lists stored as markdown in the vault (see [[architecture/vault-storage]])
+- [x] Set up Obsidian vault structure (inbox/staging/archive/log/state)
+
+- [x] Set BIOS to restore power state on AC loss
+- [x] Secrets via env vars + config file — `.env` (gitignored, `chmod 600` on every `run.sh` start), loaded via `sunny_code/config.py`; startup logs + Discord post what's still missing (`sunny_code/components/key_status.py`)
+- [x] Set up Sunny as a systemd unit with Restart=always
 - [ ] Disable unattended-upgrades auto-reboot, or pin to a window
-- [ ] Python env setup on the Lenovo
-- [ ] Secrets via env vars + config file
-- [ ] Git repo + folder structure
-- [ ] Logging from the start
-- [ ] Set up Obsidian vault structure (inbox/staging/archive/log/state)
-- [ ] Set up local dashboard skeleton (FastAPI, bound to Tailscale interface, sunny.db)
+- [ ] Skip Featured Server Snaps at install (avoid snapd entirely rather than purging later)
 
-### Deliverables When Complete
-
-```
-✅ Lenovo running Ubuntu Server 20.04
-✅ BIOS configured for auto-boot on power restore
-✅ Python venv with base dependencies
-✅ Sunny process starts on boot via systemd
-✅ Structured logging to logs/ folder
-✅ Obsidian vault ready (empty but structured)
-✅ Dashboard accessible at http://localhost:5000 (not yet functional)
-```
-
-**Next Step**: Phase 1 (Networking)
 
 ---
 
 ## Phase 1: Networking
 
-**Timeline**: Week 2  
-**Dependencies**: Phase 0 complete  
-**Deliverable**: All devices securely connected via Tailscale mesh
-
 ### Networking Tasks
 
-- [ ] Install Tailscale on Lenovo [[brain]]
-- [ ] Generate stable private IP for Lenovo (100.x.x.x)
-- [x] Install Tailscale on TrueNAS server
-- [x] Verify TrueNAS connectivity to Lenovo
-- [ ] Flash MicroLink firmware on future ESP32 [[clock]]
-
+- [x] Install Tailscale on Lenovo [[brain]] (sunshine-m700, 100.117.41.53)
+- [x] Generate stable private IP for Lenovo (100.117.41.53, stable)
+- [x] Install Tailscale on TrueNAS server (caliop-truenas, 100.123.58.119)
+- [x] Verify TrueNAS connectivity to Lenovo (61ms latency, reachable)
+- [x] Install Tailscale on phone (iphone181, 100.73.98.114)
+- [x] Install Tailscale on workstation (keaton-pc, 100.82.153.78)
+- [x] Fixed server binding so it's reachable over Tailscale, not just localhost (`--host 0.0.0.0`)
+- [x] Confirmed cross-device access — console (chat + system status) reachable from workstation over Tailscale
+- [x] Document all device IPs and hostnames (updated [[networking]] and [[dashboard]])
+- [ ] Test phone dashboard access via Tailscale specifically (workstation confirmed, phone not yet verified)
 - [ ] Configure Tailscale ACLs (optional, all devices trust each other for now)
-- [x] Install Tailscale on phone
-- [ ] Test phone dashboard access via Tailscale
-- [ ] Document all device IPs and hostnames
+- [ ] Flash MicroLink firmware on future ESP32 [[clock]] (pending hardware)
 
 ### Deliverables When Complete
 
 ```
-✅ Lenovo: 100.x.x.x (stable, always-on)
-✅ TrueNAS: 100.x.x.x (accessible from mesh)
-✅ Phone: Joins mesh, can ping devices
-✅ Firewall: No open ports exposed (all behind Tailscale)
-✅ Remote access: Works even away from home (DERP relays)
+Lenovo: 100.x.x.x (stable, always-on)
+TrueNAS: 100.x.x.x (accessible from mesh)
+Phone: Joins mesh, can ping devices
+Firewall: No open ports exposed (all behind Tailscale)
+Remote access: Works even away from home (DERP relays)
 ```
 
 **Next Step**: Phase 2 (Briefing Engine)
 
 ---
 
-## Phase 2: Briefing Engine
+## Phase 2: Briefing Engine (TASKS + CALENDAR + EMAIL + WEATHER LIVE, REST PENDING)
 
-**Timeline**: Week 3-4  
-**Dependencies**: Phase 0-1 complete  
+**Timeline**: Week 3-4
+**Dependencies**: Phase 0-1 complete
 **Deliverable**: Working morning and evening briefings
+
+**Current status**: The engine itself is built and working — hardcoded morning and evening templates, slot-filling text generation, and a Q&A system covering weather, calendar, email, tasks, commute, health, motorsports, news, and tomorrow. Tasks are real, queried live from the vault (`sunny-vault/state/tasks/`, markdown — not a database, see [[architecture/vault-storage]]). Calendar and email are wired via Google Sign-In (OAuth) — see [[architecture/google-integration]] — client configured, HTTPS + a PKCE bug both had to be fixed before a sign-in could complete, not yet confirmed working end-to-end. Weather is code-complete via OpenWeatherMap — needs `OPENWEATHERMAP_API_KEY` **and** `WEATHER_LOCATION` in `.env` (a key alone isn't enough — see `sunny_code/components/weather.py`). Commute, health, motorsports, and news still have no real API behind them, so instead of showing mock data as if it were live, they say so explicitly (e.g. "Not connected — needs OPENWEATHERMAP_API_KEY and WEATHER_LOCATION in .env") — see [[architecture/briefing-engine.md]]. Every time that happens (or a task command fails), it's logged to [[../log/requests.md|sunny-vault/log/requests.md]], so real usage tells us which integration to build next.
 
 ### Briefing Integration Tasks
 
-- [ ] Calendar API integration (Google Calendar or Notion)
-- [ ] Weather API integration (OpenWeatherMap or similar)
-- [ ] Traffic API integration (Google Maps)
-- [ ] Task summary queries (from Notion or SQLite)
-- [ ] Email header parsing + urgency detection
-- [ ] Hardcoded briefing template (morning + evening)
-- [ ] Text generation engine (slot-filling, no LLM)
-- [ ] Scheduling (7am morning, 9pm evening)
-- [ ] Error handling per API (fail gracefully)
+- [x] Hardcoded briefing template (morning + evening)
+- [x] Text generation engine (slot-filling, no LLM)
+- [x] Q&A engine for freeform questions (weather, calendar, tasks, commute, etc.)
+- [x] Task summary queries — live against the vault-markdown [[../TASK_SYSTEM.md|task system]] (no longer mock; moved off SQLite entirely 2026-08-19/20, see [[architecture/vault-storage]])
+- [x] Honest "not connected" messaging for every section without a real source + request logging to `sunny-vault/log/requests.md`
+- [x] Google Sign-In (OAuth) — one connect flow powering both Calendar and Gmail below. OAuth client configured, HTTPS + a PKCE bug both had to be fixed before a sign-in could complete — see [[architecture/google-integration]]
+- [x] Calendar API integration (Google Calendar, via Google Sign-In)
+- [x] Email header parsing + urgency detection (Gmail, via Google Sign-In — unread/important counts + subject lines)
+- [x] Weather API integration (OpenWeatherMap) — code complete, needs `OPENWEATHERMAP_API_KEY` in `.env` + a location set on `/console` (LOCATION card) to go live — see [[architecture/location]]
+- [ ] Traffic API integration (Google Maps — **separate from Google Sign-In**, needs its own Maps API key, see [[architecture/google-integration]])
+- [ ] Scheduling (7am morning, 9pm evening) — currently manual trigger only
+- [ ] Error handling per live API (fail gracefully) — applies once each API actually exists
 - [ ] Optional: Email triage via LLM (simple classification)
 - [ ] Obsidian staging integration (log briefings)
 - [ ] Dashboard: Show last briefing time, next scheduled, status
 
 ### Test Deliverables
 
-- [ ] Manually trigger morning briefing → see formatted text
-- [ ] Verify all API calls work
-- [ ] Test fallback behavior (API fails → briefing continues)
+- [x] Manually trigger morning briefing → see formatted text
+- [x] Verify unconnected sections say so instead of faking data, and get logged to requests.md
+- [ ] Verify all live API calls work (blocked on API integration above)
+- [ ] Test fallback behavior (API fails after being connected → briefing continues)
 - [ ] Check Obsidian logging
 
 ### Deliverables When Complete
 
 ```
-✅ 7am: Briefing generated automatically
-✅ 9pm: Evening briefing generated automatically
-✅ All data from APIs (no LLM calls except optional email triage)
-✅ Failures logged to Discord #warnings
-✅ Obsidian staging has briefing record
+7am: Briefing generated automatically (manual trigger works today)
+9pm: Evening briefing generated automatically (manual trigger works today)
+All data from live APIs (tasks live today; calendar/email code-complete pending Google sign-in; weather code-complete pending OPENWEATHERMAP_API_KEY + a location set on /console; commute/health/news still say "not connected")
+Failures logged to Discord #warnings
+Obsidian staging has briefing record
+Briefing templates + Q&A engine fully working end-to-end, tasks real, honest gaps elsewhere
 ```
 
 **Next Step**: Phase 3 (Voice Hardware & TTS)
@@ -128,9 +121,8 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 3: Voice Out / Clock Hardware
 
-**Timeline**: TBD (deprioritized, will come after Phase 2 proven on Lenovo)  
-**Dependencies**: Phase 0-2 complete (briefing ready to output)  
-**Status**: DEPRIORITIZED — Clock hardware deferred pending core Lenovo functionality  
+**Timeline**: Week 5-6
+**Dependencies**: Phase 0-2 complete (briefing ready to output)
 **Deliverable**: Working bedside clock with voice output, battery backup, alarm
 
 ### Hardware Assembly Tasks
@@ -149,7 +141,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ### Software Tasks
 
 - [ ] Sonic API integration for TTS
-- [ ] Piper TTS fallback (download model)
+- [x] Piper TTS fallback (download model) — built ahead of the hardware, 2026-08-20, as a standalone `/speak` Discord slash command (no Clock device needed for this piece) — see [[architecture/tts-piper]]. Still needed here: wiring Piper as the actual *fallback* once Sonic API + the Clock's audio streaming exist.
 - [ ] Audio streaming from Lenovo to Clock
 - [ ] Speaker amplifier control
 - [ ] OLED display driver (time, status, messages)
@@ -167,12 +159,12 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ### Deliverables When Complete
 
 ```
-✅ Clock device: Physical hardware working
-✅ On mains: Time displayed, charging
-✅ On battery: Continues for 12+ hours
-✅ Alarm: Fires on schedule, survives power cut
-✅ Voice output: Sonic API TTS + Piper fallback
-✅ Tailscale: Clock accessible from Lenovo via mesh
+Clock device: Physical hardware working
+On mains: Time displayed, charging
+On battery: Continues for 12+ hours
+Alarm: Fires on schedule, survives power cut
+Voice output: Sonic API TTS + Piper fallback
+Tailscale: Clock accessible from Lenovo via mesh
 ```
 
 **Next Step**: Phase 4 (Voice In / Wake Word)
@@ -181,9 +173,8 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 4: Voice In / Wake Word Detection
 
-**Timeline**: TBD (depends on Phase 3, deprioritized)  
-**Dependencies**: Phase 3 complete (Clock hardware ready)  
-**Status**: DEPRIORITIZED — Awaiting clock hardware  
+**Timeline**: Week 7-8
+**Dependencies**: Phase 3 complete (Clock hardware ready)
 **Deliverable**: Wake word detection, STT, intent routing
 
 ### Wake Word & STT Tasks
@@ -194,7 +185,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
   - "Hello Sunny"
   - "Sunny [command]"
 - [ ] Whisper API integration (STT)
-- [ ] Fallback: Vosk or local Whisper (offline option)
+- [x] Fallback: Vosk or local Whisper (offline option) — built ahead of the hardware, 2026-08-20, as `/join` in Discord (Vosk, not Whisper — free/local was the explicit choice, matching every other engine decision this session). No Clock device needed for this piece; see [[architecture/voice-join]]. Still needed here: Whisper API as the *primary* STT once the Clock hardware exists, per this section's original framing.
 - [ ] I2S audio streaming from Clock to Lenovo
 - [ ] Audio buffering + wake word detection loop
 
@@ -219,11 +210,11 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ### Deliverables When Complete
 
 ```
-✅ Wake word detection: Local, low false-positive rate
-✅ STT: Captures user speech accurately
-✅ Intent routing: Hardcoded patterns + LLM for ambiguous
-✅ Response: TTS back to user
-✅ Latency: <5s from wake word to response
+Wake word detection: Local, low false-positive rate
+STT: Captures user speech accurately
+Intent routing: Hardcoded patterns + LLM for ambiguous
+Response: TTS back to user
+Latency: <5s from wake word to response
 ```
 
 **Next Step**: Phase 5 (Phone Integration)
@@ -232,10 +223,9 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 5: Telephony / Phone Calls
 
-**Timeline**: Week 4-5 (can start after Phase 2 without clock)  
-**Dependencies**: Phase 0-2 complete (briefing engine + LLM routing working)  
-**Status**: Can proceed in parallel with clock hardware  
-**Deliverable**: Callable voice interface, live conversation, remote tasking (text-based for now, voice TTS handled by Lenovo)
+**Timeline**: Week 8-9
+**Dependencies**: Phase 4 complete (voice I/O working)
+**Deliverable**: Callable voice interface, live conversation, remote tasking
 
 ### Twilio Setup Tasks
 
@@ -262,12 +252,12 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 ### Deliverables When Complete
 
 ```
-✅ Twilio number: Active, receives calls
-✅ Authentication: Caller ID + PIN
-✅ Live conversation: STT → LLM → TTS (real-time)
-✅ Task creation: From phone commands
-✅ Confirmation: Important actions require user okay
-✅ Cost: <$1/month expected
+Twilio number: Active, receives calls
+Authentication: Caller ID + PIN
+Live conversation: STT → LLM → TTS (real-time)
+Task creation: From phone commands
+Confirmation: Important actions require user okay
+Cost: <$1/month expected
 ```
 
 **Next Step**: Phase 6 (Optional) + Phases 7-Ongoing
@@ -276,8 +266,8 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 6: Remote Power Control (DEPRIORITIZED)
 
-**Timeline**: Later (lower priority)  
-**Dependencies**: Phase 5 complete  
+**Timeline**: Later (lower priority)
+**Dependencies**: Phase 5 complete
 **Deliverable**: Remote wake/shutdown of desktop PC
 
 ### Tasks
@@ -291,7 +281,7 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ## Phase 7: Custom Hardware Finalization (MUCH LATER)
 
-**Timeline**: After Phase 5 proven  
+**Timeline**: After Phase 5 proven
 **Deliverable**: Move from breadboards to custom PCB
 
 ### Tasks
@@ -303,40 +293,54 @@ Complete breakdown of Project SUNNY's build timeline with dependencies, delivera
 
 ---
 
+## Backlog
+
+Deferred items not yet slotted into a phase — see [[BACKLOG.md]]. Service orchestration's systemd unit and single-command startup are done; per-service runtime toggle and autostart-per-service config are still open. BACKLOG.md has grown well beyond orchestration since this was last written — task-system rework, Spotify voice control, web search, and a large college/fitness/knowledge/proactivity section (see [[architecture/personal-assistant-vision]]) are also sitting there unslotted.
+
+---
+
 ## Ongoing / Cross-Cutting (All Phases)
 
 Work on these in parallel, integrate incrementally:
 
 ### Discord Activity Log
-- [ ] Set up Discord server + channels:
-  - `#briefings` — Briefing output
-  - `#calendar-actions` — Calendar updates
-  - `#email-actions` — Email processing
-  - `#task-updates` — Task changes
-  - `#state-changes` — Sleep/wake mode
-  - `#warnings` — API errors, credential expiry
-  - `#direct-chat` — Live chat alternative
-  - `#notion-sync` — What got pushed to Notion
-- [ ] Bot integration: Log all actions
-- [ ] Permanent searchable audit trail
+
+A single command-channel bot is built and connected to a live server — see [[architecture/discord-bot.md]], [[TASK_SYSTEM.md]], [[architecture/lists.md]], and [[architecture/alarms-reminders.md]]. It handles Tasks, Lists, Alarms/Reminders, and server administration (create/delete channels & roles — see below), all read from one `#chat`-style command channel (`DISCORD_CHAT_CHANNEL_ID`). The pinned task dashboard now lives in its own separate, read-only channel (`DISCORD_TASKS_CHANNEL_ID`, optional, falls back to chat if unset) — added 2026-08-20 so a busy chat doesn't bury the dashboard. Three of the eight originally-planned output channels are now built as optional destinations the bot *posts* to (still only reads commands from the chat channel):
+
+- [x] `#task-updates` — Task changes (create/update/delete), from any interface
+- [x] `#warnings` (named `#errors` on the live server) — API errors, missing credentials; live and configured, posts here instead of the chat channel
+- [x] `#chat` — this **is** the existing command channel (`DISCORD_CHAT_CHANNEL_ID`), name it whatever you like
+- [x] `#briefings` — Briefing output, cross-posted whenever "morning"/"evening" is typed in the command channel
+- [ ] `#calendar-actions` — Calendar updates — **blocked**: Calendar is read-only Q&A today (see [[architecture/google-integration]]), nothing ever *takes an action* on it to log
+- [ ] `#email-actions` — Email processing — **blocked**: same reason, Gmail is read-only Q&A today
+- [ ] `#state-changes` — Sleep/wake mode — **blocked**: this concept isn't tracked anywhere in the codebase yet
+- [ ] `#notion-sync` — What got pushed to Notion — **blocked**: no Notion integration exists at all
+- [x] Bot integration: Log all actions — done for the four channels above that have something to log
+- [ ] Permanent searchable audit trail — the channels themselves *are* a searchable log today (Discord's own search); a separate persisted audit trail beyond that isn't built
+
+**Also built, not in the original plan**: server administration — `create/delete channel <name>`, `create/delete role <name>`, `give/remove <@user>` a role, `list channels`/`list roles`. See [[architecture/discord-bot.md]] for the full command list and the two safety guardrails.
 
 ### Priority Scheduler
-- [ ] Queue system for concurrent requests
+- [ ] Queue system for concurrent requests — `llm_client.py` has a lightweight `asyncio.Semaphore(1)` stand-in (caps in-flight LLM calls at 1), not a real priority queue
 - [ ] Foreground (user interaction) preempts background
 - [ ] Example: Phone call stops briefing playback
 - [ ] Dashboard: Show active tasks + queue depth
 
+Still fully unbuilt as a real scheduler — no concrete concurrent-caller scenario exists yet (would need [[phone]]/[[clock]] hardware). See [[architecture/llm-readiness]].
+
 ### Token Circuit Breaker
-- [ ] Track LLM usage in real-time
-- [ ] Alert if burning tokens too fast
-- [ ] Pause execution, ask user to continue/halt
-- [ ] Hard cap at provider level (Anthropic: $20/mo)
+- [x] Track LLM usage in real-time — `token_tracker.py`, tested (`record_usage`/`get_today_usage`, per-model breakdown, live in `sunny.db`)
+- [ ] Alert if burning tokens too fast — only a cumulative cap exists, not a burn-rate/velocity alert
+- [x] Pause execution — `llm_client.ask_claude()` refuses (returns `None`) once `check_budget()` fails, automatically, every call. **Not built**: interactively asking the user to continue/halt — it just pauses silently until the cap window rolls over
+- [ ] Hard cap at provider level (Anthropic: $20/mo) — external, user action at console.anthropic.com; the in-app cap above is self-tracked, not authoritative billing
+
+Full breakdown: [[architecture/llm-readiness]].
 
 ### Spending Caps
-- [ ] Set hard limits on Anthropic account ($20/mo)
-- [ ] Set hard limits on Twilio account ($10/mo)
-- [ ] Monitor daily spend on dashboard
-- [ ] Alert in Discord if approaching limits
+- [ ] Set hard limits on Anthropic account ($20/mo) — external, user action
+- [ ] Set hard limits on Twilio account ($10/mo) — no Twilio integration exists yet, unrelated to this pass
+- [x] Monitor daily spend on dashboard — `GET /api/dashboard/spend/today` and `/spend/month`, tested
+- [ ] Alert in Discord if approaching limits — not built, logs only today
 
 ### TrueNAS Integration
 - [ ] Media update logging to Discord
@@ -355,9 +359,12 @@ Work on these in parallel, integrate incrementally:
 - [ ] Location-aware departure nudges
   - Track location, suggest when to leave
   - Integrate with Discord notifications
+  - Natural extension of [[architecture/location|the location store]] — swap its
+    single static value for a per-session/per-device one instead of adding a
+    separate system
 - [ ] Nightly wind-down briefing (evening recap)
 - [ ] Auto-draft email replies (review before send)
-- [ ] Proactive calendar updates (detect changes, update automatically)
+- [ ] Proactive calendar updates (detect changes, update automatically) — different from the user-initiated calendar write below: this is Sunny noticing something and acting on its own
 
 ---
 
@@ -365,15 +372,15 @@ Work on these in parallel, integrate incrementally:
 
 | Milestone | Target | Status |
 |-----------|--------|--------|
-| Phase 0: Foundations | Week 1 | 🔄 In Progress |
-| Phase 1: Networking | Week 2 | ⏳ Upcoming |
-| Phase 2: Briefing | Week 3-4 | ⏳ Upcoming |
-| **MVP (Lenovo only)**: 0-2 + 5 | End September | 🚀 Target |
-| Phase 3: Clock Hardware | TBD (later) | ⏸️  Deprioritized |
-| Phase 4: Wake Word | TBD (depends on 3) | ⏸️  Deprioritized |
-| Phase 5: Phone | Week 4-5 | ⏳ Upcoming |
-| Phase 6: Power Control | Q4 2026+ | ⏳ Optional |
-| Phase 7: Custom PCB | Q4 2026+ | ⏳ Nice-to-have |
+| Phase 0: Foundations | This week | Mostly complete — only minor OS config remaining (unattended-upgrades reboot window, skip Snaps at install) |
+| Phase 1: Networking | Week 2 | Mostly complete — phone verification + ACLs remaining |
+| Phase 2: Briefing | Week 3-4 | Templates/Q&A + Calendar/Gmail/Weather code-complete (needs sign-in/keys) — commute/health/news remaining |
+| Phase 3: Clock Hardware | Week 5-6 | Upcoming |
+| Phase 4: Wake Word | Week 7-8 | Upcoming |
+| Phase 5: Phone | Week 8-9 | Upcoming |
+| **MVP**: All 0-5 complete | End Sept 2026 | Target |
+| Phase 6: Power Control | Q4 2026 | Optional |
+| Phase 7: Custom PCB | Q4 2026+ | Nice-to-have |
 
 ---
 
@@ -382,14 +389,14 @@ Work on these in parallel, integrate incrementally:
 ```
 Phase 0
   ├─→ Phase 1 (Networking)
-  │   ├─→ Phase 2 (Briefing)
-  │   │   ├─→ Phase 3 (Clock Hardware)
-  │   │   │   ├─→ Phase 4 (Wake Word)
-  │   │   │   │   ├─→ Phase 5 (Phone)
-  │   │   │   │   └─→ Phase 6 (Power Control)
-  │   │   │   └─→ Phase 7 (Custom PCB)
-  │   │   └─→ Ongoing (Discord, Costs, etc.)
-  │   └─→ Ongoing (Priority Queue, Circuit Breaker, etc.)
+  │ ├─→ Phase 2 (Briefing)
+  │ │ ├─→ Phase 3 (Clock Hardware)
+  │ │ │ ├─→ Phase 4 (Wake Word)
+  │ │ │ │ ├─→ Phase 5 (Phone)
+  │ │ │ │ └─→ Phase 6 (Power Control)
+  │ │ │ └─→ Phase 7 (Custom PCB)
+  │ │ └─→ Ongoing (Discord, Costs, etc.)
+  │ └─→ Ongoing (Priority Queue, Circuit Breaker, etc.)
   └─→ Ongoing (Obsidian Vault, Logging, etc.)
 ```
 

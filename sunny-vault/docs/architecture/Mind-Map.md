@@ -26,7 +26,7 @@ Overview of Project SUNNY's major components and how they interact.
 - [[briefing-engine]] — Morning/evening briefings from calendar, weather, tasks
 - [[email-processing]] — Email triage and filtering
 - [[calendar-integration]] — Calendar sync and event tracking
-- [[task-system]] — Task management with Discord dashboard
+- [[../TASK_SYSTEM.md|task-system]] — Task management; Discord bot dashboard is the planned primary interface (not yet built), web chatbot is the working fallback today
 
 ### Intelligence & Control
 - [[llm-integration]] — Claude API for reasoning and judgment
@@ -85,24 +85,15 @@ See [[design-principles]] for core philosophy:
 
 ## Current Phase
 
-See [[build-timeline]] for detailed phases and progress.
+See [[../phases.md]] for the authoritative, detailed phase breakdown and checklists — this section is just a summary and can drift, so treat phases.md as the source of truth.
 
-**Phase 0 (Foundations)**: In progress
-- [x] Debian/Ubuntu setup on Lenovo
-- [x] BIOS configuration
-- [ ] Systemd unit setup
-- [ ] Python environment
-- [ ] Local dashboard skeleton
-- [ ] Obsidian vault structure (done)
+**Phase 0 (Foundations)**: Mostly complete — Ubuntu Server 26.04 LTS (headless) installed and running under a systemd unit (autostart, `Restart=always`), briefing engine + task system + chatbot UI + system console + Discord bot (connected and live) all built.
 
-**Phase 1 (Networking)**: Next
-- Join Lenovo to Tailscale
-- ESP32 Clock setup
+**Phase 1 (Networking)**: Mostly complete — Lenovo, TrueNAS, phone, and workstation all joined to the Tailscale mesh, now also serving HTTPS (Tailscale-issued cert) alongside plain HTTP. Phone-specific verification and ACLs still outstanding.
 
-**Phase 2 (Features)**: After networking
-- Briefing engine
-- Voice I/O
-- Phone integration
+**Phase 2 (Briefing Engine)**: Templates and Q&A engine fully built. Tasks and weather are live; Calendar/Gmail are wired via Google Sign-In (client configured, sign-in not yet confirmed working end-to-end); traffic/commute not started.
+
+**Phase 3+ (Clock hardware, voice I/O, phone, Discord bot)**: Not yet started.
 
 ## Cost & Resources
 
@@ -135,9 +126,9 @@ See [[build-timeline]] for detailed phases and progress.
 
 ## Next Steps
 
-1. **Phase 0**: Complete Lenovo setup (systemd, Python env, local dashboard)
-2. **Phase 1**: Join to Tailscale, start ESP32 Clock hardware assembly
-3. **Phase 2**: Build briefing engine (first real feature)
-4. **Phase 3+**: Voice I/O, phone, advanced features
+1. **Phase 0**: Set up Sunny as a systemd unit (currently runs via `./run.sh`, not yet auto-starting on boot)
+2. **Phase 1**: Verify phone dashboard access over Tailscale specifically, optional ACLs
+3. **Phase 2**: Replace mock data sources (calendar, weather, traffic, email) with real APIs
+4. **Phase 3+**: ESP32 Clock hardware assembly, voice I/O, phone integration, Discord bot
 
-See individual component docs for implementation details.
+See individual component docs and [[../phases.md]] for implementation details.

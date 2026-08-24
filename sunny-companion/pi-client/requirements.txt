@@ -1,0 +1,11 @@
+# Runs on the Pi (or, for now, a dev machine for local testing) --
+# separate from the root requirements.txt, which is the server's.
+openwakeword>=0.6.0
+sounddevice>=0.4.6
+numpy>=1.26.0
+websockets>=12.0
+requests>=2.31.0
+# pygame-ce, not pygame -- upstream pygame has no Python 3.14 wheel yet and
+# fails to build from source without MSYS2 set up. pygame-ce is a drop-in
+# compatible fork (same `import pygame`) with a prebuilt 3.14 wheel.
+pygame-ce>=2.5.0  # face_renderer/ (Phase 4)

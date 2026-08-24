@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project-Sunny</title>
+<style>
+  :root {
+    --bg: #f3f1ea;
+    --surface: #ffffff;
+    --border: #e2ddd0;
+    --text: #201d16;
+    --text-muted: #6b6455;
+    --accent: #b8720f;
+    --accent-strong: #8f5808;
+    --accent-soft: #f6e4c1;
+    --focus: #8f5808;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14131a;
+      --surface: #1c1a24;
+      --border: #2d2b38;
+      --text: #ece8dd;
+      --text-muted: #9b96a8;
+      --accent: #ffb703;
+      --accent-strong: #ffd166;
+      --accent-soft: #3a2f16;
+      --focus: #ffb703;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Public Sans", -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: var(--accent-strong); }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 1.1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 0.6rem; }
+  .mark {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, var(--accent-strong), var(--accent) 70%);
+    flex: none;
+  }
+  .word {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    font-size: 1.05rem;
+  }
+  .word small {
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 400;
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    display: block;
+    margin-top: 0.1rem;
+  }
+  nav.toplinks { display: flex; gap: 1.2rem; font-size: 0.85rem; }
+  nav.toplinks a { color: var(--text-muted); text-decoration: none; }
+  nav.toplinks a:hover { color: var(--accent-strong); }
+
+  main { max-width: 760px; margin: 0 auto; padding: 0 1.5rem; }
+
+  .hero { padding: 3.4rem 0 2.6rem; border-bottom: 1px solid var(--border); }
+  .doclabel {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 0.9rem;
+  }
+  h1 {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600;
+    font-size: clamp(2.1rem, 6vw, 3rem);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+    margin: 0 0 0.9rem;
+  }
+  .lede {
+    font-size: 1.12rem;
+    color: var(--text-muted);
+    max-width: 56ch;
+    margin: 0;
+  }
+  .purpose {
+    margin-top: 1.3rem;
+    padding: 1rem 1.2rem;
+    background: var(--accent-soft);
+    border-radius: 10px;
+    font-size: 0.98rem;
+    max-width: 56ch;
+  }
+  .purpose strong { color: var(--accent-strong); }
+
+  section.body { padding: 2.6rem 0; border-bottom: 1px solid var(--border); }
+  section.body:last-of-type { border-bottom: none; }
+
+  h2 {
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 600;
+    font-size: 1.32rem;
+    letter-spacing: -0.005em;
+    margin: 0 0 0.9rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+  }
+  h2 .n {
+    font-family: "JetBrains Mono", monospace;
+    font-weight: 500;
+    font-size: 0.85rem;
+    color: var(--accent);
+  }
+
+  p { max-width: 62ch; margin: 0 0 0.9rem; color: var(--text); }
+  p:last-child { margin-bottom: 0; }
+  p.muted { color: var(--text-muted); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.9rem;
+    margin-top: 1rem;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.1rem 1.2rem;
+  }
+  .card h3 {
+    font-family: "Public Sans", sans-serif;
+    font-weight: 600;
+    font-size: 0.98rem;
+    margin: 0 0 0.35rem;
+  }
+  .card p { font-size: 0.9rem; color: var(--text-muted); margin: 0; max-width: none; }
+
+  .legal-links { display: flex; flex-wrap: wrap; gap: 0.7rem; }
+  .legal-links a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 0.92rem;
+    background: var(--surface);
+  }
+  .legal-links a:hover { border-color: var(--accent); color: var(--accent-strong); }
+
+  footer {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 3rem;
+    font-family: "JetBrains Mono", monospace;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="mark" aria-hidden="true"></div>
+    <div class="word">Project-Sunny<small>PERSONAL ASSISTANT SOFTWARE</small></div>
+  </div>
+  <nav class="toplinks">
+    <a href="/legal/privacy">Privacy</a>
+    <a href="/legal/terms">Terms</a>
+  </nav>
+</div>
+
+<main>
+  <div class="hero">
+    <p class="doclabel">Home</p>
+    <h1>A personal assistant, built by one person, for one person.</h1>
+    <p class="lede">Project-Sunny runs on hardware its owner controls, answers to nobody but them, and isn't offered as a service to anyone else.</p>
+    <div class="purpose"><strong>Purpose:</strong> Project-Sunny is a self-hosted home assistant application. It delivers daily briefings (weather, calendar, tasks), tracks tasks/lists/reminders, and — with the owner's Google sign-in — reads the owner's own Calendar and Gmail (read-only) to include in those briefings. It has one user: its owner.</p>
+  </div>
+
+  <section class="body">
+    <h2><span class="n">01</span> What it does</h2>
+    <p>Sunny handles the everyday stuff a home assistant should: morning and evening briefings, tasks and lists, alarms and reminders, and — where connected — a quick read on what's coming up in Calendar and what's new in Gmail. Most of it runs on plain pattern matching, not a language model; the owner can talk to it through a private web console or a Discord bot in their own server.</p>
+    <div class="grid">
+      <div class="card"><h3>Briefings</h3><p>Weather, calendar, and tasks, summarized on request.</p></div>
+      <div class="card"><h3>Tasks &amp; Lists</h3><p>Stored as plain markdown, readable outside the app too.</p></div>
+      <div class="card"><h3>Alarms &amp; Reminders</h3><p>Deterministic time parsing, delivered over Discord.</p></div>
+      <div class="card"><h3>Calendar &amp; Gmail</h3><p>Read-only, only for the owner's own account.</p></div>
+    </div>
+  </section>
+
+  <section class="body">
+    <h2><span class="n">02</span> Who this is for</h2>
+    <p class="muted">Just the owner. There's no sign-up, no other accounts, and no plan to open it up — it's a personal project, not a product. If you've landed here from a Google sign-in screen, that's because you <em>are</em> the owner, connecting your own Google account to your own private instance.</p>
+  </section>
+
+  <section class="body">
+    <h2><span class="n">03</span> Legal</h2>
+    <div class="legal-links">
+      <a href="/legal/privacy">Privacy Policy &rarr;</a>
+      <a href="/legal/terms">Terms of Service &rarr;</a>
+    </div>
+  </section>
+</main>
+
+<footer>Project-Sunny — personal software, privately operated. Contact: keatonstuff@gmail.com</footer>
+</body>
+</html>

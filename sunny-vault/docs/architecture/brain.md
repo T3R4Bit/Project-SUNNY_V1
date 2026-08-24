@@ -20,18 +20,18 @@ The always-on central compute for Project SUNNY. Runs Sunny core process, handle
 
 ## Operating System
 
-- **OS**: Ubuntu Server 20.04 LTS, headless
-- **No GUI**: Headless operation, lighter weight, zero display overhead
-- **SSH**: Remote access only
+- **OS**: Ubuntu Server 26.04 LTS
+- **GUI**: None — runs headless
+- **SSH**: Remote access available (primary way in, since there's no GUI)
 
 ## Critical BIOS Settings
 
-- ✅ **Restore Power State on AC Loss**: ENABLED
+- **Restore Power State on AC Loss**: ENABLED
   - Auto-boots when power is restored after outage
   - Essential for alarm reliability
-- ✅ **Boot Order**: Local disk first, no USB/PXE
-- ✅ **Sleep/Suspend**: Disabled (always-on)
-- ❌ **Unattended-upgrades auto-reboot**: Disabled (can't miss 3am reboot)
+- **Boot Order**: Local disk first, no USB/PXE
+- **Sleep/Suspend**: Disabled (always-on)
+- **Unattended-upgrades auto-reboot**: Disabled (can't miss 3am reboot)
 
 ## Systemd Configuration
 
@@ -39,33 +39,30 @@ Sunny runs as a systemd user service with auto-restart:
 
 ```ini
 [Unit]
-Description=Sunny Voice Assistant
-After=network-online.target
-Wants=network-online.target
+Description=Project SUNNY Assistant
+After=network.target
 
 [Service]
 Type=simple
-User=keato
-WorkingDirectory=/home/keato/sunny
-ExecStart=/home/keato/sunny-env/bin/python main.py
+User=sunny
+WorkingDirectory=/home/sunny/Project-SUNNY
+ExecStart=/home/sunny/Project-SUNNY/run.sh server
 Restart=always
 RestartSec=10
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
 ```
 
 **Restart=always**: If Sunny crashes, systemd restarts it within 10 seconds.
 
+See [[../../SETUP_LINUX.md]] for the exact `systemctl` commands to install this unit.
+
 ## Python Environment
 
-```bash
-python3 -m venv ~/sunny-env
-source ~/sunny-env/bin/activate
-pip install -r requirements.txt
-```
+`run.sh` owns the virtual environment end-to-end — it creates `venv/` on first run, activates it, and installs `requirements.txt`. There is no manual `python3 -m venv` / `source .../activate` step; systemd invokes `run.sh` directly, and the launcher handles the rest.
 
-**No Docker, no Proxmox**: Single process in venv under systemd. Simpler to debug at 2am.
+**No Docker, no Proxmox**: Single process in an auto-managed venv under systemd. Simpler to debug at 2am.
 
 ## Networking
 
@@ -143,10 +140,10 @@ Priority Queue → Intent Router → [[llm-integration|Claude API]] or Direct AP
 
 ## Next Steps (Phase 0)
 
-- [x] Install Ubuntu Server 20.04
+- [x] Install Ubuntu Server 26.04 LTS
 - [x] Configure BIOS
+- [x] Join Tailscale network (Phase 1)
+- [x] Set up basic logging
+- [x] Python environment (handled automatically by `run.sh`, no manual venv step)
 - [ ] Set up systemd unit
 - [ ] Disable unattended-upgrades auto-reboot
-- [ ] Create Python venv
-- [ ] Set up basic logging
-- [ ] Join Tailscale network (Phase 1)

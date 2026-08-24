@@ -68,7 +68,7 @@ Sunny plays a distinct short sound whenever it pings the LLM (so it's audibly cl
 ### Compute
 
 - **Brain**: existing Lenovo mini PC, always-on. Can connect to a monitor if needed for setup and debugging.
-- **Operating system**: Ubuntu Server 26.04 LTS, headless, no desktop environment. Chosen over Debian for newer hardware support via the HWE kernel, a larger community/troubleshooting base for a hobby build, and smoother NVIDIA/CUDA tooling if a GPU ever ends up in the Lenovo itself. 26.04 chosen over 24.04 LTS for the longer support window, with the plan to fall back to 24.04 LTS if anything on the freshest release proves flaky. Snap declined at install (skip Featured Server Snaps) rather than purged after.
+- **Operating system**: Ubuntu Server 26.04 LTS. Chosen over Debian for newer hardware support via the HWE kernel, a larger community/troubleshooting base for a hobby build, and smoother NVIDIA/CUDA tooling if a GPU ever ends up in the Lenovo itself. 26.04 chosen over 24.04 LTS for the longer support window, with the plan to fall back to 24.04 LTS if anything on the freshest release proves flaky. *Actual install*: the installer initially brought in a desktop environment; that GUI has since been removed and the box now runs headless (SSH-only access). Snap declined at install (skip Featured Server Snaps) rather than purged after.
 - **BIOS**: set to restore power state on AC loss (usually under Power Management). This is critical and easy to overlook. The Clock has a battery so a power cut does not kill the alarm, but if the Lenovo does not boot back up when power returns, the Clock has nothing to talk to and the battery achieves nothing.
 - **Sunny runs as a systemd unit** with Restart=always. This is the actual mechanism for surviving crashes and reboots.
 - **Disable unattended-upgrades** automatic reboot, or pin it to a chosen window. A security patch rebooting the box at 3am is a missed alarm.
@@ -213,26 +213,29 @@ Needs a queue or priority scheduler design so active foreground requests always 
 
 ## Obsidian Vault Structure
 
-Two distinct things live in the vault with different lifecycles, and they should not share a tree:
+Four distinct things live in the vault with different lifecycles, and they should not share a tree:
 
-- **Staging**: transient. Pushed to Notion, then moves out.
+- **Staging**: transient. Pushed to Notion, then moves out. *(Planned — nothing writes here yet.)*
 - **Log mirror**: permanent, append-only, never syncs anywhere.
+- **Live state**: Sunny-owned, mutable, neither transient-then-pushed nor append-only-forever — Sunny is the sole writer, files get rewritten in place as things change. *(Built — see [[architecture/vault-storage]].)*
+- **Instructions**: hand-authored, rarely-changing, Sunny-read-only except for the user's own edits — LLM system prompts, one file per task. Not transient (nothing pushes it out), not append-only (it's meant to be edited in place), not Sunny-owned (the user writes these, Sunny only reads them). *(Built — see [[architecture/llm-instructions]].)*
 
 ```
 sunny-vault/
-├── inbox/        raw capture, unparsed
-├── staging/      structured items awaiting Notion push
-├── archive/      already pushed, kept locally
-├── log/          2026/08/2026-08-17.md — Discord mirror
-└── state/        sleep mode, token counters, sync cursor
+├── inbox/         raw capture, unparsed
+├── staging/       structured items awaiting Notion push
+├── archive/       already pushed, kept locally
+├── log/           2026/08/2026-08-17.md — Discord mirror; also requests.md, llm-usage.md, health-checks.md
+├── state/         tasks/, lists/, alarms-reminders.md, health-check.md, sleep mode, sync cursor
+└── instructions/  one file per LLM task's system prompt, hand-edited
 ```
 
-- **One file per item**, never a shared append target. The core process runs concurrent async tasks across four input surfaces. If they all append to a single daily file, that invents a locking problem for no reason. One file per item means zero write contention.
+- **One file per item**, never a shared append target. The core process runs concurrent async tasks across four input surfaces. If they all append to a single daily file, that invents a locking problem for no reason. One file per item means zero write contention. This is also why Tasks/Lists (`state/tasks/`, `state/lists/`) are one-file-per-task/list, not one shared file.
 - **Every staging file carries frontmatter**: `id`, `type`, `status`, `source`, `created`, `notion_id`.
 - **The sync sweeper** scans for `status: pending`, batches them into a single Notion call, writes back `synced` plus the returned `notion_id`, then moves the file to `archive/`. The `id` field is what makes retries safe: a half-failed push can be re-run against the same IDs without creating duplicates.
-- **Atomic writes**: write to a `.tmp` file, then `os.rename()`. A sweeper reading a file mid-write parses garbage. Rename is atomic on Linux, so the file either does not exist or is complete. This is the failure that otherwise appears at 3am.
+- **Atomic writes**: write to a `.tmp` file, then replace it into place. A sweeper (or anything else) reading a file mid-write parses garbage otherwise. **Platform note**: use `os.replace()`, not `os.rename()` — `rename()` is only an atomic *overwrite* on POSIX; on Windows it raises `FileExistsError` if the destination already exists. This only bit us once something actually got rewritten repeatedly (Tasks/Lists' vault storage, developed on Windows) rather than written once and left alone (the log mirror here, which only ever runs on the Linux production box) — worth keeping in mind if this pattern gets reused anywhere else.
 - **The `log/YYYY/MM/` nesting** is functional, not cosmetic. Obsidian's indexer degrades badly past roughly ten thousand files in a single folder; the nesting is what keeps the vault openable in a year.
-- The Dataview plugin renders a live pending-sync dashboard off that frontmatter for free, with no work required from Sunny.
+- The Dataview plugin renders a live pending-sync dashboard off that frontmatter for free, with no work required from Sunny. (Not actually installed in the vault yet as of this writing — the frontmatter is written Dataview-ready for whenever it is.)
 
 ---
 
@@ -268,6 +271,8 @@ Of the sixteen services, only Claude, Sonic, and Twilio cost money per use. The 
 - Sunny tracks token usage in real time during any task or conversation
 - If usage crosses a defined threshold (total tokens for the task, or an unusually high burn rate), Sunny pauses execution immediately rather than continuing to spend
 - Sends a Discord message explaining what it was doing when it paused, and asks whether to continue or halt and save the current state for later
+
+**Status**: the core of this — real-time usage tracking and a hard spend-cap pause — is built (`sunny_code/components/token_tracker.py`, `llm_client.py`), ahead of any actual LLM feature existing to trigger it. The burn-rate detection and interactive Discord continue/halt prompt described above aren't built — today it's a cumulative daily/monthly cap that silently refuses further calls, not an interactive pause. See [[architecture/llm-readiness]] for the full built-vs-not breakdown.
 
 ---
 

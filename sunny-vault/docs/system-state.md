@@ -29,7 +29,7 @@ last_updated: 2026-08-18T14:30:00Z
 
 ---
 
-## Token Counters (Daily Reset at Midnight)
+## Token Counters (Daily Reset at at 4am)
 
 ```yaml
 tokens:

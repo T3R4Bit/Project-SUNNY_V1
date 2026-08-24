@@ -90,23 +90,33 @@ Once on mesh, all devices reach each other:
 
 - **Clock → Brain**: Sends wake word audio, receives TTS stream
   ```
-  Clock (100.1.1.5) → Brain (100.1.1.2:8000)
+  Clock (100.x.x.x) → Brain (100.117.41.53:8000)
   ```
 
 - **Brain → TrueNAS**: Push logs, pull media metadata
   ```
-  Brain (100.1.1.2) → TrueNAS (100.1.1.10:8080)
+  Brain (100.117.41.53) → TrueNAS (100.123.58.119:8080)
   ```
 
 - **Phone → Brain**: Access local dashboard
   ```
-  Phone (100.1.1.20) → Brain (100.1.1.2:5000)
+  Phone (100.73.98.114) → Brain (100.117.41.53:5000)
   ```
 
 - **Outside home**: Same addresses work via DERP relays
   ```
-  Phone (anywhere) → Tailscale DERP → Brain
+  Phone (anywhere) → Tailscale DERP → Brain (100.117.41.53)
   ```
+
+## Current Tailscale Network (Phase 1 Active)
+
+| Device | Hostname | IP | OS | Status |
+|--------|----------|----|----|--------|
+| Brain | sunshine-m700 | 100.117.41.53 | Ubuntu 26.04 LTS | Active, reachable |
+| TrueNAS | caliop-truenas | 100.123.58.119 | TrueNAS Scale | Active, reachable |
+| Phone | iphone181 | 100.73.98.114 | iOS | Active |
+| Workstation | keaton-pc | 100.82.153.78 | Windows | Active |
+| Clock | (pending) | TBD | ESP32-S3 | Not yet configured |
 
 ## Security Model
 
@@ -187,7 +197,7 @@ def status():
 # Listen on Tailscale interface only (not 0.0.0.0)
 if __name__ == "__main__":
     import uvicorn
-    tailscale_ip = get_tailscale_ip()  # 100.x.x.x
+    tailscale_ip = get_tailscale_ip() # 100.x.x.x
     uvicorn.run(app, host=tailscale_ip, port=5000)
 ```
 

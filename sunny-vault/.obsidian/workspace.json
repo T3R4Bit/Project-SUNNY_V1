@@ -13,15 +13,26 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/phases.md",
+                "file": "docs/ABOUT.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "phases"
+              "title": "ABOUT"
+            }
+          },
+          {
+            "id": "b71858e4a6f616e0",
+            "type": "leaf",
+            "state": {
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -42,7 +53,7 @@
               "state": {
                 "sortOrder": "alphabetical",
                 "autoReveal": false,
-                "showSearch": false,
+                "showSearch": true,
                 "searchQuery": ""
               },
               "icon": "lucide-folder-closed",
@@ -189,38 +200,43 @@
       "omnisearch:Omnisearch": false
     }
   },
-  "active": "1d01bc107c8fadf5",
+  "active": "b71858e4a6f616e0",
   "lastOpenFiles": [
-    "docs/architecture/dashboard.md",
-    "docs/README.md",
-    "docs/TASK_SYSTEM.md",
-    "docs/architecture/brain.md",
-    "docs/architecture/clock.md",
-    "docs/architecture/briefing-engine.md",
+    "docs/CHANGELOG.md.tmp.24004.005de987e586",
+    "docs/phases.md.tmp.24004.b408f26fb24b",
+    "docs/architecture/google-integration.md.tmp.24004.19a425332150",
+    "docs/architecture/google-integration.md.tmp.24004.c3b494c6381c",
+    "docs/architecture/google-integration.md.tmp.24004.77e985f845b2",
+    "docs/architecture/google-integration.md.tmp.24004.bdeb90f17c02",
+    "docs/BACKLOG.md",
+    "state/alarms-reminders.md",
+    "state/lists",
+    "state/tasks",
+    "state",
+    "docs/architecture/spotify-integration.md",
+    "docs/CHANGELOG.md",
+    "state/tasks/another-test-task.md",
+    "state/tasks/test-task.md",
+    "state/health-check.md.tmp",
+    "state/health-check.md",
+    "log/health-checks.md",
+    "log/llm-usage.md",
+    "instructions/weekly-health-check.md.tmp.16024.68d2e0ea5a3c",
     "docs/phases.md",
-    "docs/phases.md.tmp.31200.535c4048b6ed",
-    "docs/architecture/networking.md",
-    "docs/architecture/voice-io.md",
-    "docs/architecture/Mind-Map.md",
-    "docs/README.md.tmp.31200.958194def4d7",
-    "docs/architecture/llm-integration.md.tmp.31200.70e90f73fe81",
-    "docs/architecture/networking.md.tmp.31200.1e08e4bba2f1",
-    "docs/architecture/voice-io.md.tmp.31200.115424ca4a2f",
-    "docs/architecture/briefing-engine.md.tmp.31200.9976080358d1",
-    "docs/architecture/clock.md.tmp.31200.3234b93d10cc",
-    "docs/architecture/llm-integration.md",
-    "docs/architecture/brain.md.tmp.31200.4897189fca7c",
-    "docs/architecture/index.md.tmp.31200.db157265df41",
-    "Untitled.md",
-    "archive/README.md",
-    "docs/architecture/llm-integration.md.tmp.31200.9c3e040b4f78",
-    "log/README.md",
-    "state/system-state.md",
-    "reference/hardware-specs.md",
-    "reference/design-principles.md",
-    "reference/task-system.md",
-    "reference/build-timeline.md",
-    "reference/architecture.md",
-    "reference/project-overview.md"
+    "docs/ABOUT.md",
+    "instructions/general-chat.md",
+    "docs/architecture/voice-join.md",
+    "docs/architecture/tts-piper.md",
+    "docs/architecture/health-check.md",
+    "docs/architecture/llm-instructions.md",
+    "instructions/weekly-health-check.md",
+    "instructions/README.md",
+    "state/tasks/dashboard-check.md",
+    "state/tasks/emoji-test-task.md",
+    "docs/architecture/llm-readiness.md",
+    "docs/architecture/vault-storage.md",
+    "state/tasks/concurrency-chat-task-3-2.md",
+    "state/tasks/concurrency-chat-task-2-2.md",
+    "state/tasks/concurrency-chat-task-1-2.md"
   ]
 }

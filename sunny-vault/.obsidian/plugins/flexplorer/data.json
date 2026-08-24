@@ -5,12 +5,13 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "state",
+        "instructions",
         "archive",
         "docs",
         "inbox",
         "log",
-        "staging",
-        "state"
+        "staging"
       ]
     },
     "archive": {
@@ -30,6 +31,12 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "CHANGELOG.md",
+        "BACKLOG.md",
+        "ABOUT.md",
+        "QUICKSTART.md",
+        "DESIGN.md",
+        "system-state.md",
         "phases.md",
         "README.md",
         "TASK_SYSTEM.md",
@@ -49,6 +56,19 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "personal-assistant-vision.md",
+        "spotify-integration.md",
+        "voice-join.md",
+        "tts-piper.md",
+        "health-check.md",
+        "llm-instructions.md",
+        "llm-readiness.md",
+        "vault-storage.md",
+        "location.md",
+        "google-integration.md",
+        "alarms-reminders.md",
+        "discord-bot.md",
+        "lists.md",
         "dashboard.md",
         "Mind-Map.md",
         "brain.md",
@@ -94,6 +114,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "requests.md",
         "README.md"
       ]
     },
@@ -107,18 +128,6 @@
       "sortOrder": "custom",
       "customOrder": []
     },
-    "state": {
-      "isPinned": false,
-      "isHidden": false,
-      "sortOrder": "custom",
-      "customOrder": [
-        "system-state.md"
-      ]
-    },
-    "state/system-state.md": {
-      "isPinned": false,
-      "isHidden": false
-    },
     "docs/architecture/Mind-Map.md": {
       "isPinned": false,
       "isHidden": false
@@ -128,6 +137,155 @@
       "isHidden": false
     },
     "docs/architecture/dashboard.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/system-state.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/DESIGN.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/QUICKSTART.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/ABOUT.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/BACKLOG.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/alarms-reminders.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/discord-bot.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/lists.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "log/requests.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/google-integration.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/location.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/vault-storage.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/llm-readiness.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "instructions": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "storm-mode.md",
+        "project-scaffold.md",
+        "general-chat.md",
+        "weekly-health-check.md",
+        "README.md"
+      ]
+    },
+    "instructions/README.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "instructions/weekly-health-check.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/llm-instructions.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/health-check.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/tts-piper.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/voice-join.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "instructions/general-chat.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "instructions/project-scaffold.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/CHANGELOG.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/spotify-integration.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "alarms-reminders.md",
+        "lists",
+        "tasks"
+      ]
+    },
+    "state/tasks": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "another-test-task.md",
+        "test-task.md"
+      ]
+    },
+    "state/lists": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": []
+    },
+    "state/alarms-reminders.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/personal-assistant-vision.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "instructions/storm-mode.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/another-test-task.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/tasks/test-task.md": {
       "isPinned": false,
       "isHidden": false
     }

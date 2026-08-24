@@ -1,0 +1,101 @@
+"""Startup summary of which API keys are configured vs still missing.
+
+Nothing crashes without a key — the affected feature just says "not connected"
+(see sunny_code.components.data_sources). This module is purely for visibility: a
+clear one-time summary of what's set up and what isn't, logged at startup and
+posted to Discord when the bot connects.
+"""
+
+from datetime import date, timedelta
+from typing import List, Tuple
+
+from sunny_code.components import google_auth, spotify_auth
+from sunny_code.config import get_settings, looks_configured
+
+# (label, settings attribute, env var name)
+_TRACKED_KEYS = [
+    ("Claude API (LLM)", "claude_api_key", "CLAUDE_API_KEY"),
+    ("OpenWeatherMap (weather)", "openweathermap_api_key", "OPENWEATHERMAP_API_KEY"),
+    ("Google OAuth client ID", "google_client_id", "GOOGLE_CLIENT_ID"),
+    ("Google OAuth client secret", "google_client_secret", "GOOGLE_CLIENT_SECRET"),
+    ("Spotify OAuth client ID", "spotify_client_id", "SPOTIFY_CLIENT_ID"),
+    ("Spotify OAuth client secret", "spotify_client_secret", "SPOTIFY_CLIENT_SECRET"),
+    ("Discord bot token", "discord_bot_token", "DISCORD_BOT_TOKEN"),
+    ("Discord chat channel ID", "discord_chat_channel_id", "DISCORD_CHAT_CHANNEL_ID"),
+]
+
+# (label, settings attribute) — only keys with a meaningful, user-trackable
+# expiry. Most providers here don't expose expiration dates via API at all,
+# so these are opt-in (.env, YYYY-MM-DD, blank = skip) and only as accurate
+# as they're kept — see config.py.
+_EXPIRY_KEYS = [
+    ("Claude API (LLM)", "claude_api_key_expires"),
+    ("OpenWeatherMap (weather)", "openweathermap_api_key_expires"),
+    ("Discord bot token", "discord_bot_token_expires"),
+    ("Google OAuth client secret", "google_client_secret_expires"),
+]
+
+
+def missing_api_keys() -> List[Tuple[str, str]]:
+    """Return (label, env_var) pairs for every tracked key that isn't set."""
+    settings = get_settings()
+    missing = []
+    for label, attr, env_var in _TRACKED_KEYS:
+        value = getattr(settings, attr, None)
+        # discord_chat_channel_id is the one int-typed field here — its own
+        # validator already turns a blank/placeholder value into 0, so plain
+        # truthiness is correct for it. Every other tracked field is a string,
+        # where "..." (a leftover template placeholder) is truthy but not real.
+        configured = looks_configured(value) if isinstance(value, str) else bool(value)
+        if not configured:
+            missing.append((label, env_var))
+    return missing
+
+
+def expiring_within(days: int) -> List[Tuple[str, str]]:
+    """(label, expiry_date_str) pairs for tracked keys whose user-set expiry
+    date falls within the next `days` days. Keys with no expiry date set are
+    silently skipped — there's no data to check for them."""
+    settings = get_settings()
+    cutoff = date.today() + timedelta(days=days)
+    expiring = []
+    for label, attr in _EXPIRY_KEYS:
+        raw = getattr(settings, attr, "")
+        if not looks_configured(raw):
+            continue
+        try:
+            expiry_date = date.fromisoformat(raw)
+        except ValueError:
+            continue
+        if expiry_date <= cutoff:
+            expiring.append((label, raw))
+    return expiring
+
+
+def startup_summary() -> str:
+    """Human-readable summary for logs / Discord: what still needs a key."""
+    missing = missing_api_keys()
+    lines = []
+
+    if missing:
+        lines.append("Still needs an API key (set in .env at the project root):")
+        for label, env_var in missing:
+            lines.append(f" • {label} — {env_var}")
+        lines.append('Nothing breaks without these — affected features just say')
+        lines.append('"not connected" instead of faking an answer.')
+    else:
+        lines.append("All tracked API keys are configured.")
+
+    if google_auth.is_client_configured() and not google_auth.is_connected():
+        lines.append(
+            "Google OAuth client is configured but no account is signed in yet — "
+            "visit /console and click \"Connect Google Account\"."
+        )
+
+    if spotify_auth.is_client_configured() and not spotify_auth.is_connected():
+        lines.append(
+            "Spotify OAuth client is configured but no account is signed in yet — "
+            "visit /console and click \"Connect Spotify Account\"."
+        )
+
+    return "\n".join(lines)

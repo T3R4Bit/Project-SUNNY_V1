@@ -5,7 +5,11 @@
       "mcp__c2d71330-2992-4a7e-b95c-c956bec4f73c__notion-fetch",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(PYTHONIOENCODING=utf-8 venv/Scripts/python.exe -c ' *)",
+      "Bash(rm -f /d/Project-SUNNY/test_device_*.db)",
+      "Bash(venv/Scripts/python.exe -m pytest test_tasks_complete.py test_briefing_complete.py -q)"
     ]
-  }
+  },
+  "onComplete": "powershell -c (New-Object Media.SoundPlayer 'C:\\Windows\\Media\\Windows Logon.wav').PlaySync()"
 }
