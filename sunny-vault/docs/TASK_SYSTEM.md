@@ -19,14 +19,11 @@ Tasks are one of three sibling subsystems that share the same routing entry poin
 | Alarms & Reminders | Built, separate subsystem — see [[architecture/alarms-reminders.md]] |
 | Obsidian staging integration | Not built — nothing writes to `staging/` yet |
 
-Current focus: connect the Discord bot to a real server (bot token + channel ID in `.env`) — see [[architecture/discord-bot.md]].
-
 ## Overview
 
-- **Categories**: Free-form — School, Motorsports, General, and Project Ideas are just the shipped defaults, not a fixed list. Typing `--tag Cooking` on a task that's never had that category before creates it on the spot, no setup step.
-- **Storage**: Markdown in the Obsidian vault (`sunny-vault/state/tasks/`, one file per task) — see [[architecture/vault-storage]]
-- **Interface today**: Console chat at `/console`, sending commands to a REST API
-- **Interface planned**: Discord bot + live dashboard embed (primary, once built)
+- **Categories**: A real, editable list (`sunny_code/components/category_store.py`) — `/category add`/`/category remove` in Discord manage it. General/School/Motorsports ship as defaults; `General` can never be removed (permanent fallback). If a task's category isn't stated or clearly implied by phrasing, Sunny asks which one instead of silently defaulting.
+- **Storage**: Markdown in the Obsidian vault (`sunny-vault/state/tasks/`, one file per task) — see [[architecture/vault-storage]]. Finishing or deleting a task **archives** its file (`sunny-vault/archive/finished/` or `archive/deleted/`) rather than removing it — no task data is ever actually lost, and lifetime stats still count what finished.
+- **Interface today**: Console chat, Discord text, and Discord voice (`/join`) — all identical behavior through the same `handle_message()`
 - **Logic**: Deterministic, no LLM calls
 
 ## Data Model
@@ -114,10 +111,10 @@ add engine rebuild plan to my tasks --tag Motorsports --priority 3
 add walk the dog to my tasks --tag Pets --priority 2
 remind me to learn Rust
 ```
-Category defaults to `General` and priority defaults to `3` if omitted. Any category name works — `--tag Pets` on a task with no prior "Pets" task just creates that category, no registration step.
+If a category isn't stated or clearly implied by the phrasing, Sunny asks (offering the current `/category` list) instead of silently defaulting; priority defaults to `3` if omitted. Categories are still free-form storage underneath — the `/category`-managed list is just what gets offered/asked about, not a hard allowlist, so typing something outside it (via `--tag` or as a reply to the "which category?" prompt) still works. Inline phrasing also works without `--tag` at all: "add walk the dog to my school tasks", "put buy milk on my tasks", "check off my chores task" are all recognized (broadened 2026-08-23).
 
 ### Update Task
-"Done" has a natural shortcut that takes an ID **or a title**:
+"Done" has a natural shortcut that takes an ID **or a title** — marking a task done archives it immediately (`archive/finished/`), the same as Delete below does for `archive/deleted/`, so it drops out of the active dashboard the instant it's finished:
 ```
 mark <id-or-title> as done
 complete <id-or-title>
@@ -142,7 +139,7 @@ Examples:
 ```
 
 ### Delete Task
-Takes an ID **or a title**:
+Takes an ID **or a title**. This archives the task's file (`sunny-vault/archive/deleted/`) rather than erasing it — the data isn't gone, it's just out of the active list:
 ```
 delete <id-or-title>
 remove <id-or-title>
@@ -152,6 +149,7 @@ Examples:
 delete ff055559
 delete make pizza
 ```
+Lifetime stats still count archived tasks; only the active dashboard excludes them.
 
 ### Referencing a Task by Title
 
@@ -170,38 +168,17 @@ No fuzzy matching or LLM involved — just case-insensitive string comparison ag
 ### Legacy `!task` / `!tasks` Syntax
 The old Discord-style syntax (`!task add "Title" --tag School`, `!tasks --tag School`, `!task <id> delete`) still works — the parser tries it first — but it's no longer required or shown in the UI. Existing scripts/tests that use it keep working unchanged.
 
-## Discord Dashboard (Built, Not Yet Connected)
+## Discord Dashboard (Built and Live)
 
-The bot posts a pinned message in the configured tasks channel showing the same data the `/api/tasks/dashboard` endpoint already formats today:
+Since 2026-08-23, the dashboard is a real Discord **embed** (`discord_bot.py`'s `build_dashboard_embed()`), not plain text — one field per active category, plus a **Projects** field listing whatever real project folders exist under `sunny-vault/projects/` (see the Project Wizard below). It lives in its own dedicated, read-only channel, separate from the `#chat` channel commands are read from.
 
-```
-OPEN TASKS
+Refreshes automatically every 5 minutes, plus an on-demand reaction to update instantly. See [[architecture/discord-bot.md]] for setup, and [[../phases.md]] "Discord Activity Log" for the broader (not yet built) multi-channel activity-log idea this is scoped out of.
 
-School (3)
-┌─ [P5] Finish physics homework (due Aug 20)
-├─ [P3] Read chapter 5
-└─ [P2] Study guide review
+The console chat stays available as the fallback interface for whenever the Discord bot is down or unreachable.
 
-Motorsports (2)
-┌─ [P4] Engine rebuild plan
-└─ [P1] Parts supplier research
+## Project Wizard
 
-General (4)
-┌─ [P3] Learn Rust
-├─ [P2] Setup Tailscale
-├─ [P2] Morning briefing prototype
-└─ [P1] Organize notes
-
-Project Ideas (1)
-└─ [P2] Voice assistant improvements
-
-━━━━━━━━━━━━━━━━━━━━━━━━
-DONE (7) | IN PROGRESS (2) | DUE THIS WEEK (3)
-```
-
-Refreshes automatically every 5 minutes, plus an on-demand reaction to update instantly — both built and working in `sunny_code/components/discord_bot.py`. See [[architecture/discord-bot.md]] for setup steps to connect it to a real server, and [[../phases.md]] "Discord Activity Log" for the broader (not yet built) multi-channel activity-log idea this is scoped out of.
-
-When it ships, the web chatbot stays available as the fallback interface for whenever the Discord bot is down or unreachable.
+Say "new project" (or a close variant) and Sunny walks through three quick questions (name, description, sections — or "you decide" to let Claude choose), recaps them, and asks a real yes/no before building anything — a firm "no" ends the conversation with zero LLM calls; "yes" hands off to one `ask_claude(purpose="project_scaffold")` call that drafts a real multi-file folder under `sunny-vault/projects/<name>/`, always at least an overview file plus two or more topic files, never a single-file stub. Built in `sunny_code/components/project_engine.py`, wizard state lives in `assistant.py`'s pending-follow-up mechanism (same TTL/cancel pattern as the task-title/task-category prompts). See `sunny-vault/instructions/project-scaffold.md` for the system prompt.
 
 ## Storage Schema
 
@@ -276,11 +253,12 @@ Priority: 4/5
 Due: 2026-08-20
 ```
 ```
-Updated "Finish physics homework" — status → done
+Finished "Finish physics homework" — archived
 ```
 ```
 Deleted "Finish physics homework"
 ```
+Both archive the file rather than removing it (see Update Task / Delete Task above).
 
 ### Error
 ```
@@ -329,6 +307,12 @@ Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging c
 - [x] Startup summary of missing API keys, logged + posted to Discord
 - [x] Device/source tracking (`web`/`discord`/`api`) on every created task — see Device Tracking above
 - [x] Lists and Alarms/Reminders built as separate sibling subsystems, routed through the same `handle_message()` — see [[architecture/lists.md]] and [[architecture/alarms-reminders.md]] for their own checklists
-- [ ] **Connect a real bot token and verify against a live server**
+- [x] Real Discord bot token connected, live on a real server (2026-08-20)
+- [x] Migrated storage off SQLite onto vault-markdown, one file per task (2026-08-19/20) — see [[architecture/vault-storage]]
+- [x] Real, editable category list (`/category add`/`/category remove`), with a category asked for when not stated/implied instead of silently defaulting
+- [x] Archive-not-delete — finishing or deleting a task moves its file to `archive/finished/`/`archive/deleted/` instead of erasing it
+- [x] Discord task dashboard is a real live-updating embed with a Projects field, not plain text
+- [x] Project wizard ("new project") — see Project Wizard above
+- [x] Broadened natural-phrasing coverage for add/complete/delete (inline categories, "put X on my tasks", "check off my X task")
 - [ ] Logging to Obsidian *staging* (transient, Notion-export-bound — distinct from the vault storage above, which is already built)
 - [ ] Slash command variants (optional)

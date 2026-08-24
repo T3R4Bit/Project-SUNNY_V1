@@ -12,6 +12,8 @@ Uses Claude API for judgment and reasoning tasks only. Never for information ret
 
 **Status**: The safety-rail infrastructure this doc describes (spend caps, error handling, usage logging) is built and tested — see [[llm-readiness]] for the full built-vs-not checklist. Of the four tasks below, **Freeform Conversation is now partially wired** (2026-08-21) — see the note under that task. Email Triage, Task Interpretation, and Email Reply Drafting are still not wired up — that's a deliberate, separate decision from building the rails.
 
+`ask_claude()` is no longer only called by Freeform Conversation — as of 2026-08-23/24 it also powers the weekly health check (`purpose="weekly_health_check"`), the "new project" wizard (`purpose="project_scaffold"`), and Storm Mode's web-searched weather updates (`purpose="storm_mode"`). Each purpose has its own hand-editable system prompt in `sunny-vault/instructions/`, loaded automatically — see [[llm-instructions]]. Real web search is also wired in (2026-08-23): `ask_claude`/`ask_claude_stream` accept `enable_web_search=True`, which adds Anthropic's server-side `web_search_20250305` tool (capped at 3 searches/call). Claude decides for itself whether a given question needs it — used today by the Freeform Conversation fallback (`briefing.py`) and Storm Mode (`storm_mode.py`).
+
 ## Core Principle
 
 **LLM only for judgment.**
@@ -150,7 +152,7 @@ Live numbers: `GET /api/dashboard/spend/today`, `GET /api/dashboard/spend/month`
 
 ## Implementation
 
-Built: `sunny_code/components/llm_client.py`. The one function any future feature calls through — `ask_claude(prompt, model="haiku", max_tokens=1024, system=None, purpose="...")`. Nothing calls it yet.
+Built: `sunny_code/components/llm_client.py`. The one function any future feature calls through — `ask_claude(prompt, model="haiku", max_tokens=1024, system=None, purpose="...", enable_web_search=False)`, plus a streaming sibling `ask_claude_stream(...)` (sentence-boundary chunked, used by `/join`'s live voice replies — see [[voice-join]]). Real callers today: Freeform Conversation, the weekly health check, the project wizard, and Storm Mode (see Status above).
 
 ```python
 async def ask_claude(prompt: str, model: str = "haiku", ...) -> Optional[str]:
@@ -260,6 +262,9 @@ response = ask_local_llm(prompt)  # Llama 3, Mistral, etc. on TrueNAS
 - [x] Token tracking integration (`token_tracker.py`, tested)
 - [x] Error handling + retries (`llm_client.py`: rate limit, timeout/connection, invalid key, budget — all tested against mocked failures)
 - [x] Freeform conversation (Q&A slice) system prompt — `sunny-vault/instructions/general-chat.md`, live, wired into `briefing.py`'s `custom_briefing()`
+- [x] Real web search for freeform conversation + Storm Mode — `enable_web_search=True`, Anthropic's `web_search_20250305` tool, Claude decides when a question needs it
+- [x] Weekly health check, project-scaffold wizard, and Storm Mode system prompts — `sunny-vault/instructions/{weekly-health-check,project-scaffold,storm-mode}.md`, all live
+- [x] Streaming replies (`ask_claude_stream`) — sentence-boundary chunked into TTS for `/join`, live since 2026-08-21
 - [ ] Email triage system prompt — not written, feature not built
 - [ ] Task interpretation system prompt — not written, feature not built
 - [ ] Phone conversation (action-taking + Twilio) — not built; the answer-only Q&A slice above is live

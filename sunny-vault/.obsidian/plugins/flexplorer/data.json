@@ -56,6 +56,8 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "usage-tracking.md",
+        "project-system.md",
         "personal-assistant-vision.md",
         "spotify-integration.md",
         "voice-join.md",
@@ -286,6 +288,14 @@
       "isHidden": false
     },
     "state/tasks/test-task.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/project-system.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/usage-tracking.md": {
       "isPinned": false,
       "isHidden": false
     }

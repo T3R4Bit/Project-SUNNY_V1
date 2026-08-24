@@ -23,21 +23,30 @@ Overview of Project SUNNY's major components and how they interact.
 - [[phone]] — Twilio integration for phone calls
 
 ### Features
-- [[briefing-engine]] — Morning/evening briefings from calendar, weather, tasks
-- [[email-processing]] — Email triage and filtering
-- [[calendar-integration]] — Calendar sync and event tracking
-- [[../TASK_SYSTEM.md|task-system]] — Task management; Discord bot dashboard is the planned primary interface (not yet built), web chatbot is the working fallback today
+- [[briefing-engine]] — Morning/evening briefings from calendar, weather, tasks; freeform Q&A with real web search when needed
+- [[../TASK_SYSTEM.md|task-system]] — Task management, real editable categories, archive-not-delete. Discord bot is the live primary interface; console chat is the fallback
+- [[lists]] — Named checkable lists (groceries, packing, etc.) — sibling to tasks, not part of them
+- [[alarms-reminders]] — Time-triggered alarms/reminders, ping Discord when due
+- [[project-system]] — "New project" wizard, drafts a real multi-file folder from one LLM call
+- [[google-integration]] — Google Sign-In: Calendar (read + create/delete), Gmail (read-only headers)
+- [[spotify-integration]] — Voice-controlled Spotify playback
+- [[voice-join]] — Live, real-time Discord voice conversation (`/join`), streaming replies, barge-in
+- [[tts-piper]] — Local TTS, `/speak` one-shot attachments
+- [[health-check]] — Weekly (and on-demand) system health report
+- [[usage-tracking]] — Claude spend tracking, spend caps, persistent Discord usage dashboard
+- [[location]] — Phone GPS via OwnTracks, staleness-windowed
 
 ### Intelligence & Control
-- [[llm-integration]] — Claude API for reasoning and judgment
-- [[priority-queue]] — Concurrent request handling, foreground priority
-- [[token-circuit-breaker]] — Real-time token tracking and spending limits
+- [[llm-integration]] — Claude API for reasoning, judgment, and real web search
+- [[llm-instructions]] — Hand-editable per-purpose system prompts in the vault
+- Priority queue — not a real scheduler; `llm_client.py`'s `asyncio.Semaphore(1)` is a lightweight stand-in, sufficient for a single-user assistant with no concurrent-call scenario yet (see [[llm-integration]])
 
 ### Logging & Storage
-- [[obsidian-vault]] — Local markdown staging and logging
-- [[discord-bot]] — Activity log, chat interface, notifications
-- [[notion-sync]] — Cloud storage for finalized items
+- [[vault-storage]] — Tasks/lists as one markdown file per item, directly readable/editable in Obsidian
+- [[discord-bot]] — Live text + voice interface, task dashboard, health/usage channel, warnings
 - [[dashboard]] — Local web UI for monitoring and control
+
+Not built: email triage/filtering, dedicated calendar-sync component beyond Google Sign-In's read/write, Notion sync, a dedicated "token circuit breaker" doc (folded into [[llm-integration]] and [[usage-tracking]] instead).
 
 ## Component Dependency Graph
 
@@ -97,38 +106,38 @@ See [[../phases.md]] for the authoritative, detailed phase breakdown and checkli
 
 ## Cost & Resources
 
-**Monthly spend**: ~$5-8
-- Claude API: $1.50-8 (depending on model)
-- Twilio: <$1/month typical
-- Sonic API: $0.12+
-- Traffic APIs: $3-4
-- Others: Free tier or self-hosted
+**Today**: well under $1/month in practice — Piper/Vosk are free and local, Claude (Haiku) only runs for genuinely open-ended questions. Live numbers: `GET /api/dashboard/spend/today`/`/spend/month`, or see [[usage-tracking]].
 
-**Hard spending caps** at provider level (Anthropic, Twilio).
+**Once phone/traffic phases are live**, on top of the above: ~$4-5/mo (Twilio, traffic/routing API, optionally Sonic TTS instead of the free Piper fallback).
+
+**Hard spending caps** enforced in-app (`token_tracker.check_budget()`) and, separately, at the provider account level (a manual step, see [[llm-integration]]).
 
 **Storage**:
-- Obsidian vault: Local, unlimited
-- Notion: Free tier
-- SQLite (sunny.db): Metrics, ~1KB/day
+- Obsidian vault: tasks/lists as markdown, unlimited, local — see [[vault-storage]]
+- `sunny.db` (SQLite): alarms/reminders, token-usage metrics — small, local
 
 ## External Services
 
-| Service | Type | Cost | Fallback |
-|---------|------|------|----------|
-| Claude API | LLM | $1.50-8/mo | Haiku for cheaper option |
-| Sonic API | TTS | $0.12+ | Piper TTS (local, free) |
-| Twilio | Phone | <$1/mo | N/A (required for phone) |
-| Whisper | STT | Free or $0.02/min | Local Vosk (lower quality) |
-| Tailscale | VPN | Free personal | WireGuard (manual setup) |
-| Calendar API | Calendar | Free | Local file sync |
-| Weather API | Weather | Free tier | Hardcoded fallback forecast |
-| Traffic API | Maps | $3-4/mo | Hardcoded travel times |
+| Service | Type | Cost | Status |
+|---------|------|------|--------|
+| Claude API | LLM | Well under $1/mo in practice (Haiku default) | Live |
+| Piper + Vosk | TTS + STT | Free, local, CPU-only | Live (`/speak`, `/join`) |
+| Discord | Bot platform | Free | Live |
+| Tailscale | VPN | Free personal | Live |
+| Google Calendar + Gmail | Calendar/email | Free | Live via Sign-In (read + Calendar write) |
+| Spotify | Music control | Free (Premium required for playback control) | Live |
+| OpenWeatherMap | Weather | Free tier | Code-complete, needs API key + location |
+| Sonic API | TTS | $0.12+/mo | Not built — Piper is the live local fallback, already ahead of it |
+| Twilio | Phone | <$1/mo | Not built |
+| Traffic/routing API | Maps | $3-4/mo | Not built |
+| Notion | Sync | Free tier | Not built |
 
 ## Next Steps
 
-1. **Phase 0**: Set up Sunny as a systemd unit (currently runs via `./run.sh`, not yet auto-starting on boot)
+1. **Phase 0**: Disable unattended-upgrades auto-reboot / pin to a window; skip Featured Server Snaps at install
 2. **Phase 1**: Verify phone dashboard access over Tailscale specifically, optional ACLs
-3. **Phase 2**: Replace mock data sources (calendar, weather, traffic, email) with real APIs
-4. **Phase 3+**: ESP32 Clock hardware assembly, voice I/O, phone integration, Discord bot
+3. **Phase 2**: Confirm Google Sign-In end-to-end; traffic/commute still needs an API key
+4. **Backlog**: Service orchestration (per-service toggle, autostart config, vacation mode), then the foundational proactive-assistant architecture in [[personal-assistant-vision]] — see [[../BACKLOG.md]]
+5. **Phase 3+**: ESP32 Clock hardware assembly, voice I/O beyond Discord, phone integration (`sunny-companion/BUILD_PLAN.md` tracks the Pi companion device build separately)
 
 See individual component docs and [[../phases.md]] for implementation details.

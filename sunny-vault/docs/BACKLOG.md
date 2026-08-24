@@ -51,7 +51,8 @@ Items worth doing but not blocking the current phase. Pull items into [[phases.m
       *(built 2026-08-23: `assistant.py`'s `_MORNING_TRIGGERS`/`_EVENING_TRIGGERS` now cover these and a few more; voice already strips the wake phrase before this is checked, so the bare forms ("im up", "going to bed") also work there.)*
 - [x] Every hour send in a new image of the current claude usage in discord and remove the old one
       *(built 2026-08-23, as one persistent edited-in-place message instead of post-new-then-delete-old — see the usage-chart item above; functionally the same "always current, no stale copies left behind" result.)*
-
+- [x] move api dashboard to #health channel
+      *(this was a leftover duplicate — the two items above (usage chart, hourly image) already document this move happening 2026-08-23. Confirmed directly in code: `DISCORD_USAGE_CHANNEL_ID` no longer exists in `config.py`, and `discord_bot.py`'s `refresh_usage_dashboard()`/`check_usage_alerts()` both post to `discord_health_channel_id`.)*
 ---
 
 ## College / Fitness / Knowledge / Proactivity
@@ -61,6 +62,7 @@ Full architecture and rationale in [[architecture/personal-assistant-vision]] �
 **College / opportunity monitoring** ([[architecture/personal-assistant-vision#2-college-ksu-assistant]], [[architecture/personal-assistant-vision#18-opportunity-engine]])
 
 - [ ] Monitor KSU/local sources (events, competitions, scholarships, career fairs) and score opportunities (relevance/timing/deadline/interest) before surfacing anything
+      *(blocked: needs the actual sources named — specific RSS feeds, event-calendar URLs, or pages to watch. "KSU/local sources" isn't one API, it's a set of specific things to point a watcher at.)*
 
 **Exam prep** ([[architecture/personal-assistant-vision#3-proactive-test-exam-preparation]])
 
@@ -71,11 +73,13 @@ Full architecture and rationale in [[architecture/personal-assistant-vision]] �
 
 - [ ] Schedule-aware workout window suggestions (free time minus travel/commitments)
 - [ ] Garmin sleep/training-load data as context for workout-intensity suggestions (not a medical authority)
+      *(blocked: needs an approved Garmin Connect developer API account — that's an application/approval process on Garmin's side, not just an env var. Schedule-aware workout window suggestions just above this don't strictly need Garmin and could be built without it.)*
 
 **Recipes / meals** ([[architecture/personal-assistant-vision#6-recipe-food-system]])
 
 - [ ] Personal recipe preference tracking (liked/disliked, ingredients on hand, cuisine, cost/time)
 - [ ] Online recipe discovery filtered by schedule/ingredients/preferences; weekly meal planning around class schedule + configurable campus-meal-plan days
+      *(blocked: needs a recipe API key — pick a provider (e.g. Spoonacular, Edamam) and sign up. The preference-tracking item above doesn't need this and could start first.)*
 
 **Obsidian knowledge base** ([[architecture/personal-assistant-vision#7-obsidian-as-sunnys-knowledge-base]], [[architecture/personal-assistant-vision#8-weekly-knowledge-health-check]])
 
@@ -91,6 +95,7 @@ Full architecture and rationale in [[architecture/personal-assistant-vision]] �
 **Travel intelligence** ([[architecture/personal-assistant-vision#17-travel-commute-intelligence]]) — same gap as the existing commute/traffic item elsewhere in this backlog; not built
 
 - [ ] Calendar-event destination → travel time → leave-time notification, checked near-departure rather than polled continuously
+      *(blocked: needs a routing/traffic API key, e.g. Google Maps Platform — separate from Google Sign-In, billed and authenticated per-project via a plain API key, not per-user OAuth. See [[architecture/google-integration]]'s "What This Does NOT Cover" table.)*
 
 **Daily/weekly rollups** ([[architecture/personal-assistant-vision#19-daily-personal-operations]], [[architecture/personal-assistant-vision#20-weekly-review]])
 

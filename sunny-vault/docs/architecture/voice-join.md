@@ -145,6 +145,15 @@ Deployed the Layer 1 lock above (encrypt_opus/decrypt only) and Layer 2 (process
 
 **Verified against the real bot, not just reasoned about**: an automated test joined the real voice channel and held for 2 minutes with a spoken message every 5s (23 encrypt-path calls) — 4 consecutive clean runs post-fix, versus consistent ~9s crashes on the same test before it. The one thing this can't cover is the decrypt side under real, sustained human speech (packet loss, real MLS traffic patterns) — that still needs a live test.
 
+## Streaming Replies + Barge-In (2026-08-21/22)
+
+Two follow-up improvements after the crash-fixing above, not yet reflected in the Architecture diagram (still text-only round-trip there — this section covers what changed):
+
+- **Streaming replies**: `/join` now starts speaking the first sentence of an open-ended answer while Claude is still generating the rest, instead of waiting for the whole response — `ask_claude_stream()` (see [[llm-integration]]) splits at sentence boundaries and each chunk is synthesized/queued for playback as soon as it's ready, rather than one big `synthesize_discord_pcm()` call after the full text arrives. A short "thinking" audio cue plays during the gap while a slow reply is still generating.
+- **Barge-in**: saying "Hey Sunny" again while Sunny is still talking stops the current audio immediately and discards anything else queued or still being synthesized for the interrupted response, instead of talking over it — the playback queue is generation-tagged so a new wake-word detection can invalidate everything from the prior turn in one step.
+- Reused Anthropic API clients across calls instead of reconnecting per request (latency win, unrelated to voice specifically but most noticeable here).
+- A real regression fixed: the wake word plus a natural pause before the actual sentence could get split into two separate utterances, silently dropping the second half — the wake-window logic above now tolerates that pause correctly.
+
 ## Not Included This Pass
 
 - **No persistent transcript log** — exchanges are logged via the normal Python app logger only, not a new `sunny-vault/log/` file. A natural addition later if wanted; not built ahead of an actual need.

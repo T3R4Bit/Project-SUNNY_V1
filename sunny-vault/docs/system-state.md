@@ -6,125 +6,44 @@ created: 2026-08-18
 tags: [state, runtime, config]
 ---
 
-# System State
+# System State — How Sunny Actually Tracks It
 
-Runtime state tracking for Sunny. Updated by Sunny core process during execution.
+This file used to describe a planned single-file `state.json`/`state.md` mechanism (sleep/wake tracking, a Notion sync cursor, a token-threshold circuit breaker with an interactive continue/halt prompt). None of that exists in code — it was written before the real approach took shape. This is a rewrite describing what's actually there today, as a map for anyone (human or Sunny) looking for "where does X get tracked."
 
-## Sleep/Wake State
+There is no single state file. Each kind of state lives wherever fits it best, following the same pattern every component in this codebase uses: vault-markdown for anything a human should be able to read/edit directly, SQLite for anything needing frequent automatic background writes.
 
-```yaml
-current_state: awake|sleeping|in_bed
-last_updated: 2026-08-18T14:30:00Z
-```
+## Tasks and Lists — vault-markdown, one file per item
 
-**Transitions:**
-- `awake` → `in_bed` (when user says "good night")
-- `in_bed` → `sleeping` (after 30 min without activity)
-- `sleeping` → `awake` (when user says "good morning" or alarm fires)
+`sunny-vault/state/tasks/<slug>.md`, `sunny-vault/state/lists/<slug>.md` — one file per task/list, frontmatter + body, written via `sunny_code/components/vault_io.py`'s `atomic_write_text` (temp file + `os.replace()`, safe against partial writes). See [[architecture/vault-storage]], `tasks_db.py`, `lists_db.py`. Finished/deleted tasks move to `sunny-vault/archive/finished/` or `archive/deleted/` rather than being erased — see [[TASK_SYSTEM.md]].
 
-**Effects:**
-- When `sleeping`: Incoming calls suppressed unless marked urgent
-- When `in_bed`: Only calendar alerts, suppress non-critical Discord
-- When `awake`: Full notification activity
+## Alarms/Reminders — SQLite, plus a read-only vault mirror
 
----
+`sunny.db`'s `scheduled_items` table (`scheduled_db.py`) is the real source of truth — it needs reliable writes from a 30-second background due-check loop, which doesn't suit a hand-editable markdown file. `sunny-vault/state/alarms-reminders.md` is a generated read-only snapshot (`scheduled_vault_mirror.py`) for visibility in Obsidian — nothing reads it back in.
 
-## Token Counters (Daily Reset at at 4am)
+## Categories — a small JSON file, not the vault
 
-```yaml
-tokens:
-  claude:
-    haiku:
-      prompt: 12500
-      completion: 3400
-      cost: $0.27
-    sonnet:
-      prompt: 0
-      completion: 0
-      cost: $0.00
-    total_cost: $0.27
-  sonic:
-    characters: 14200
-    cost: $0.12
-  total_today: $0.39
-  budget_remaining: $19.61
-```
+`categories.json` at the project root (`category_store.py`) — the free-form task-category list (`General`/`School`/`Motorsports` by default, editable via `/category add`/`/category remove` in Discord). Plain JSON, not frontmatter+markdown, since it's runtime config rather than vault content — same reasoning as `location_store.py`.
 
-**Updated by**: Token circuit breaker during/after each LLM call
-**Purpose**: Dashboard display, alarm if approaching daily limit
+## Health Check — a marker file + an append-only log
 
----
+`sunny-vault/state/health-check.md` — a small frontmatter-only marker (`id`/`type`/`status`: `"unacknowledged"`/`"acknowledged"`/`updated_at`) tracking whether the morning briefing still needs to nudge about a new report. `sunny-vault/log/health-checks.md` is the actual append-only report history, entries separated by `---`. See `health_check.py`, [[architecture/health-check]]. This marker-file shape is the template for any new small "is there something pending" state.
 
-## API Heartbeat Timestamps
+## Token Usage / Spend — SQLite
 
-```yaml
-last_success:
-  claude_api: 2026-08-18T14:29:15Z
-  sonic_api: 2026-08-18T14:28:50Z
-  twilio: 2026-08-18T13:45:22Z
-  discord_bot: 2026-08-18T14:30:01Z
-  tailscale: 2026-08-18T14:30:00Z
-  calendar: 2026-08-18T06:15:33Z
-  weather: 2026-08-18T06:15:10Z
-  traffic: 2026-08-18T08:15:22Z
-```
+`sunny.db`'s `token_usage` table (`dashboard.py`'s schema, written by `token_tracker.py`) — per-day, per-model prompt/completion token counts and self-calculated cost. `check_budget()` reads this before every `ask_claude()` call; it's a real hard-cap circuit breaker (refuses further calls once the daily/monthly cap is hit, resets automatically when the day/month rolls over), **not** the interactive "continue or halt" prompt this file used to describe — no such prompt exists. See [[architecture/llm-integration]].
 
-**Updated by**: Each service after successful call
-**Purpose**: Health dashboard, identify which services are down
-**Note**: Timestamps more useful than green/red dots (e.g., "weather 8 hours stale" is diagnostic)
+## LLM Call Log — append-only vault log
 
----
+`sunny-vault/log/llm-usage.md` (`llm_client.log_llm_call()`) — every `ask_claude()` attempt, success or failure, with a `status` field (not-configured, budget-exceeded, auth/rate/connection error, success, etc.), specifically so refused/failed calls are visible for spotting patterns worth hardcoding. Same shape for `sunny-vault/log/requests.md` (`request_log.py`) — logs what a user asked for that Sunny couldn't fulfill with real data, e.g. weather with no API key set.
 
-## Notion Sync Cursor
+## Location — a small state file, not SQLite or the vault proper
 
-```yaml
-notion_sync:
-  last_sync: 2026-08-18T14:25:00Z
-  next_sync: 2026-08-18T14:30:00Z
-  items_synced_today: 7
-  items_pending: 0
-  last_error: null
-```
+`location_store.py` — the last GPS fix received from OwnTracks (`POST /api/location/owntracks`), with a staleness window (`get_coordinates(max_age_minutes=30)`) falling back to a configured static city if the fix is too old. See [[architecture/location]].
 
-**Used by**: Sync sweeper to track progress and avoid re-syncing
-**Purpose**: Prevent duplicate pushes, know when next batch will run
+## What isn't tracked (confirmed, not just undocumented)
 
----
+- **Sleep/wake state** (`awake`/`sleeping`/`in_bed`) — not tracked anywhere in code. The Discord activity log's planned `#state-changes` channel is blocked on this not existing (see [[BACKLOG.md]]).
+- **Notion sync cursor** — no Notion integration exists at all.
+- **API heartbeat timestamps** (last-successful-call-per-service) — not tracked as a standalone structure; each integration's "connected or not" is checked live at call time instead (e.g. `google_auth.is_connected()`, `key_status.missing_api_keys()`), not from a cached heartbeat.
 
-## Circuit Breaker State
-
-```yaml
-circuit_breaker:
-  active: false
-  last_trigger: null
-  threshold_tokens: 100000
-  current_rate: 2400  # tokens/hour
-  estimated_overage: false
-```
-
-**Active**: `true` if current task exceeded token threshold and paused
-**Purpose**: Prevent runaway token spend, ask user to continue or halt
-
----
-
-## File Format
-
-This file is updated atomically:
-1. Read current state
-2. Update fields
-3. Write to `state.json` (machine-readable)
-4. Also write to `state.md` (human-readable, this file)
-
-**Never append** to this file. Always rewrite complete state. This prevents partial-write corruption if Sunny crashes mid-write.
-
----
-
-## Obsidian Integration
-
-Dataview plugin reads this file's YAML and renders a live dashboard:
-- Token spend sparkline
-- API health status
-- System uptime
-- Next briefing time
-
-No Sunny code needed — pure Obsidian automation.
+If any of these end up genuinely needed, the marker-file pattern above (health-check.md) is the template to reuse rather than reintroducing a single monolithic state file.

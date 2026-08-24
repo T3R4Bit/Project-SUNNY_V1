@@ -73,10 +73,12 @@ Project SUNNY is a self-hosted voice assistant for personal productivity and aut
 
 - **Discord Voice** — `/speak`, `/join`, `/leave`. Live, wake-word-gated spoken conversation over Discord, fully local STT/TTS (Vosk + Piper), routed through the same brain as text chat. Built and live ahead of the bedside-clock hardware below.
 - **Bedside Clock + Alarm** — Battery-backed hardware with wake word detection (not yet built — Discord voice already delivers the conversational half of this today)
-- **Morning Briefing** — Calendar, weather, tasks; genuinely open-ended questions get a real Claude answer instead of a canned "not connected"
+- **Morning Briefing** — Calendar, weather, tasks; genuinely open-ended questions get a real Claude answer, with real web search when the question needs current info (see [[architecture/llm-integration]])
+- **Google Calendar + Gmail** — read via Sign-In; Calendar also supports natural-language create/delete ("add dentist appointment to my calendar at 3pm tomorrow") — see [[architecture/google-integration]]
+- **Spotify Voice Control** — "play `<song>`", "pause", "skip", "volume up", "what's playing" — from any interface — see [[architecture/spotify-integration]]
 - **Phone Integration** — Answer calls via Twilio and execute voice commands (not yet built)
-- **Remote Power Control** — Wake desktop and control devices via Tailscale network
-- **Smart Logging** — Discord activity channels, Notion sync, Obsidian vault mirroring
+- **Remote Power Control** — Wake desktop and control devices via Tailscale network (not yet built — deprioritized, see [[./phases.md]] Phase 6)
+- **Smart Logging** — Discord activity channels (live — task updates, warnings, chat, briefings, health/usage) and Obsidian vault mirroring (live — see [[architecture/vault-storage]]). Notion sync is not built — no Notion integration exists yet
 
 ## Architecture
 
@@ -87,15 +89,15 @@ Project SUNNY is a self-hosted voice assistant for personal productivity and aut
 
 ### Software Stack
 - **Voice**: Piper TTS (`/speak`, `/join`), Vosk STT (`/join`) — both fully local, CPU-only, free. Fast enough that TTS runs at roughly 16x real-time on this hardware (verified live, 2026-08-21) — real-world benchmarks for larger/GPU-oriented alternatives (Qwen3-TTS, Kokoro) don't hold up on this specific CPU, tested directly rather than assumed.
-- **Backend**: FastAPI, SQLite, Python asyncio
+- **Backend**: FastAPI, Python asyncio. Storage is split: tasks/lists live as vault-markdown (one file per item, directly readable/editable in Obsidian — see [[architecture/vault-storage]]); alarms/reminders and usage/spend metrics still use SQLite (`sunny.db`) since they need reliable automatic background writes, not a hand-browsable file
 - **UI**: Console-style web dashboard
 - **Communication**: Twilio (planned), Discord bot (live — text + voice), Tailscale mesh network
 - **Data**: Google Calendar + Gmail (Sign-In), OpenWeatherMap, Traffic APIs (planned)
-- **Brain**: Claude API (Haiku, judgment/freeform-conversation fallback only — never for data lookups), Notion, Obsidian vault, TrueNAS
+- **Brain**: Claude API (Haiku by default — judgment, freeform conversation, storm-mode weather updates, health-check reports, project scaffolding; never for data lookups), Obsidian vault. Notion sync and TrueNAS integration are planned, not built.
 
 ## Current Status
 
-**Phase 0 (Foundations)** — Complete
+**Phase 0 (Foundations)** — Mostly complete (a couple of small OS-config items open — see [[./phases.md]])
 - Briefing system with real task/weather/calendar data where connected, honest gaps elsewhere, and a Claude-backed fallback for anything genuinely open-ended
 - Task/list/alarm/reminder management — natural language, no command prefix needed, driven identically from the console, Discord text, and Discord voice (see [[./TASK_SYSTEM.md]])
 - Discord bot live: text commands plus `/speak`, `/join`, `/leave` voice commands

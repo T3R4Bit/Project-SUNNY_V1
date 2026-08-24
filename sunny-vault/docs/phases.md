@@ -295,7 +295,7 @@ Cost: <$1/month expected
 
 ## Backlog
 
-Deferred items not yet slotted into a phase — see [[BACKLOG.md]]. Service orchestration's systemd unit and single-command startup are done; per-service runtime toggle and autostart-per-service config are still open. BACKLOG.md has grown well beyond orchestration since this was last written — task-system rework, Spotify voice control, web search, and a large college/fitness/knowledge/proactivity section (see [[architecture/personal-assistant-vision]]) are also sitting there unslotted.
+Deferred items not yet slotted into a phase — see [[BACKLOG.md]]. Service orchestration's systemd unit and single-command startup are done; per-service runtime toggle, autostart-per-service config, and vacation mode are still open. Task-system rework, Spotify voice control, and web search — all previously listed here as unslotted — are built; see [[CHANGELOG.md]] for what shipped and when. What's still genuinely unslotted: the rest of service orchestration above, and the large college/fitness/knowledge/proactivity section (see [[architecture/personal-assistant-vision]]) — that one's explicitly vision-level, not yet scoped feature-by-feature, and several of its items are gated on external accounts/data sources the user still needs to provide (see the "blocked" notes inline in BACKLOG.md).
 
 ---
 
