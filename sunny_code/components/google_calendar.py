@@ -71,22 +71,41 @@ def get_events(day_offset: int = 0) -> Optional[List[Dict]]:
     None means "couldn't reach Calendar" (not connected, or a live error) —
     callers should treat that the same as the "not connected" case, never crash.
     """
-    service = _service()
-    if service is None:
-        return None
-
     # datetime.now() is naive local time; .astimezone() attaches the system's
-    # actual local UTC offset. Building the day boundary from that and calling
-    # .isoformat() (no "Z" appended) produces a correct offset-aware
-    # timestamp — appending a literal "Z" here would mislabel local midnight
-    # as UTC midnight, a real bug: on this server (EDT, UTC-4) that silently
-    # shifted the query window by 4 hours, so events near the start/end of
-    # the day could fall outside it and never show up.
+    # actual local UTC offset. Building the day boundary from that produces a
+    # correct offset-aware timestamp — appending a literal "Z" here would
+    # mislabel local midnight as UTC midnight, a real bug: on this server
+    # (EDT, UTC-4) that silently shifted the query window by 4 hours, so
+    # events near the start/end of the day could fall outside it and never
+    # show up.
     now_local = datetime.now().astimezone()
     day = (now_local + timedelta(days=day_offset)).date()
     tz = now_local.tzinfo
-    time_min = datetime.combine(day, datetime.min.time(), tzinfo=tz).isoformat()
-    time_max = datetime.combine(day, datetime.max.time(), tzinfo=tz).isoformat()
+    time_min = datetime.combine(day, datetime.min.time(), tzinfo=tz)
+    time_max = datetime.combine(day, datetime.max.time(), tzinfo=tz)
+
+    raw_events = get_events_range(time_min, time_max)
+    if raw_events is None:
+        return None
+
+    raw_events.sort(key=_event_sort_key)
+    return [_format_event(e) for e in raw_events]
+
+
+def get_events_range(time_min: datetime, time_max: datetime) -> Optional[List[Dict]]:
+    """Raw (unformatted) events across every calendar the account has,
+    between time_min and time_max — both must be timezone-aware. Shared
+    plumbing between get_events() (today's schedule, then display-formatted
+    via _format_event()) and anything that needs a wider window, e.g.
+    detecting recurring events (a semester's worth of class meetings) across
+    months rather than one day. Returns raw Google event dicts (summary,
+    start, end, recurringEventId, etc.), not get_events()'s formatted ones —
+    callers that want that formatting should call _format_event() themselves.
+    None means "couldn't reach Calendar," same fail-quiet contract as
+    get_events()."""
+    service = _service()
+    if service is None:
+        return None
 
     try:
         calendar_ids = _list_calendar_ids(service)
@@ -104,8 +123,8 @@ def get_events(day_offset: int = 0) -> Optional[List[Dict]]:
                 service.events()
                 .list(
                     calendarId=calendar_id,
-                    timeMin=time_min,
-                    timeMax=time_max,
+                    timeMin=time_min.isoformat(),
+                    timeMax=time_max.isoformat(),
                     singleEvents=True,
                     orderBy="startTime",
                 )
@@ -118,8 +137,7 @@ def get_events(day_offset: int = 0) -> Optional[List[Dict]]:
             continue
         raw_events.extend(result.get("items", []))
 
-    raw_events.sort(key=_event_sort_key)
-    return [_format_event(e) for e in raw_events]
+    return raw_events
 
 
 def create_event(title: str, start: datetime, duration_minutes: int = 60, calendar_id: str = "primary") -> Optional[dict]:
