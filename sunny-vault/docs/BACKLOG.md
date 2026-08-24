@@ -54,50 +54,50 @@ Items worth doing but not blocking the current phase. Pull items into [[phases.m
 
 ---
 
-## JARVIS Vision (college / fitness / knowledge / proactivity)
+## College / Fitness / Knowledge / Proactivity
 
-Full architecture and rationale in [[architecture/jarvis-vision]] — these are the extractable action items, organized by area. Nothing here is scoped or sequenced yet; pull into [[phases.md]] when actually starting one.
+Full architecture and rationale in [[architecture/personal-assistant-vision]] — these are the extractable action items, organized by area. Nothing here is scoped or sequenced yet; pull into [[phases.md]] when actually starting one.
 
-**College / opportunity monitoring** ([[architecture/jarvis-vision#2-college-ksu-assistant]], [[architecture/jarvis-vision#18-opportunity-engine]])
+**College / opportunity monitoring** ([[architecture/personal-assistant-vision#2-college-ksu-assistant]], [[architecture/personal-assistant-vision#18-opportunity-engine]])
 
 - [ ] Monitor KSU/local sources (events, competitions, scholarships, career fairs) and score opportunities (relevance/timing/deadline/interest) before surfacing anything
 
-**Exam prep** ([[architecture/jarvis-vision#3-proactive-test-exam-preparation]])
+**Exam prep** ([[architecture/personal-assistant-vision#3-proactive-test-exam-preparation]])
 
 - [ ] Track exam dates and Obsidian note coverage per class; generate a study plan ~1 week out and a short high-value review the night before
 - [ ] Spaced-review pipeline over old material (new → review → weak → retest → mastered)
 
-**Fitness / Garmin** ([[architecture/jarvis-vision#4-fitness-physical-life-assistant]], [[architecture/jarvis-vision#5-garmin-integration]])
+**Fitness / Garmin** ([[architecture/personal-assistant-vision#4-fitness-physical-life-assistant]], [[architecture/personal-assistant-vision#5-garmin-integration]])
 
 - [ ] Schedule-aware workout window suggestions (free time minus travel/commitments)
 - [ ] Garmin sleep/training-load data as context for workout-intensity suggestions (not a medical authority)
 
-**Recipes / meals** ([[architecture/jarvis-vision#6-recipe-food-system]])
+**Recipes / meals** ([[architecture/personal-assistant-vision#6-recipe-food-system]])
 
 - [ ] Personal recipe preference tracking (liked/disliked, ingredients on hand, cuisine, cost/time)
 - [ ] Online recipe discovery filtered by schedule/ingredients/preferences; weekly meal planning around class schedule + configurable campus-meal-plan days
 
-**Obsidian knowledge base** ([[architecture/jarvis-vision#7-obsidian-as-sunnys-knowledge-base]], [[architecture/jarvis-vision#8-weekly-knowledge-health-check]])
+**Obsidian knowledge base** ([[architecture/personal-assistant-vision#7-obsidian-as-sunnys-knowledge-base]], [[architecture/personal-assistant-vision#8-weekly-knowledge-health-check]])
 
 - [ ] Permission-leveled vault write access (0 read-only / 1 safe edits / 2 rename-move / 3 destructive-requires-approval) with a confidence threshold (>95% auto, 80-95% suggest, <80% ask) and a log of automatic edits
 - [ ] Extend the weekly health check into a knowledge health check (broken links, orphaned/duplicate/untagged/stale notes)
 
-**Proactivity / hybrid architecture** ([[architecture/jarvis-vision#10-hybrid-ai-architecture]], [[architecture/jarvis-vision#11-confidence-based-autonomy]], [[architecture/jarvis-vision#12-learning-from-behavior]])
+**Proactivity / hybrid architecture** ([[architecture/personal-assistant-vision#10-hybrid-ai-architecture]], [[architecture/personal-assistant-vision#11-confidence-based-autonomy]], [[architecture/personal-assistant-vision#12-learning-from-behavior]])
 
 - [ ] Real Layer-1 sensors (calendar/file-change/GitHub watchers) feeding a Layer-2 rules engine, so proactive suggestions don't require an LLM call per check
 - [ ] A compact structured context-engine state (vs. full history) for when an LLM call is actually needed
 - [ ] Track suggestion outcomes (accepted/rejected/ignored/snoozed) and adjust future suggestion timing/confidence per pattern
 
-**Travel intelligence** ([[architecture/jarvis-vision#17-travel-commute-intelligence]]) — same gap as the existing commute/traffic item elsewhere in this backlog; not built
+**Travel intelligence** ([[architecture/personal-assistant-vision#17-travel-commute-intelligence]]) — same gap as the existing commute/traffic item elsewhere in this backlog; not built
 
 - [ ] Calendar-event destination → travel time → leave-time notification, checked near-departure rather than polled continuously
 
-**Daily/weekly rollups** ([[architecture/jarvis-vision#19-daily-personal-operations]], [[architecture/jarvis-vision#20-weekly-review]])
+**Daily/weekly rollups** ([[architecture/personal-assistant-vision#19-daily-personal-operations]], [[architecture/personal-assistant-vision#20-weekly-review]])
 
 - [ ] Extend the morning briefing with college/fitness/food/opportunity sections
 - [ ] A weekly review rollup (school/business/projects/fitness/food) alongside the existing weekly system health check
 
-**Voice pipeline follow-ups** (mostly superseded by what's actually built — see the notes inline in [[architecture/jarvis-vision#13-voice-pipeline-revisit-vs-whats-actually-built]] and [[architecture/jarvis-vision#15-low-latency-voice-goal]])
+**Voice pipeline follow-ups** (mostly superseded by what's actually built — see the notes inline in [[architecture/personal-assistant-vision#13-voice-pipeline-revisit-vs-whats-actually-built]] and [[architecture/personal-assistant-vision#15-low-latency-voice-goal]])
 
 - [ ] Streaming/partial-hypothesis STT (the one real latency gap left — LLM/TTS streaming is already built)
 - [ ] A delivery/prosody layer that varies tone/pace by message type (reminder vs. opportunity vs. warning), beyond the text-register rewrite already done in `general-chat.md`

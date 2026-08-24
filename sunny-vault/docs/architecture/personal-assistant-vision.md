@@ -1,14 +1,14 @@
 ---
-id: jarvis-vision
+id: personal-assistant-vision
 type: architecture
 status: proposed
 created: 2026-08-23
-tags: [architecture, vision, planning, jarvis]
+tags: [architecture, vision, planning]
 ---
 
 # Sunny — Personal AI Assistant Architecture & Feature Plan
 
-Full long-term vision doc, pasted in whole and preserved here rather than flattened into [[../BACKLOG.md]] — the value is as much in the *architecture* (hybrid layers, confidence thresholds, permission levels) as in the individual features. See BACKLOG.md for the checklist-sized action items pulled out of this, organized by area, each linking back to the relevant section here.
+This is not a separate track or a different version of Sunny — it's the same one system, this doc just covers the long-term end of the plan. Preserved in full here rather than flattened into [[../BACKLOG.md]] because the value is as much in the *architecture* (hybrid layers, confidence thresholds, permission levels) as in the individual features. See BACKLOG.md for the checklist-sized action items pulled out of this, organized by area, each linking back to the relevant section here.
 
 ---
 
@@ -139,7 +139,7 @@ Example: *"Your Business notes have 6 disconnected pages and 2 broken links. I c
 
 ---
 
-## 9. JARVIS-Style Proactivity
+## 9. Proactive vs. Reactive Behavior
 
 **Reactive assistant**: "Tell me what to do." **Proactive assistant**: "I noticed something relevant. Here's what I think you should do."
 
