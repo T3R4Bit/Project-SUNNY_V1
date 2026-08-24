@@ -12,6 +12,7 @@ would otherwise swallow "delete my reminder to X" or "remove milk from my
 list" before the more specific parser ever saw it.
 """
 
+import random
 import time
 from typing import Dict, Optional
 
@@ -100,7 +101,18 @@ Type "help" any time to see this again."""
 
 _HELP_TRIGGERS = ("", "help", "/help", "commands", "info", "what can you do", "what can i ask")
 _CANCEL_WORDS = ("cancel", "nevermind", "never mind", "stop", "skip", "forget it")
-_BRIEFING_KEYWORDS = ("morning", "morning briefing", "evening", "evening briefing")
+_MORNING_TRIGGERS = (
+    "morning", "morning briefing", "good morning", "good morning sunny",
+    "hey sunny good morning", "im up", "i'm up", "im up sunny", "i'm up sunny",
+    "hey sunny im up", "hey sunny i'm up",
+)
+_EVENING_TRIGGERS = (
+    "evening", "evening briefing", "good night", "goodnight",
+    "good night sunny", "goodnight sunny", "hey sunny good night",
+    "hey sunny goodnight", "im going to bed", "i'm going to bed",
+    "going to bed", "hey sunny im going to bed", "hey sunny i'm going to bed",
+)
+_BRIEFING_KEYWORDS = _MORNING_TRIGGERS + _EVENING_TRIGGERS
 # Exact-phrase, not a regex -- this launches a multi-question wizard, so a
 # false positive (an unrelated sentence that happens to contain "project")
 # is worse than a false negative (a real phrasing that doesn't match).
@@ -115,6 +127,26 @@ _PROJECT_TRIGGERS = (
     "new project",
 )
 _SKIP_SECTIONS_WORDS = ("no", "none", "nope", "you decide", "your choice", "up to you", "doesn't matter", "whatever you think")
+_YES_WORDS = ("yes", "y", "yeah", "yep", "yup", "sure", "do it", "go ahead", "build it", "sounds good")
+_NO_WORDS = ("no", "n", "nope", "nah", "no thanks", "don't")
+# A little phrasing variety per step so the wizard doesn't read as a rigid
+# form -- picked at random each time, not per-session-sticky (a personal,
+# single-user tool doesn't need to remember which variant it used last).
+_PROJECT_NAME_PROMPTS = (
+    "What's the project called?",
+    "What should I call this one?",
+    "Alright — what's the name?",
+)
+_PROJECT_DESCRIPTION_PROMPTS = (
+    "One or two lines on what it's about?",
+    "Give me a quick rundown — what's this project for?",
+    "What's the idea here, in a sentence or two?",
+)
+_PROJECT_SECTIONS_PROMPTS = (
+    'Any specific sections or files you want to start with, or should I decide based on that? (say "you decide" to skip)',
+    'Want to call out particular sections, or should I figure that out myself? (say "you decide" to skip)',
+    'Anything specific you want covered, or am I picking the structure? (say "you decide" to skip)',
+)
 _SETUP_BARE = ("setup", "/setup", "set up", "connect", "setup steps", "connect steps")
 _SETUP_PREFIXES = (
     "setup ", "/setup ", "set up ", "connect ",
@@ -237,16 +269,18 @@ async def _advance_project_wizard(
     stripped: str, lowered: str, pending: Dict, project_engine, session_id: str
 ) -> Optional[str]:
     """One step of the fixed "new project" wizard (name -> description ->
-    optional sections -> scaffold). Returns the response text, or None if
-    the reply didn't look like an answer at all (caller falls through to
-    normal routing, same as the task_title/task_category pending states)."""
+    optional sections -> confirm -> scaffold). Returns the response text,
+    or None if the reply didn't look like an answer at all (caller falls
+    through to normal routing, same as the task_title/task_category
+    pending states). A firm "no" at the confirm step ends the whole thing
+    without ever calling the LLM -- only "yes" hands off to project_engine."""
     awaiting = pending["awaiting"]
 
     if lowered in _CANCEL_WORDS:
         _pending.pop(session_id, None)
         return "No worries — cancelled."
 
-    if _looks_like_a_command(stripped, lowered):
+    if awaiting != "project_confirm" and _looks_like_a_command(stripped, lowered):
         _pending.pop(session_id, None)
         return None
 
@@ -258,20 +292,39 @@ async def _advance_project_wizard(
             _set_pending(session_id, "project_name")
             return 'Still need a name for this one — what should I call it? (or say "cancel")'
         _set_pending(session_id, "project_description", name=name)
-        return "One or two lines on what it's about?"
+        return random.choice(_PROJECT_DESCRIPTION_PROMPTS)
 
     if awaiting == "project_description":
         _set_pending(session_id, "project_sections", name=pending["name"], description=stripped.strip())
+        return random.choice(_PROJECT_SECTIONS_PROMPTS)
+
+    if awaiting == "project_sections":
+        sections = "" if lowered in _SKIP_SECTIONS_WORDS else stripped.strip()
+        _set_pending(
+            session_id, "project_confirm", name=pending["name"], description=pending["description"], sections=sections
+        )
+        sections_line = f' covering {sections}' if sections else ''
         return (
-            'Any specific sections or files you want to start with, or should I decide based on that? '
-            '(say "you decide" to skip)'
+            f'So: "{pending["name"]}"{sections_line} — want me to build it? (yes/no)'
         )
 
-    # awaiting == "project_sections" -- the wizard's last step
-    sections = "" if lowered in _SKIP_SECTIONS_WORDS else stripped.strip()
+    # awaiting == "project_confirm" -- the wizard's last step. Not gated by
+    # _looks_like_a_command above (a bare "yes"/"no" would otherwise get
+    # misread as looking like some other command and silently drop the
+    # wizard) -- an unrecognized reply here just re-asks instead of either
+    # building or cancelling on a guess.
+    if lowered in _NO_WORDS:
+        return "No worries — didn't build it."
+    if lowered not in _YES_WORDS:
+        _set_pending(
+            session_id, "project_confirm",
+            name=pending["name"], description=pending["description"], sections=pending["sections"],
+        )
+        return 'Just need a yes or no — want me to build it?'
+
     if project_engine is None:
         return "Project system isn't available right now."
-    _, message = await project_engine.scaffold(pending["name"], pending["description"], sections)
+    _, message = await project_engine.scaffold(pending["name"], pending["description"], pending["sections"])
     return message
 
 
@@ -326,7 +379,9 @@ async def handle_message(
         _pending.pop(session_id, None)
         # falls through to normal handling below
 
-    elif pending and pending.get("awaiting") in ("project_name", "project_description", "project_sections"):
+    elif pending and pending.get("awaiting") in (
+        "project_name", "project_description", "project_sections", "project_confirm"
+    ):
         wizard_reply = await _advance_project_wizard(stripped, lowered, pending, project_engine, session_id)
         if wizard_reply is not None:
             return wizard_reply
@@ -339,7 +394,7 @@ async def handle_message(
         if project_engine is None:
             return "Project system isn't available right now."
         _set_pending(session_id, "project_name")
-        return "What's the project called?"
+        return random.choice(_PROJECT_NAME_PROMPTS)
 
     setup_query = _extract_setup_query(lowered)
     if setup_query is not None:
@@ -381,10 +436,10 @@ async def handle_message(
         )
         return message
 
-    if lowered in ("morning", "morning briefing"):
+    if lowered in _MORNING_TRIGGERS:
         return await briefing_engine.generate_morning_briefing()
 
-    if lowered in ("evening", "evening briefing"):
+    if lowered in _EVENING_TRIGGERS:
         return await briefing_engine.generate_evening_briefing()
 
     # Substring, not an exact-phrase tuple -- "can you run a system health

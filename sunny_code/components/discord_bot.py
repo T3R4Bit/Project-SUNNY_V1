@@ -39,11 +39,11 @@ from typing import Literal
 import discord
 from discord.ext import tasks
 
-from sunny_code.components import category_store, tts, usage_chart, voice_session
+from sunny_code.components import category_store, token_tracker, tts, usage_chart, voice_session
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.crash_check import check_previous_crash
-from sunny_code.components.key_status import missing_api_keys, startup_summary
+from sunny_code.components.key_status import expiring_within, missing_api_keys, startup_summary
 from sunny_code.components.lists_engine import ListEngine
 from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_engine import ScheduledEngine
@@ -61,6 +61,12 @@ HEALTH_MARKER = "⁠" # word joiner (U+2060) -- deliberately a *different*
 # invisible character than DASHBOARD_MARKER, so pin-rediscovery for one
 # can never accidentally match the other's message if both channels ever
 # end up configured to the same channel.
+USAGE_MARKER = "‌" # zero-width non-joiner (U+200C) -- a third distinct
+# invisible marker, same reasoning as HEALTH_MARKER. Lives in the plain
+# message content (not a footer) since the usage message's payload is an
+# image attachment, which has no embed/footer to hide a marker in.
+USAGE_ALERT_THRESHOLD = 0.7 # fraction of daily_spend_cap/monthly_spend_cap
+# that triggers a ping -- "70%" per the backlog item this implements
 MAX_MESSAGE_LENGTH = 1900 # Discord's real limit is 2000; leave headroom
 SCHEDULED_CHECK_INTERVAL_SECONDS = 30
 SPEAK_MAX_CHARS = 1000 # practical cap on synthesis time/file size, well under
@@ -202,6 +208,7 @@ def create_discord_bot(
     warnings_channel_id: int = 0,
     task_updates_channel_id: int = 0,
     health_channel_id: int = 0,
+    usage_channel_id: int = 0,
 ) -> discord.Client:
     """Build (but don't start) the Discord client. chat_channel_id is the only
     channel commands are read from. dashboard_channel_id is where the pinned
@@ -220,6 +227,8 @@ def create_discord_bot(
     state = {
         "dashboard_message_id": None,
         "health_message_id": None,
+        "usage_message_id": None,
+        "usage_alert_date": None,
         "posted_key_status": False,
         "commands_synced": False,
         "posted_crash_notice": False,
@@ -412,6 +421,100 @@ def create_discord_bot(
 
     client.post_to_health = post_to_health
 
+    async def refresh_usage_dashboard():
+        """One pinned message with the Claude usage chart as an image
+        attachment, edited in place on every run — same pattern as
+        refresh_dashboard()/post_to_health(), except the payload is an
+        image, not text/an embed, so the pin-rediscovery marker lives in
+        the message's plain content (an attachment has no footer to hide
+        it in). Called on an hourly loop (see usage_refresh_loop below),
+        same "runs immediately, then every N" shape as the task dashboard's
+        own 5-minute backstop."""
+        target_channel_id = usage_channel_id or chat_channel_id
+        if not target_channel_id:
+            return
+        try:
+            channel = await client.fetch_channel(target_channel_id)
+        except (discord.NotFound, discord.Forbidden) as e:
+            logger.warning(f"Cannot access Discord usage channel {target_channel_id}: {e}")
+            return
+
+        try:
+            png_bytes = await asyncio.to_thread(usage_chart.render_usage_chart_png, 30)
+        except Exception as e:
+            logger.error(f"usage dashboard: chart render failed: {e}")
+            return
+
+        content = f"Claude API usage — last 30 days{USAGE_MARKER}"
+
+        message = None
+        if state["usage_message_id"]:
+            try:
+                message = await channel.fetch_message(state["usage_message_id"])
+            except discord.NotFound:
+                message = None
+
+        if message is None:
+            # Bot restarted — look for a usage message pinned by a previous run
+            async for pin in channel.pins(limit=50):
+                if pin.author.id == client.user.id and pin.content.endswith(USAGE_MARKER):
+                    message = pin
+                    break
+
+        if message is not None:
+            state["usage_message_id"] = message.id
+            try:
+                await message.edit(
+                    content=content, attachments=[discord.File(io.BytesIO(png_bytes), filename="usage.png")]
+                )
+                return
+            except discord.NotFound:
+                state["usage_message_id"] = None
+
+        new_message = await channel.send(content=content, file=discord.File(io.BytesIO(png_bytes), filename="usage.png"))
+        try:
+            await new_message.pin()
+        except discord.Forbidden:
+            logger.warning("Missing permission to pin the usage message — sent unpinned")
+        state["usage_message_id"] = new_message.id
+
+    async def check_usage_alerts():
+        """Pings the usage channel once per day when spend crosses 70% of
+        the self-imposed daily/monthly cap, or a key is expiring within a
+        week — same expiry check the weekly health report already does,
+        surfaced immediately here instead of waiting for Sunday. Tracked
+        by date, not a one-shot flag, so a genuinely new day's crossing
+        still alerts even though yesterday's already did."""
+        target_channel_id = usage_channel_id or chat_channel_id
+        if not target_channel_id:
+            return
+        today = datetime.now().date().isoformat()
+        if state["usage_alert_date"] == today:
+            return
+
+        settings = get_settings()
+        today_cost = token_tracker.get_today_usage()["cost"]
+        month_cost = token_tracker.get_month_cost()
+        alerts = []
+        if settings.daily_spend_cap and today_cost >= settings.daily_spend_cap * USAGE_ALERT_THRESHOLD:
+            alerts.append(
+                f"Daily spend at **${today_cost:.2f}** — {USAGE_ALERT_THRESHOLD:.0%}+ of your "
+                f"${settings.daily_spend_cap:.2f}/day cap."
+            )
+        if settings.monthly_spend_cap and month_cost >= settings.monthly_spend_cap * USAGE_ALERT_THRESHOLD:
+            alerts.append(
+                f"Monthly spend at **${month_cost:.2f}** — {USAGE_ALERT_THRESHOLD:.0%}+ of your "
+                f"${settings.monthly_spend_cap:.2f}/month cap."
+            )
+        for label, raw in expiring_within(7):
+            alerts.append(f"**{label}** expires soon: {raw}")
+
+        if not alerts:
+            return
+
+        state["usage_alert_date"] = today
+        await _post_to(target_channel_id, "**Usage alert**\n" + "\n".join(f"- {a}" for a in alerts))
+
     async def post_to_warnings(text: str):
         """Exposed for callers outside this module (currently pi_companion.py's
         crash-report endpoint, for the Sunny Companion hardware device) that
@@ -483,6 +586,11 @@ def create_discord_bot(
     async def refresh_loop():
         await refresh_dashboard()
 
+    @tasks.loop(hours=1)
+    async def usage_refresh_loop():
+        await refresh_usage_dashboard()
+        await check_usage_alerts()
+
     @tasks.loop(seconds=SCHEDULED_CHECK_INTERVAL_SECONDS)
     async def scheduled_check_loop():
         """Post a ping for any due alarm/reminder — the only real 'sounding'
@@ -520,6 +628,8 @@ def create_discord_bot(
             refresh_loop.start() # runs immediately, then every 5 minutes
         if not scheduled_check_loop.is_running():
             scheduled_check_loop.start() # runs immediately, then every 30s
+        if not usage_refresh_loop.is_running():
+            usage_refresh_loop.start() # runs immediately, then every hour
 
         # Guild-scoped sync (instant) rather than global (~1hr to propagate) —
         # this bot is single-server by design already (see discord-bot.md).
