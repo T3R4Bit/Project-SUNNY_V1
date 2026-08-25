@@ -4,7 +4,11 @@ Two input styles are understood, both fully deterministic (regex only):
 - Natural phrasing (primary): "add buy milk to my tasks", "show my tasks",
   "mark a1b2c3d4 as done", "delete a1b2c3d4"
 - Legacy `!task`/`!tasks` syntax (still works, no longer required or shown
-  in the UI/docs): "!task add "buy milk" --priority 4", "!tasks --tag School"
+  in the UI/docs): "!task add "buy milk" --tag School", "!tasks --tag School"
+
+Tasks have no priority field (removed 2026-08-24, was a plain 1-5 int with
+no real behavior tied to it beyond dashboard sort order) -- category and
+due date are the only real organizing fields left.
 """
 
 import re
@@ -25,7 +29,6 @@ class TaskCommandParser:
 
     # Sub-patterns for extracting flags (shared by legacy and natural add/list)
     TAG_PATTERN = r'--tag\s+(["\']?)([^"\'\s]+)\1'
-    PRIORITY_PATTERN = r'--priority\s+([1-5])'
     DUE_PATTERN = r'--due\s+([\d\-]+)'  # YYYY-MM-DD
     DESCRIPTION_PATTERN = r'--describe\s+(["\']?)(.+?)\1(?:\s--|$)'
 
@@ -98,7 +101,7 @@ class TaskCommandParser:
 
     @staticmethod
     def _split_flags(text: str) -> Tuple[str, str]:
-        """Split 'phrase --tag X --priority 2' into ('phrase', '--tag X --priority 2')."""
+        """Split 'phrase --tag X --due 2026-08-20' into ('phrase', '--tag X --due 2026-08-20')."""
         idx = text.find(' --')
         if idx == -1:
             return text.strip(), ""
@@ -106,7 +109,7 @@ class TaskCommandParser:
 
     @staticmethod
     def _fields_from_flags(flags: str) -> Dict:
-        """Extract tag/priority/due/description from a --flag string. Shared by add paths.
+        """Extract tag/due/description from a --flag string. Shared by add paths.
         "tag" is only present if --tag was actually given -- no default here, so a caller
         (parse_natural_add) can tell "no category stated" apart from "General was chosen"
         and ask instead of silently guessing. parse_add_command (the legacy !task syntax)
@@ -117,9 +120,6 @@ class TaskCommandParser:
         tag_match = re.search(TaskCommandParser.TAG_PATTERN, flags)
         if tag_match:
             result["tag"] = tag_match.group(2)
-
-        priority_match = re.search(TaskCommandParser.PRIORITY_PATTERN, flags)
-        result["priority"] = int(priority_match.group(1)) if priority_match else 3
 
         due_match = re.search(TaskCommandParser.DUE_PATTERN, flags)
         if due_match:
@@ -133,7 +133,7 @@ class TaskCommandParser:
 
     @staticmethod
     def _filters_from_flags(flags: str) -> Dict:
-        """Extract status/tag/priority filters from a --flag string. Shared by list paths."""
+        """Extract status/tag filters from a --flag string. Shared by list paths."""
         result = {}
 
         status_match = re.search(r"--status\s+(\w+)", flags)
@@ -143,10 +143,6 @@ class TaskCommandParser:
         tag_match = re.search(r"--tag\s+([^\s]+)", flags)
         if tag_match:
             result["tag"] = tag_match.group(1)
-
-        priority_match = re.search(r"--priority\s+([1-5])", flags)
-        if priority_match:
-            result["min_priority"] = int(priority_match.group(1))
 
         if "--due-soon" in flags:
             result["due_soon"] = True
@@ -163,7 +159,7 @@ class TaskCommandParser:
 
     @staticmethod
     def parse_add_command(command: str) -> Tuple[bool, Dict]:
-        """Parse: !task add "Title" --tag School --priority 4 --due 2026-08-20"""
+        """Parse: !task add "Title" --tag School --due 2026-08-20"""
         match = re.match(TaskCommandParser.TASK_ADD_PATTERN, command)
         if not match:
             return False, {"error": "Invalid add command format"}
@@ -180,8 +176,8 @@ class TaskCommandParser:
     def parse_natural_add(
         command: str, known_categories: Optional[List[str]] = None
     ) -> Optional[Tuple[bool, Dict]]:
-        """Parse: "add buy milk to my tasks --priority 4" or "add buy milk to
-        my school tasks". known_categories, if given, lets an inline "to my
+        """Parse: "add buy milk to my tasks --due 2026-08-20" or "add buy milk
+        to my school tasks". known_categories, if given, lets an inline "to my
         <category> tasks" phrasing set the category directly; if that word
         isn't one of the known ones (or no list was passed at all), this
         falls through to the plain trigger list below and "tag" is left for
@@ -220,7 +216,7 @@ class TaskCommandParser:
 
     @staticmethod
     def parse_update_command(command: str) -> Tuple[bool, Dict]:
-        """Parse: !task abc123 status done OR !task abc123 priority 5"""
+        """Parse: !task abc123 status done OR !task abc123 tag School"""
         match = re.match(TaskCommandParser.TASK_UPDATE_PATTERN, command)
         if not match:
             return False, {"error": "Invalid update command format"}
@@ -232,17 +228,13 @@ class TaskCommandParser:
 
     @staticmethod
     def _validate_update(task_id: str, field: str, value: str) -> Tuple[bool, Dict]:
-        valid_fields = {"status", "priority", "tag", "title", "describe", "due"}
+        valid_fields = {"status", "tag", "title", "describe", "due"}
         if field not in valid_fields:
             return False, {"error": f"Invalid field: {field}. Valid: {valid_fields}"}
 
         result = {"task_id": task_id, "field": field}
 
-        if field == "priority":
-            if not re.match(r"^[1-5]$", value):
-                return False, {"error": "Priority must be 1-5"}
-            result["value"] = int(value)
-        elif field == "status":
+        if field == "status":
             if value not in {"open", "in_progress", "done"}:
                 return False, {"error": "Status must be: open, in_progress, or done"}
             result["value"] = value
@@ -271,7 +263,7 @@ class TaskCommandParser:
 
     @staticmethod
     def parse_list_command(command: str) -> Tuple[bool, Dict]:
-        """Parse: !tasks [--status open] [--tag School] [--priority 4] [--due-soon]"""
+        """Parse: !tasks [--status open] [--tag School] [--due-soon]"""
         match = re.match(TaskCommandParser.TASK_LIST_PATTERN, command)
         if not match:
             return False, {"error": "Invalid list command"}

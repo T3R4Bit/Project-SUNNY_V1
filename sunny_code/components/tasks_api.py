@@ -33,15 +33,12 @@ def create_tasks_router(tasks_engine: TaskEngine) -> APIRouter:
     async def list_tasks(
         status: str = Query(None, description="Filter by status: open, in_progress, done"),
         tag: str = Query(None, description="Filter by tag"),
-        priority: int = Query(None, description="Minimum priority (1-5)"),
     ):
         """List tasks with optional filters."""
         if status:
             tasks = db.get_tasks_by_status(status)
         elif tag:
             tasks = db.get_tasks_by_tag(tag)
-        elif priority:
-            tasks = db.get_high_priority_tasks(priority)
         else:
             tasks = db.get_open_tasks()
 
@@ -86,16 +83,6 @@ def create_tasks_router(tasks_engine: TaskEngine) -> APIRouter:
         tasks = db.get_tasks_due_soon(days)
         return {
             "due_within_days": days,
-            "count": len(tasks),
-            "tasks": tasks,
-        }
-
-    @router.get("/high-priority")
-    async def get_high_priority(min_priority: int = Query(4, description="Minimum priority (1-5)")):
-        """Get high-priority tasks."""
-        tasks = db.get_high_priority_tasks(min_priority)
-        return {
-            "min_priority": min_priority,
             "count": len(tasks),
             "tasks": tasks,
         }

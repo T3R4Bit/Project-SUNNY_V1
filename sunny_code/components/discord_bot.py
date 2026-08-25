@@ -116,9 +116,8 @@ def build_dashboard_embed(dashboard_data: dict, project_names: list) -> discord.
     project folders exist on disk (populated by the "new project" flow;
     project_names is a plain directory listing the caller supplies, not
     something this function reads itself, so it's testable without a real
-    vault on disk). Tasks don't get a priority bar; the priority number is
-    enough. Module-level (not a closure in create_discord_bot()) so this
-    can be unit-tested directly with synthetic data."""
+    vault on disk). Module-level (not a closure in create_discord_bot())
+    so this can be unit-tested directly with synthetic data."""
     stats = dashboard_data["stats"]
 
     due_soon = dashboard_data["due_soon"]
@@ -129,7 +128,7 @@ def build_dashboard_embed(dashboard_data: dict, project_names: list) -> discord.
         lines = []
         for task in tag_tasks[:5]:
             due_str = f" (due {task['due_date']})" if task["due_date"] else ""
-            lines.append(f"P{task['priority']} — {task['title']}{due_str}")
+            lines.append(f"{task['title']}{due_str}")
         if len(tag_tasks) > 5:
             lines.append(f"...and {len(tag_tasks) - 5} more")
         embed.add_field(name=f"{tag} ({len(tag_tasks)})", value="\n".join(lines) or "(none)", inline=False)

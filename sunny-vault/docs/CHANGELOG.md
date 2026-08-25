@@ -14,6 +14,12 @@ Running log of real changes, most recent first. Not every commit — the milesto
 
 ## 2026-08-24
 
+**Task priority removed, category management everywhere, chat memory idle expiry**
+- Priority is gone from tasks entirely — no field, no `--priority` flag, no `!task <id> priority` update, no `[P#]` in the dashboard/embed, no `/api/tasks/high-priority` endpoint. It never had real behavior tied to it beyond dashboard sort order. Existing task files with an old `priority:` frontmatter line just have it silently ignored on the next read/write — nothing rewrites old files. `get_all_tasks()`/`get_tasks_due_soon()` now sort by creation date / due date only.
+- Category add/remove is no longer Discord-only — "add category `<name>`"/"remove category `<name>`"/"my categories" now work from any interface (console, Discord text, voice, Pi companion), routed in `assistant.py` ahead of task parsing so it can't collide with tasks' broad bare "add X". `/category` in Discord still works too, same underlying `category_store.py`.
+- `conversation_memory.py` gained a 2-hour idle expiry (`IDLE_EXPIRY_SECONDS`) on top of its existing 6-turn cap — without it, a quiet conversation from days ago would silently resurface as "recent conversation" context on whatever gets said next. Turn cap still bounds an *active* conversation's prompt size; the idle expiry bounds how long a *quiet* one sticks around at all.
+- Confirmed (no code change needed): the Claude-usage-chart move to `#health` was already done in the Service Orchestration pass above — `DISCORD_USAGE_CHANNEL_ID` doesn't exist in `config.py`, `refresh_usage_dashboard()`/`check_usage_alerts()` post to `discord_health_channel_id`.
+
 **Persistent voice presence + conversation memory**
 - `/join`/`/leave` are gone — Sunny now stays connected to `DISCORD_VOICE_CHANNEL_ID` persistently, via a new `voice_presence_loop` that reconciles actual connection state against the existing `voice_join` service toggle every 30s (`/service voice_join enable|disable` is the only control surface now). Reconnects automatically after a drop or a worker crash, no manual re-join needed. `voice_session.start()` refactored to take a `discord.VoiceChannel` directly instead of a Discord interaction, since nothing triggers it from a slash command anymore.
 - "Hey Sunny" is still required before every request — kept deliberately; an always-listening open mic reacting to any speech in the channel wasn't part of the ask and has real false-trigger/privacy implications.

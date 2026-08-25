@@ -102,6 +102,19 @@ no redeploy). Model/max_tokens/temperature are `.env`-configurable
 (`LLM_CHAT_MODEL`/`LLM_CHAT_MAX_TOKENS`/`LLM_CHAT_TEMPERATURE`, see
 config.py) — see [[voice-join]]'s latency chart for real, measured timing.
 
+**Conversation memory** (2026-08-24): `sunny_code/components/conversation_memory.py`
+gives this fallback short-term context — the last 6 turns (3 exchanges) per
+`session_id`, so "why" or "what about that" resolves the way it would in a
+real back-and-forth instead of every message being answered in isolation.
+In-memory only, never written to the vault, resets on restart. Bounded two
+ways: `MAX_TURNS` caps an *active* conversation's prompt size, and a
+2-hour idle expiry (`IDLE_EXPIRY_SECONDS`) drops the history entirely once
+it's been that long since the last turn — without it, a quiet conversation
+from days ago would silently resurface as "recent conversation" context on
+whatever gets said next. Scoped only to this LLM fallback — command
+routing (tasks/lists/alarms/calendar/etc.) stays stateless by design and
+never touches this.
+
 **Not yet built**: the "execute action" half below — today's version only
 *answers*, it never creates/updates a task or calendar event on its own
 initiative. The original phone-call framing (Twilio) is also still fully

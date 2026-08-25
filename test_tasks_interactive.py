@@ -24,9 +24,9 @@ async def main():
 Test the task system by typing natural commands — no prefix needed.
 
 Commands:
-  add Title to my tasks --tag School --priority 4 --due 2026-08-20
+  add Title to my tasks --tag School --due 2026-08-20
   mark abc123 as done
-  !task abc123 priority 5 (field edits still use this terser form)
+  !task abc123 tag School (field edits still use this terser form)
   delete abc123
   show my tasks
   list tasks --tag School
@@ -34,8 +34,8 @@ Commands:
   list tasks --due-soon
 
 Examples:
-  add finish physics homework to my tasks --tag School --priority 5 --due 2026-08-20
-  add engine rebuild to my tasks --tag Motorsports --priority 4
+  add finish physics homework to my tasks --tag School --due 2026-08-20
+  add engine rebuild to my tasks --tag Motorsports
   remind me to learn Rust
   list tasks --open
   list tasks --tag School
@@ -63,17 +63,16 @@ Type 'help' for all commands, 'exit' to quit.
 TASK COMMANDS:
 
 Create:
-  add Title to my tasks --tag TAG --priority PRIORITY --due DATE
+  add Title to my tasks --tag TAG --due DATE
   add task Title / create task Title / new task Title / remind me to Title
 
-  Tags: School, Motorsports, General, Project Ideas
-  Priority: 1-5 (1=low, 5=critical)
+  Tags: School, Motorsports, General, Project Ideas (or whatever your live
+  category list has — see /category in Discord)
   Date: YYYY-MM-DD
 
 Update:
   mark ID as done / complete ID / finish ID
-  !task ID priority 1-5 (field edits still use this terser form — need the ID)
-  !task ID tag TAG
+  !task ID tag TAG (field edits still use this terser form — need the ID)
   !task ID title "New title"
   !task ID describe "Description"
   !task ID due YYYY-MM-DD
@@ -85,14 +84,13 @@ List:
   show my tasks / my tasks / tasks (show open)
   list tasks --status open|done|in_progress
   list tasks --tag TAG
-  list tasks --priority 4 (priority 4+)
   list tasks --due-soon (due within 7 days)
   list tasks --all (show all)
 
 Examples:
-  add exam prep to my tasks --tag School --priority 5 --due 2026-08-25
+  add exam prep to my tasks --tag School --due 2026-08-25
   !task 3a2b1c status in_progress
-  !task 3a2b1c priority 5
+  !task 3a2b1c tag Motorsports
 
 The legacy !task/!tasks syntax (shown above for field edits) still works everywhere too.
                 """)

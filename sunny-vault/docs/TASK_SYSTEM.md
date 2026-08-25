@@ -2,7 +2,9 @@
 
 Task management with hardcoded logic (no LLM required). **Discord is the intended primary interface** — connected to a live server as of 2026-08-20 (see [[architecture/discord-bot.md]]). Commands are read from a `#chat` channel; the pinned dashboard lives in its own separate, read-only channel. The web chatbot is fully working today and remains the fallback for whenever the Discord bot is down.
 
-Tasks are one of three sibling subsystems that share the same routing entry point, database-per-feature approach, and "no LLM, plain pattern matching" philosophy — see [[architecture/lists.md]] for named checkable lists (groceries, packing, etc.) and [[architecture/alarms-reminders.md]] for time-triggered alarms/reminders that ping Discord when due. They are **not** part of Tasks — a list item never has a priority, and a task is never "due at 7am" in the alarm sense. All three route through the same `sunny_code/components/assistant.py`.
+Tasks are one of three sibling subsystems that share the same routing entry point, database-per-feature approach, and "no LLM, plain pattern matching" philosophy — see [[architecture/lists.md]] for named checkable lists (groceries, packing, etc.) and [[architecture/alarms-reminders.md]] for time-triggered alarms/reminders that ping Discord when due. They are **not** part of Tasks — a task is never "due at 7am" in the alarm sense. All three route through the same `sunny_code/components/assistant.py`.
+
+Tasks have no priority field (removed 2026-08-24 — it was a plain 1-5 int with no real behavior tied to it beyond dashboard sort order). Category and due date are the two real organizing fields.
 
 ## Status
 
@@ -21,7 +23,7 @@ Tasks are one of three sibling subsystems that share the same routing entry poin
 
 ## Overview
 
-- **Categories**: A real, editable list (`sunny_code/components/category_store.py`) — `/category add`/`/category remove` in Discord manage it. General/School/Motorsports ship as defaults; `General` can never be removed (permanent fallback). If a task's category isn't stated or clearly implied by phrasing, Sunny asks which one instead of silently defaulting.
+- **Categories**: A real, editable list (`sunny_code/components/category_store.py`) — "add category `<name>`"/"remove category `<name>`" from any interface, or `/category add`/`/category remove` in Discord specifically (2026-08-24: natural language added everywhere else, previously Discord-only). General/School/Motorsports ship as defaults; `General` can never be removed (permanent fallback). If a task's category isn't stated or clearly implied by phrasing, Sunny asks which one instead of silently defaulting.
 - **Storage**: Markdown in the Obsidian vault (`sunny-vault/state/tasks/`, one file per task) — see [[architecture/vault-storage]]. Finishing or deleting a task **archives** its file (`sunny-vault/archive/finished/` or `archive/deleted/`) rather than removing it — no task data is ever actually lost, and lifetime stats still count what finished.
 - **Interface today**: Console chat, Discord text, and Discord voice (Sunny's persistent voice presence — see [[architecture/voice-join]]) — all identical behavior through the same `handle_message()`
 - **Logic**: Deterministic, no LLM calls
@@ -36,7 +38,6 @@ Task {
   description: str # optional
   tag: str # any non-empty string — free-form category, not an enum
   status: str # open | in_progress | done
-  priority: int # 1-5 (1=low, 5=critical)
   created_at: datetime
   updated_at: datetime
   due_date: datetime # optional
@@ -67,12 +68,11 @@ This exists so future features (e.g. "show me what I created from my phone today
 
 ```
 POST /api/tasks/command?cmd=... Execute a task command directly (natural phrasing or legacy !task syntax)
-GET /api/tasks/list List tasks (filter by status/tag/priority query params)
+GET /api/tasks/list List tasks (filter by status/tag query params)
 GET /api/tasks/open All open tasks
 GET /api/tasks/done All completed tasks
 GET /api/tasks/in-progress All in-progress tasks
 GET /api/tasks/due-soon?days=7 Tasks due within N days
-GET /api/tasks/high-priority?min_priority=4
 GET /api/tasks/stats Counts by status + open tasks by tag
 GET /api/tasks/dashboard Full formatted dashboard (same text the Discord embed will eventually show)
 GET /api/tasks/{task_id} Single task by ID
@@ -88,7 +88,7 @@ show my tasks # Show all open tasks, grouped by tag
 my tasks
 tasks
 what are my tasks
-list tasks --tag School # Trailing filters still work: --tag, --status, --priority,
+list tasks --tag School # Trailing filters still work: --tag, --status,
                              # --due-soon, --all, --done, --open, --in-progress
 ```
 
@@ -103,15 +103,15 @@ make a task <title>
 remind me to <title>
 
 Trailing flags still work if you want precision:
-add <title> to my tasks --tag <tag> --priority <1-5> --due <date> --describe "<text>"
+add <title> to my tasks --tag <tag> --due <date> --describe "<text>"
 
 Examples:
-add finish physics homework to my tasks --tag School --priority 4 --due 2026-08-20
-add engine rebuild plan to my tasks --tag Motorsports --priority 3
-add walk the dog to my tasks --tag Pets --priority 2
+add finish physics homework to my tasks --tag School --due 2026-08-20
+add engine rebuild plan to my tasks --tag Motorsports
+add walk the dog to my tasks --tag Pets
 remind me to learn Rust
 ```
-If a category isn't stated or clearly implied by the phrasing, Sunny asks (offering the current `/category` list) instead of silently defaulting; priority defaults to `3` if omitted. Categories are still free-form storage underneath — the `/category`-managed list is just what gets offered/asked about, not a hard allowlist, so typing something outside it (via `--tag` or as a reply to the "which category?" prompt) still works. Inline phrasing also works without `--tag` at all: "add walk the dog to my school tasks", "put buy milk on my tasks", "check off my chores task" are all recognized (broadened 2026-08-23).
+If a category isn't stated or clearly implied by the phrasing, Sunny asks (offering the current category list) instead of silently defaulting. Categories are still free-form storage underneath — the managed list (see Overview above) is just what gets offered/asked about, not a hard allowlist, so typing something outside it (via `--tag` or as a reply to the "which category?" prompt) still works. Inline phrasing also works without `--tag` at all: "add walk the dog to my school tasks", "put buy milk on my tasks", "check off my chores task" are all recognized (broadened 2026-08-23).
 
 ### Update Task
 "Done" has a natural shortcut that takes an ID **or a title** — marking a task done archives it immediately (`archive/finished/`), the same as Delete below does for `archive/deleted/`, so it drops out of the active dashboard the instant it's finished:
@@ -125,16 +125,14 @@ mark ff055559 as done
 mark make pizza as done
 complete make pizza
 ```
-Other field updates (priority, tag, title, description, due date) still use the terser `!task <id> <field> <value>` form:
+Other field updates (tag, title, description, due date) still use the terser `!task <id> <field> <value>` form:
 ```
-!task <id> priority <1-5>
 !task <id> tag <tag>
 !task <id> title <new title>
 !task <id> describe <description>
 !task <id> due <date>
 
 Examples:
-!task a1b2c3d4 priority 5
 !task a1b2c3d4 tag "Project Ideas"
 ```
 
@@ -191,7 +189,6 @@ One file per task, filename slugified from the title at creation (doesn't rename
 id: a1b2c3d4
 tag: School # free-form category, any non-empty string
 status: open # open | in_progress | done
-priority: 4 # 1-5
 due_date: 2026-08-20 # omitted from frontmatter entirely if unset
 source: web
 created_at: 2026-08-19T14:30:00.482113
@@ -231,9 +228,8 @@ TASK_UPDATE_PATTERN = r'!task\s+(\w+)\s+(\w+)\s+(.*)' # id, field, value
 TASK_DELETE_PATTERN = r'!task\s+(\w+)\s+delete'
 TASK_LIST_PATTERN = r'!tasks?(?:\s+(.*))?'
 
-# Shared flag patterns (either syntax can carry --tag/--priority/--due/--describe)
+# Shared flag patterns (either syntax can carry --tag/--due/--describe)
 TAG_PATTERN = r'--tag\s+(["\']?)([^"\'\s]+)\1'
-PRIORITY_PATTERN = r'--priority\s+([1-5])'
 DUE_PATTERN = r'--due\s+([\d\-]+)' # YYYY-MM-DD
 DESCRIPTION_PATTERN = r'--describe\s+(["\']?)(.+?)\1(?:\s--|$)'
 
@@ -249,7 +245,6 @@ No IDs shown anywhere — every response references tasks by title. The ID still
 ```
 Task created: Finish physics homework
 Category: School
-Priority: 4/5
 Due: 2026-08-20
 ```
 ```
@@ -262,7 +257,7 @@ Both archive the file rather than removing it (see Update Task / Delete Task abo
 
 ### Error
 ```
-Invalid priority (must be 1-5)
+Category cannot be empty
 ```
 
 ## Integration Points
@@ -309,7 +304,8 @@ Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging c
 - [x] Lists and Alarms/Reminders built as separate sibling subsystems, routed through the same `handle_message()` — see [[architecture/lists.md]] and [[architecture/alarms-reminders.md]] for their own checklists
 - [x] Real Discord bot token connected, live on a real server (2026-08-20)
 - [x] Migrated storage off SQLite onto vault-markdown, one file per task (2026-08-19/20) — see [[architecture/vault-storage]]
-- [x] Real, editable category list (`/category add`/`/category remove`), with a category asked for when not stated/implied instead of silently defaulting
+- [x] Real, editable category list — natural language ("add category X"/"remove category X") from any interface, or `/category add`/`/category remove` in Discord specifically, with a category asked for when not stated/implied instead of silently defaulting
+- [x] Priority removed entirely (2026-08-24) — no field, no `--priority` flag, no dashboard `[P#]` display; existing task files with an old `priority:` frontmatter line just have it ignored, nothing rewrites them
 - [x] Archive-not-delete — finishing or deleting a task moves its file to `archive/finished/`/`archive/deleted/` instead of erasing it
 - [x] Discord task dashboard is a real live-updating embed with a Projects field, not plain text
 - [x] Project wizard ("new project") — see Project Wizard above

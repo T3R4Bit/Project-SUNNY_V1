@@ -28,7 +28,7 @@ def _active_project_names() -> List[str]:
 
 
 async def build_context(tasks_engine: TaskEngine, list_engine: ListEngine) -> Dict:
-    """Assembles the compact state block: open tasks (title/tag/priority
+    """Assembles the compact state block: open tasks (title/tag
     only, not full descriptions -- this is meant to stay small), every
     list's name and item count, today's calendar events (title/time only),
     and real project folder names. Any source that's unavailable (Calendar
@@ -44,7 +44,7 @@ async def build_context(tasks_engine: TaskEngine, list_engine: ListEngine) -> Di
 
     return {
         "open_tasks": [
-            {"title": t["title"], "tag": t["tag"], "priority": t["priority"]} for t in open_tasks
+            {"title": t["title"], "tag": t["tag"]} for t in open_tasks
         ],
         "lists": [
             {"name": lst["name"], "item_count": len(list_engine.db.get_items(lst["id"]))} for lst in lists
@@ -64,7 +64,7 @@ def format_context(context: Dict) -> str:
     if context["open_tasks"]:
         lines.append("Open tasks:")
         for t in context["open_tasks"]:
-            lines.append(f"- [{t['tag']}] P{t['priority']}: {t['title']}")
+            lines.append(f"- [{t['tag']}] {t['title']}")
 
     if context["lists"]:
         lines.append("Lists:")

@@ -86,7 +86,9 @@ VOICE
     voice_join enable|disable.
 
 DISCORD-ONLY COMMANDS
-  /category add|remove <name> — manage the task category list
+  add category <name> / remove category <name> — manage the task category
+    list (also /category add|remove <name> in Discord)
+  my categories — list them
   /usage [days] — chart of Claude API cost over the last N days (default 30)
   /services — on/off + autostart status for every background service
   /service <name> enable|disable|autostart_on|autostart_off
@@ -139,6 +141,31 @@ _USAGE_QUERY_TRIGGERS = (
     "what's my usage", "whats my usage", "what is my usage", "how much have i spent",
     "how much have i spent on claude", "my usage", "usage", "claude usage",
 )
+_CATEGORY_ADD_PREFIXES = ("add category ", "create category ", "new category ")
+_CATEGORY_REMOVE_PREFIXES = ("remove category ", "delete category ")
+_CATEGORY_LIST_TRIGGERS = ("my categories", "what categories are there", "list categories", "show categories")
+
+
+def _extract_category_add(stripped: str, lowered: str) -> Optional[str]:
+    """The category name out of "add/create/new category <name>" -- taken
+    from `stripped`, not `lowered`, so the name keeps whatever
+    capitalization was typed (category_store shows it back verbatim, e.g.
+    "General"/"School", not lowercased)."""
+    for prefix in _CATEGORY_ADD_PREFIXES:
+        if lowered.startswith(prefix):
+            name = stripped[len(prefix):].strip().strip('"\'')
+            return name or None
+    return None
+
+
+def _extract_category_remove(stripped: str, lowered: str) -> Optional[str]:
+    for prefix in _CATEGORY_REMOVE_PREFIXES:
+        if lowered.startswith(prefix):
+            name = stripped[len(prefix):].strip().strip('"\'')
+            return name or None
+    return None
+
+
 _MY_CLASSES_TRIGGERS = ("my classes", "what classes am i tracking", "list my classes", "show my classes")
 _EXAM_DATE_PREFIXES = (
     "when is my ", "when's my ", "whens my ", "when is the ", "when's the ", "whens the ",
@@ -273,6 +300,9 @@ def _looks_like_a_command(stripped: str, lowered: str) -> bool:
     if (lowered in _MY_CLASSES_TRIGGERS or _extract_exam_date_query(lowered) is not None
             or _extract_study_review_query(lowered) is not None):
         return True
+    if (lowered in _CATEGORY_LIST_TRIGGERS or _extract_category_add(stripped, lowered) is not None
+            or _extract_category_remove(stripped, lowered) is not None):
+        return True
     task_cmd_type, _, _ = TaskCommandParser.parse_command(stripped)
     if task_cmd_type not in ("unknown", "add"):
         return True
@@ -386,7 +416,7 @@ async def _finish_task_with_category(
 ) -> str:
     """Resolve a pending "which category?" follow-up and create the task.
     pending_data is everything parse_command already resolved (title,
-    priority, due_date, description, ...) minus "tag" — there's no single
+    due_date, description, ...) minus "tag" — there's no single
     command string left to re-parse here, unlike _create_task_from_reply,
     so this goes through TaskEngine.create_task_from_data() directly.
 
@@ -569,6 +599,19 @@ async def handle_message(
         handled, _, message = await spotify_engine.try_execute(stripped, source=source)
         if handled:
             return message
+
+    if lowered in _CATEGORY_LIST_TRIGGERS:
+        return "Categories: " + ", ".join(category_store.get_categories())
+
+    category_to_add = _extract_category_add(stripped, lowered)
+    if category_to_add is not None:
+        _, message = category_store.add_category(category_to_add)
+        return message
+
+    category_to_remove = _extract_category_remove(stripped, lowered)
+    if category_to_remove is not None:
+        _, message = category_store.remove_category(category_to_remove)
+        return message
 
     cmd_type, success, task_data = TaskCommandParser.parse_command(stripped, category_store.get_categories())
 

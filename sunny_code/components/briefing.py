@@ -191,7 +191,7 @@ EMAIL
 
 TASKS ({task_count} total)
    {task_str}
-   Top priority: {top['title'] if top else 'None'}
+   Next up: {top['title'] if top else 'None'}
 
 WELLNESS
    {health_note}

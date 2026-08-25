@@ -20,8 +20,12 @@ from sunny_code.components import vault_io
 logger = logging.getLogger(__name__)
 
 # Field order in the YAML frontmatter block — purely cosmetic (stable, readable
-# diffs) but kept consistent across every write.
-_FIELD_ORDER = ["id", "tag", "status", "priority", "due_date", "source", "created_at", "updated_at"]
+# diffs) but kept consistent across every write. No "priority" field —
+# removed 2026-08-24 (was a plain 1-5 int with no real behavior tied to it
+# beyond dashboard sort order); a task file written before the removal
+# that still has a "priority:" line in its frontmatter just has it ignored
+# on the next read/write, nothing rewrites old files to strip it.
+_FIELD_ORDER = ["id", "tag", "status", "due_date", "source", "created_at", "updated_at"]
 
 
 class TaskDB:
@@ -31,7 +35,6 @@ class TaskDB:
     # originally-shipped defaults, not an enforced list.
     DEFAULT_TAGS = {"School", "Motorsports", "General", "Project Ideas"}
     VALID_STATUSES = {"open", "in_progress", "done"}
-    VALID_PRIORITIES = {1, 2, 3, 4, 5}
 
     def __init__(self, tasks_dir: Path):
         self.tasks_dir = tasks_dir
@@ -124,7 +127,6 @@ class TaskDB:
         self,
         title: str,
         tag: str,
-        priority: int = 3,
         description: str = None,
         due_date: str = None,
         source: str = None,
@@ -132,8 +134,6 @@ class TaskDB:
         """Create a new task. Returns task ID."""
         if not tag or not tag.strip():
             raise ValueError("Category cannot be empty")
-        if priority not in self.VALID_PRIORITIES:
-            raise ValueError(f"Priority must be 1-5, got {priority}")
         if not title or not title.strip():
             raise ValueError("Title cannot be empty")
 
@@ -154,7 +154,6 @@ class TaskDB:
             "description": description,
             "tag": tag,
             "status": "open",
-            "priority": priority,
             "created_at": now,
             "updated_at": now,
             "due_date": due_date,
@@ -180,7 +179,7 @@ class TaskDB:
             tasks = [t for t in tasks if t.get("status") == status]
         if tag:
             tasks = [t for t in tasks if t.get("tag") == tag]
-        tasks.sort(key=lambda t: (-t.get("priority", 3), t.get("created_at") or ""))
+        tasks.sort(key=lambda t: t.get("created_at") or "")
         return tasks
 
     def get_tasks_by_status(self, status: str) -> List[Dict]:
@@ -220,22 +219,12 @@ class TaskDB:
             for t in self._iter_tasks()
             if t.get("status") != "done" and t.get("due_date") is not None and t["due_date"] <= cutoff
         ]
-        tasks.sort(key=lambda t: (t["due_date"], -t.get("priority", 3)))
-        return tasks
-
-    def get_high_priority_tasks(self, min_priority: int = 4) -> List[Dict]:
-        """Get high-priority tasks."""
-        tasks = [
-            t
-            for t in self._iter_tasks()
-            if t.get("status") != "done" and t.get("priority", 3) >= min_priority
-        ]
-        tasks.sort(key=lambda t: (-t.get("priority", 3), t.get("created_at") or ""))
+        tasks.sort(key=lambda t: t["due_date"])
         return tasks
 
     def update_task(self, task_id: str, **kwargs) -> bool:
-        """Update a task. Valid keys: title, description, tag, status, priority, due_date."""
-        valid_keys = {"title", "description", "tag", "status", "priority", "due_date"}
+        """Update a task. Valid keys: title, description, tag, status, due_date."""
+        valid_keys = {"title", "description", "tag", "status", "due_date"}
         keys = set(kwargs.keys())
 
         if not keys.issubset(valid_keys):
@@ -245,8 +234,6 @@ class TaskDB:
             raise ValueError("Category cannot be empty")
         if "status" in kwargs and kwargs["status"] not in self.VALID_STATUSES:
             raise ValueError(f"Invalid status: {kwargs['status']}")
-        if "priority" in kwargs and kwargs["priority"] not in self.VALID_PRIORITIES:
-            raise ValueError(f"Invalid priority: {kwargs['priority']}")
 
         if "tag" in kwargs:
             kwargs["tag"] = kwargs["tag"].strip()

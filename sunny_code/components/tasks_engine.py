@@ -120,15 +120,13 @@ class TaskEngine:
             self.db.create_task(
                 title=data["title"],
                 tag=data.get("tag", "General"),
-                priority=data.get("priority", 3),
                 description=data.get("description"),
                 due_date=data.get("due_date"),
                 source=source,
             )
 
             message = f"""Task created: {data['title']}
-Category: {data.get('tag', 'General')}
-Priority: {data.get('priority', 3)}/5"""
+Category: {data.get('tag', 'General')}"""
 
             if data.get("due_date"):
                 message += f"\nDue: {data['due_date']}"
@@ -172,7 +170,6 @@ Priority: {data.get('priority', 3)}/5"""
             # Map field names for database
             field_map = {
                 "status": "status",
-                "priority": "priority",
                 "tag": "tag",
                 "title": "title",
                 "describe": "description",
@@ -226,9 +223,6 @@ Priority: {data.get('priority', 3)}/5"""
         elif "tag" in data:
             tasks = self.db.get_tasks_by_tag(data["tag"])
             title = f"{data['tag'].upper()}"
-        elif "min_priority" in data:
-            tasks = self.db.get_high_priority_tasks(data["min_priority"])
-            title = f"PRIORITY {data['min_priority']}+"
         else:
             tasks = self.db.get_open_tasks()
             title = "OPEN TASKS"
@@ -245,7 +239,7 @@ Priority: {data.get('priority', 3)}/5"""
                 "done": "●",
             }.get(task["status"], "•")
 
-            line = f"{status_icon} [P{task['priority']}] {task['title']} ({task['tag']})"
+            line = f"{status_icon} {task['title']} ({task['tag']})"
 
             if task["due_date"]:
                 line += f" (due {task['due_date']})"

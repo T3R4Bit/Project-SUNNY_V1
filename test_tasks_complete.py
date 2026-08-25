@@ -33,7 +33,6 @@ async def test_task_database():
     task_id1 = db.create_task(
         title="Finish physics homework",
         tag="School",
-        priority=5,
         due_date="2026-08-20",
     )
     print(f" Created task: {task_id1}")
@@ -41,14 +40,12 @@ async def test_task_database():
     task_id2 = db.create_task(
         title="Engine rebuild",
         tag="Motorsports",
-        priority=4,
     )
     print(f" Created task: {task_id2}")
 
     task_id3 = db.create_task(
         title="Learn Rust",
         tag="General",
-        priority=3,
     )
     print(f" Created task: {task_id3}")
 
@@ -56,7 +53,6 @@ async def test_task_database():
     print("\n2⃣ Testing READ...")
     task = db.get_task(task_id1)
     assert task["title"] == "Finish physics homework"
-    assert task["priority"] == 5
     print(f" Retrieved task: {task['title']}")
 
     # Test list
@@ -76,16 +72,13 @@ async def test_task_database():
     assert task["status"] == "in_progress"
     print(f" Updated status to: {task['status']}")
 
-    db.update_task(task_id1, priority=4)
+    db.update_task(task_id1, tag="Motorsports")
     task = db.get_task(task_id1)
-    assert task["priority"] == 4
-    print(f" Updated priority to: {task['priority']}")
+    assert task["tag"] == "Motorsports"
+    print(f" Updated category to: {task['tag']}")
 
     # Test filters
     print("\n5⃣ Testing FILTERS...")
-    high_priority = db.get_high_priority_tasks(min_priority=4)
-    print(f" High priority (4+): {len(high_priority)} tasks")
-
     due_soon = db.get_tasks_due_soon(days=7)
     print(f" Due within 7 days: {len(due_soon)} tasks")
 
@@ -126,23 +119,21 @@ async def test_command_parser():
     # Test add command (legacy !task syntax)
     print("\n1⃣ Testing PARSE ADD (legacy !task syntax)...")
     success, data = parser.parse_add_command(
-        '!task add "Finish homework" --tag School --priority 5 --due 2026-08-20'
+        '!task add "Finish homework" --tag School --due 2026-08-20'
     )
     assert success
     assert data["title"] == "Finish homework"
     assert data["tag"] == "School"
-    assert data["priority"] == 5
     print(f" Parsed: {data}")
 
     # Test add command (natural phrasing — primary UX today)
     print("\n1⃣b Testing PARSE ADD (natural phrasing)...")
     cmd_type, success, data = parser.parse_command(
-        "add finish homework to my tasks --tag School --priority 5 --due 2026-08-20"
+        "add finish homework to my tasks --tag School --due 2026-08-20"
     )
     assert cmd_type == "add" and success
     assert data["title"] == "finish homework"
     assert data["tag"] == "School"
-    assert data["priority"] == 5
     print(f" Parsed: {data}")
 
     cmd_type, success, data = parser.parse_command("show my tasks")
@@ -210,7 +201,7 @@ async def test_task_engine():
     # Test add via engine
     print("\n1⃣ Testing ENGINE ADD...")
     success, msg = await engine.execute_command(
-        '!task add "Physics exam prep" --tag School --priority 5 --due 2026-08-25'
+        '!task add "Physics exam prep" --tag School --due 2026-08-25'
     )
     assert success
     print(f" {msg.split(chr(10))[0]}")
@@ -261,7 +252,7 @@ async def test_http_api():
         print("\n2⃣ Testing POST /api/tasks/command (legacy !task syntax)...")
         response = requests.post(
             "http://127.0.0.1:5002/api/tasks/command",
-            params={"cmd": '!task add "Test task" --tag General --priority 3'},
+            params={"cmd": '!task add "Test task" --tag General'},
         )
         assert response.status_code == 200
         data = response.json()
@@ -272,7 +263,7 @@ async def test_http_api():
         print("\n2⃣b Testing POST /api/tasks/command (natural phrasing)...")
         response = requests.post(
             "http://127.0.0.1:5002/api/tasks/command",
-            params={"cmd": "add another test task to my tasks --tag General --priority 3"},
+            params={"cmd": "add another test task to my tasks --tag General"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -344,17 +335,16 @@ Features implemented:
   Hardcoded command parser (no LLM needed)
   Natural language commands (add X to my tasks, show my tasks, mark X as done)
   Legacy !task/!tasks syntax still supported underneath
-  Filtering by tag, status, priority, due date
+  Filtering by tag, status, due date
   Task statistics and dashboard
   HTTP API endpoints
   Task validation and error handling
 
 Try these commands:
-  add finish homework to my tasks --tag School --priority 5 --due 2026-08-20
-  add engine rebuild to my tasks --tag Motorsports --priority 4
+  add finish homework to my tasks --tag School --due 2026-08-20
+  add engine rebuild to my tasks --tag Motorsports
   show my tasks
   list tasks --tag School
-  list tasks --priority 4
   list tasks --due-soon
 
 Next steps:
