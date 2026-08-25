@@ -7,7 +7,7 @@ text — so the answer is never stale.
 
 from typing import Optional
 
-from sunny_code.components import google_auth, location_store, spotify_auth, tts
+from sunny_code.components import class_memory, google_auth, location_store, spotify_auth, tts
 from sunny_code.components.data_sources import is_configured
 from sunny_code.config import get_settings, looks_configured
 
@@ -51,6 +51,10 @@ _ALIASES = {
     "racing": "motorsports",
     "tasks": "tasks",
     "task": "tasks",
+    "classes": "classes",
+    "class": "classes",
+    "class setup": "classes",
+    "syllabus": "classes",
 }
 
 
@@ -210,6 +214,14 @@ def _tasks_guide() -> str:
 Status: Always connected — stored directly in the vault (sunny-vault/state/tasks/), no API or setup needed."""
 
 
+def _class_setup_guide() -> str:
+    classes = class_memory.get_all_classes()
+    status = f"{len(classes)} class(es) tracked" if classes else "No classes set up yet"
+    return f"""CLASS SETUP
+Status: {status} — rides on Google Calendar, no separate account of its own (see "setup calendar" first if that's not connected yet).
+Say "set up my classes" (or use /classsetup in Discord) and paste a syllabus per class. Sunny pulls the class name, meeting times, due dates, and exams straight out of the text, puts recurring class times and all-day due-date/exam events on your calendar, and pings #reminders 2 days before and the day of each deadline."""
+
+
 def _gps_guide() -> str:
     settings = get_settings()
     fix = location_store.get_coordinates()
@@ -279,11 +291,13 @@ _GUIDES = {
     "news": lambda: _not_built_guide("news"),
     "motorsports": lambda: _not_built_guide("motorsports"),
     "tasks": _tasks_guide,
+    "classes": _class_setup_guide,
 }
 
-_OVERVIEW_ORDER = ["tasks", "weather", "gps", "google", "spotify", "discord", "piper", "claude", "commute", "health", "news", "motorsports"]
+_OVERVIEW_ORDER = ["tasks", "classes", "weather", "gps", "google", "spotify", "discord", "piper", "claude", "commute", "health", "news", "motorsports"]
 _OVERVIEW_LABELS = {
     "tasks": "Tasks",
+    "classes": "Class Setup",
     "claude": "Claude (LLM, infra-only)",
     "weather": "Weather",
     "gps": "GPS location (OwnTracks)",
@@ -299,6 +313,9 @@ _OVERVIEW_LABELS = {
 
 
 def _overview_status(key: str) -> str:
+    if key == "classes":
+        count = len(class_memory.get_all_classes())
+        return f"{count} tracked" if count else "not started"
     if key == "google":
         if not google_auth.is_client_configured():
             return "not set up"

@@ -53,7 +53,7 @@ This is the first genuinely *proactive, unprompted* Discord message anywhere in 
 
 ## Wizard Flow
 
-"set up my classes" (or a close variant) launches a multi-step conversation, same pending-follow-up mechanism as the project wizard (`assistant.py`'s `_pending` dict, 5-minute TTL, "cancel" to back out at any point):
+"set up my classes" (or a close variant), or `/classsetup` in Discord, launches a multi-step conversation, same pending-follow-up mechanism as the project wizard (`assistant.py`'s `_pending` dict, 5-minute TTL, "cancel" to back out at any point). `/classsetup` doesn't do anything special — it just calls `handle_message("set up my classes", ...)` with the same `session_id` convention `on_message` already uses, so it starts the identical wizard and every reply after it is ordinary plain-text through the channel, no different from typing the trigger phrase directly. Public, not ephemeral, unlike `/speak` — the whole back-and-forth needs to stay visible in the channel.
 
 1. Semester name (e.g. "Fall 2026")
 2. Semester start/end dates (`"YYYY-MM-DD to YYYY-MM-DD"`, plain string parsing — no regex, matches this module's existing style for a rigid, user-guided format)
@@ -77,14 +77,15 @@ Both `class_setup_syllabus` (a syllabus paste) and `class_setup_confirm` (a corr
 - `sunny_code/components/class_deadlines.py` — deadline tracking + `check_and_notify()`
 - `sunny_code/components/class_setup_engine.py` — `preview()`/`commit()`, ties the above together
 - `sunny_code/components/assistant.py` — the wizard's conversational state machine
-- `sunny_code/components/discord_bot.py` — `class_reminders_loop`, `DISCORD_REMINDERS_CHANNEL_ID`
+- `sunny_code/components/discord_bot.py` — `class_reminders_loop`, `DISCORD_REMINDERS_CHANNEL_ID`, `/classsetup`
+- `sunny_code/components/setup_guides.py` — `"setup classes"` guide + overview entry
 - `sunny-vault/instructions/syllabus-parse.md` — the syllabus-parsing system prompt
 
 ## Dependencies
 
 - [[google-integration]] — Calendar write access, the account this all posts to
 - [[exam-prep]] — the sibling feature this composes with (exam events created here are found by `exam_prep.find_exam_date()` automatically, since both use Calendar as shared state)
-- [[discord-bot]] — the reminder channel and check loop
+- [[discord-bot]] — the reminder channel, check loop, and `/classsetup`
 - [[llm-integration]] — `ask_claude(purpose="syllabus_parse")`
 
 ## Implementation Checklist
@@ -98,5 +99,7 @@ Both `class_setup_syllabus` (a syllabus paste) and `class_setup_confirm` (a corr
 - [x] Multi-step wizard (semester → per-class syllabus/confirm loop), cancel-able at any point
 - [x] Class name auto-extracted from the syllabus text (2026-08-25) — no separate "what's this class called" question; confirm-step reply that isn't yes/no is treated as a name correction
 - [x] `sunny-vault/state/classes/` and `state/class-deadlines/` gitignored
+- [x] `/classsetup` Discord slash command — starts the same wizard, public (not ephemeral) response
+- [x] `"setup classes"` / bare `"setup"` overview entry, live status (class count tracked)
 - [ ] Editing/removing a previously set-up class
 - [ ] Natural-language query surface for `class_deadlines.get_upcoming()`

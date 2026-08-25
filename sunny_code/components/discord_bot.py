@@ -293,6 +293,29 @@ def create_discord_bot(
             file=discord.File(io.BytesIO(wav_bytes), filename="speech.wav"), ephemeral=True
         )
 
+    @tree.command(name="classsetup", description="Start the class-setup wizard (paste a syllabus per class)")
+    async def class_setup_command(interaction: discord.Interaction):
+        """Kicks off the same multi-step wizard "set up my classes" starts
+        in plain text — see assistant.py's _CLASS_SETUP_TRIGGERS/
+        _advance_class_setup_wizard. Public, not ephemeral, unlike /speak:
+        this starts a real back-and-forth (semester name, dates, then a
+        syllabus per class) that continues as ordinary messages in the
+        channel, so the whole thread needs to stay visible, not just this
+        first prompt. session_id matches on_message()'s own convention
+        exactly, so a plain-text reply right after this command continues
+        the same wizard the same way a typed "set up my classes" would."""
+        if interaction.channel_id != chat_channel_id:
+            await interaction.response.send_message(
+                "Use /classsetup in the chat channel.", ephemeral=True
+            )
+            return
+        session_id = f"discord:{interaction.channel_id}:{interaction.user.id}"
+        response = await handle_message(
+            "set up my classes", tasks_engine, briefing_engine, list_engine, scheduled_engine,
+            project_engine, spotify_engine, calendar_engine, session_id=session_id,
+        )
+        await interaction.response.send_message(response)
+
     async def _notify_voice_crash(text: str):
         # The voice pipeline runs in an isolated worker process specifically
         # so a native crash there can't take the rest of the bot down with
