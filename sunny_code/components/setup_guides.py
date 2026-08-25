@@ -219,7 +219,7 @@ def _class_setup_guide() -> str:
     status = f"{len(classes)} class(es) tracked" if classes else "No classes set up yet"
     return f"""CLASS SETUP
 Status: {status} — rides on Google Calendar, no separate account of its own (see "setup calendar" first if that's not connected yet).
-Say "set up my classes" (or use /classsetup in Discord) and paste a syllabus per class. Sunny pulls the class name, meeting times, due dates, and exams straight out of the text, puts recurring class times and all-day due-date/exam events on your calendar, and pings #reminders 2 days before and the day of each deadline."""
+Say "set up my classes" (or use /classsetup in Discord) and paste a syllabus per class. Sunny pulls the class name, meeting times, due dates, and exams straight out of the text, puts recurring class times and all-day due-date/exam events on your calendar, saves a copy of the syllabus plus a summary into that class's own folder under sunny-vault/KSU/, and pings #reminders 2 days before and the day of each deadline."""
 
 
 def _gps_guide() -> str:

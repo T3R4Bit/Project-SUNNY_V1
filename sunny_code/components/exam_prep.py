@@ -29,13 +29,19 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Literal, Optional
 
-from sunny_code.components import google_calendar, vault_io
+from sunny_code.components import class_memory, google_calendar, vault_io
 from sunny_code.components.llm_client import ask_claude
 from sunny_code.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 _EXAM_KEYWORDS = ("exam", "midterm", "final", "test", "quiz")
+# class_setup_engine.py drops these into the same folder as the user's own
+# topic notes (see class_memory.save_to_class_folder()) -- reference
+# material, not something to spaced-repetition-track "mastered" on, so
+# they're excluded from the topic list here. generate_study_review()
+# still reads class-info.md separately, as prompt context.
+_NON_TOPIC_FILENAMES = {class_memory.SYLLABUS_FILENAME, class_memory.CLASS_INFO_FILENAME}
 _REVIEW_FIELD_ORDER = ["id", "class_name", "note", "stage", "last_reviewed"]
 _MAX_TOPICS_PER_REVIEW = 5
 _MAX_NOTE_CHARS = 2000  # per note, keeps the review prompt bounded regardless of note length
@@ -57,7 +63,7 @@ def list_classes() -> List[Dict]:
     classes = []
     for semester_dir in sorted(p for p in root.iterdir() if p.is_dir()):
         for class_dir in sorted(p for p in semester_dir.iterdir() if p.is_dir()):
-            notes = sorted(class_dir.glob("*.md"))
+            notes = sorted(p for p in class_dir.glob("*.md") if p.name not in _NON_TOPIC_FILENAMES)
             classes.append({
                 "semester": semester_dir.name,
                 "class": class_dir.name,
@@ -184,7 +190,13 @@ async def generate_study_review(class_name: str) -> Optional[str]:
     content, written up by Claude into a short, focused review. Returns
     None if the class isn't found, has no topics needing review, or
     Claude is unreachable -- caller decides how to phrase that, matching
-    every other ask_claude() consumer's fail-quiet contract."""
+    every other ask_claude() consumer's fail-quiet contract.
+
+    class-info.md (if class setup wrote one -- see class_memory.
+    save_to_class_folder()) is folded in as extra context ahead of the
+    topics, not as a topic itself -- syllabus/schedule context is useful
+    background for the review, but it's not something with a
+    new/weak/mastered state to track."""
     class_info = find_class(class_name)
     if class_info is None:
         return None
@@ -194,6 +206,13 @@ async def generate_study_review(class_name: str) -> Optional[str]:
         return None
 
     sections = []
+    class_info_path = class_info["path"] / class_memory.CLASS_INFO_FILENAME
+    if class_info_path.exists():
+        try:
+            sections.append(f"## Class info\n{class_info_path.read_text(encoding='utf-8')[:_MAX_NOTE_CHARS]}")
+        except OSError:
+            pass
+
     for topic in topics:
         try:
             text = topic["note"].read_text(encoding="utf-8")

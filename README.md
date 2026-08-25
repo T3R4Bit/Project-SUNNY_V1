@@ -26,7 +26,7 @@ A dedicated hardware companion device (Raspberry Pi, animated face, local wake w
 
 **Project Wizard** — Say "new project," answer three quick questions, get a real multi-file project folder drafted under `sunny-vault/projects/` via one Claude call.
 
-**Class Setup** — Paste a syllabus per class through a short wizard ("set up my classes" or `/classsetup`); Sunny extracts the class name, meeting times, due dates, and exams, creates a real recurring Google Calendar event for meetings plus all-day events for deadlines, and proactively pings a Discord channel 2 days before and the day of each one.
+**Class Setup** — Paste a syllabus per class through a short wizard ("set up my classes" or `/classsetup`); Sunny extracts the class name, meeting times, due dates, and exams (semester start/end dates too — only a semester label like "Fall 2026" is asked for, never a date range), creates a real recurring Google Calendar event for meetings plus all-day events for deadlines, saves the syllabus and a generated summary into that class's own vault folder, and proactively pings a Discord channel 2 days before and the day of each deadline.
 
 **Exam Prep & Spaced Review** — Reads real class notes (`sunny-vault/KSU/<semester>/<class>/*.md`), finds exam dates from Calendar (including ones created by Class Setup above), tracks per-topic review state (new/weak/mastered), and writes a focused night-before study review from actual note content.
 

@@ -83,7 +83,8 @@ BRIEFINGS
     actual notes on whatever hasn't been marked mastered yet
   set up my classes — paste a syllabus per class; creates recurring
     calendar events for meeting times, all-day events for due dates/exams,
-    and pings #reminders 2 days before and the day of each
+    saves the syllabus + a summary into that class's own vault folder, and
+    pings #reminders 2 days before and the day of each
 
 VOICE
   /speak <text> — one-shot: Sunny says it out loud in the channel (slash command)
@@ -592,7 +593,7 @@ async def _advance_class_setup_wizard(stripped: str, lowered: str, pending: Dict
             return message
         _set_pending(
             session_id, "class_setup_confirm",
-            semester_name=pending["semester_name"], count=pending["count"], parsed=parsed,
+            semester_name=pending["semester_name"], count=pending["count"], parsed=parsed, syllabus_text=stripped,
         )
         return message
 
@@ -611,6 +612,7 @@ async def _advance_class_setup_wizard(stripped: str, lowered: str, pending: Dict
         _set_pending(
             session_id, "class_setup_confirm",
             semester_name=pending["semester_name"], count=pending["count"], parsed=parsed,
+            syllabus_text=pending["syllabus_text"],
         )
         return class_setup_engine.recap(parsed)
 
@@ -619,10 +621,13 @@ async def _advance_class_setup_wizard(stripped: str, lowered: str, pending: Dict
         _set_pending(
             session_id, "class_setup_confirm",
             semester_name=pending["semester_name"], count=pending["count"], parsed=parsed,
+            syllabus_text=pending["syllabus_text"],
         )
         return "Still need a class name before I can set this up — what is it?"
 
-    result_message = await asyncio.to_thread(class_setup_engine.commit, pending["semester_name"], parsed)
+    result_message = await asyncio.to_thread(
+        class_setup_engine.commit, pending["semester_name"], parsed, pending["syllabus_text"],
+    )
     _set_pending(session_id, "class_setup_syllabus", semester_name=pending["semester_name"], count=pending["count"] + 1)
     return f"{result_message} " + random.choice(_CLASS_SETUP_SYLLABUS_PROMPTS)
 

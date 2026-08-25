@@ -96,7 +96,7 @@ async def preview(semester_name: str, syllabus_text: str) -> Tuple[bool, str, Op
     return True, recap(parsed), parsed
 
 
-def commit(semester_name: str, parsed: Dict) -> str:
+def commit(semester_name: str, parsed: Dict, syllabus_text: str) -> str:
     """Creates everything from an already-parsed, already-confirmed
     syllabus. Sync, not async -- matches calendar_engine.py's own
     precedent of calling google_calendar's write functions directly
@@ -112,7 +112,13 @@ def commit(semester_name: str, parsed: Dict) -> str:
     syllabus, not a wizard-level date the user typed -- if the syllabus
     genuinely didn't state them, recurring meeting events are skipped
     (due dates/exams are self-contained dates, unaffected) rather than
-    guessing a range to build a recurrence on."""
+    guessing a range to build a recurrence on.
+
+    syllabus_text is the original pasted text, unparsed -- kept only to
+    hand to class_memory.save_to_class_folder() below, which drops a
+    verbatim copy into the class's own vault folder alongside a
+    generated class-info.md, so both are visible next to the user's own
+    notes and not just locked up in the parsed JSON."""
     class_name = parsed["class_name"]
     semester_start = date.fromisoformat(parsed["semester_start"]) if parsed.get("semester_start") else None
     semester_end = date.fromisoformat(parsed["semester_end"]) if parsed.get("semester_end") else None
@@ -150,6 +156,9 @@ def commit(semester_name: str, parsed: Dict) -> str:
         key_dates.append({"title": entry["title"], "date": entry["date"], "kind": "exam"})
 
     class_memory.save_class(class_name, semester_name, parsed.get("summary", ""), key_dates)
+    class_memory.save_to_class_folder(
+        class_name, semester_name, syllabus_text, parsed.get("summary", ""), parsed["meeting_times"], key_dates,
+    )
 
     logger.info(f"Class set up: {class_name!r} ({semester_name}) — {created_events} recurring events, {len(key_dates)} dates")
     message = (
