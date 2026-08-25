@@ -261,7 +261,17 @@ _CLASS_SETUP_TRIGGERS = (
     "set up classes",
     "class setup",
     "setup my classes",
+    "setup classes",
     "i want to set up my classes",
+    "i want to set up classes",
+    "can we set up my classes",
+    "can we set up classes",
+    "can you set up my classes",
+    "can you set up classes",
+    "let's set up my classes",
+    "lets set up my classes",
+    "let's set up classes",
+    "lets set up classes",
 )
 _CLASS_SETUP_SEMESTER_PROMPTS = (
     "What semester is this? (e.g. \"Fall 2026\")",
