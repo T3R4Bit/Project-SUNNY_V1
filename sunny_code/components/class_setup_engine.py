@@ -63,7 +63,13 @@ def recap(parsed: Dict) -> str:
     class_name = parsed.get("class_name", "").strip()
     name_line = f'"{class_name}"' if class_name else "(couldn't find a class name in the syllabus — reply with one)"
     lines = [f"Here's what I found — class: {name_line}"]
+    semester_start = parsed.get("semester_start", "")
+    semester_end = parsed.get("semester_end", "")
     if parsed["meeting_times"]:
+        if semester_start and semester_end:
+            lines.append(f"- Runs {semester_start} to {semester_end}")
+        else:
+            lines.append("- Couldn't find this syllabus's own start/end dates — recurring meeting times won't be added")
         for mt in parsed["meeting_times"]:
             days_str = "/".join(d[:3] for d in mt["days"])
             loc = f" @ {mt['location']}" if mt.get("location") else ""
@@ -75,18 +81,22 @@ def recap(parsed: Dict) -> str:
     return "\n".join(lines)
 
 
-async def preview(semester_start: date, semester_end: date, syllabus_text: str) -> Tuple[bool, str, Optional[Dict]]:
+async def preview(semester_name: str, syllabus_text: str) -> Tuple[bool, str, Optional[Dict]]:
     """Parses the syllabus only -- creates nothing. Returns
     (ok, message, parsed_data). ok=False means parsing failed and
     `message` is the reason; ok=True means `message` is recap(parsed),
-    ready for the user to confirm (or correct the class name)."""
-    parsed = await syllabus_parser.parse_syllabus(semester_start, semester_end, syllabus_text)
+    ready for the user to confirm (or correct the class name).
+    semester_name (e.g. "Fall 2026") is only a year/season hint for
+    resolving bare dates in the source text -- the semester's actual
+    start/end dates come back as part of `parsed`, pulled from the
+    syllabus itself, not asked of the user."""
+    parsed = await syllabus_parser.parse_syllabus(semester_name, syllabus_text)
     if parsed is None:
         return False, "Couldn't parse that syllabus — try again, or paste it differently.", None
     return True, recap(parsed), parsed
 
 
-def commit(semester_name: str, semester_start: date, semester_end: date, parsed: Dict) -> str:
+def commit(semester_name: str, parsed: Dict) -> str:
     """Creates everything from an already-parsed, already-confirmed
     syllabus. Sync, not async -- matches calendar_engine.py's own
     precedent of calling google_calendar's write functions directly
@@ -96,10 +106,23 @@ def commit(semester_name: str, semester_start: date, semester_end: date, parsed:
     A single calendar-event failure is logged and skipped, not fatal to
     the rest -- same fail-quiet spirit as google_calendar.py itself.
     parsed["class_name"] must already be non-empty -- assistant.py's
-    confirm-step gate guarantees this before commit() is ever called."""
+    confirm-step gate guarantees this before commit() is ever called.
+
+    parsed["semester_start"]/["semester_end"] came from this specific
+    syllabus, not a wizard-level date the user typed -- if the syllabus
+    genuinely didn't state them, recurring meeting events are skipped
+    (due dates/exams are self-contained dates, unaffected) rather than
+    guessing a range to build a recurrence on."""
     class_name = parsed["class_name"]
+    semester_start = date.fromisoformat(parsed["semester_start"]) if parsed.get("semester_start") else None
+    semester_end = date.fromisoformat(parsed["semester_end"]) if parsed.get("semester_end") else None
+
     created_events = 0
+    dates_missing = False
     for mt in parsed["meeting_times"]:
+        if semester_start is None or semester_end is None:
+            dates_missing = True
+            continue
         start_dt = _first_occurrence(semester_start, mt["days"], mt["start_time"])
         if start_dt is None:
             logger.warning(f"class_setup_engine: couldn't resolve meeting days for {class_name}: {mt['days']}")
@@ -129,8 +152,11 @@ def commit(semester_name: str, semester_start: date, semester_end: date, parsed:
     class_memory.save_class(class_name, semester_name, parsed.get("summary", ""), key_dates)
 
     logger.info(f"Class set up: {class_name!r} ({semester_name}) — {created_events} recurring events, {len(key_dates)} dates")
-    return (
+    message = (
         f'Set up "{class_name}" — {created_events} recurring class time(s), '
         f'{len(parsed["due_dates"])} due date(s), {len(parsed["exams"])} exam(s). '
         f"Reminders will post 2 days before and the day of each."
     )
+    if dates_missing:
+        message += " (Couldn't find this syllabus's own start/end dates, so recurring meeting times weren't added.)"
+    return message

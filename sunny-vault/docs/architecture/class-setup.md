@@ -26,7 +26,7 @@ Say "set up my classes" and paste a syllabus per class; Sunny extracts the sched
 
 Google Calendar's write support (see [[google-integration]]) only ever made one-off events before this — `calendar_engine.py`'s natural-language "add X to my calendar" has no recurrence concept, deliberately narrow scope. A semester of "MWF 10:00am" class meetings needs a real recurrence rule (`RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=...`), not ~45 individual events cluttering the calendar — confirmed with the user directly rather than assumed. `create_recurring_event()` is new, separate from `create_event()`; `create_event()` itself wasn't touched.
 
-RFC5545 requires `UNTIL` in UTC when the event carries a time component (a class meeting always does here) — a bare local date is rejected by the API. `until` is the semester's end date, given by the user during the wizard.
+RFC5545 requires `UNTIL` in UTC when the event carries a time component (a class meeting always does here) — a bare local date is rejected by the API. `until` is the semester's end date, pulled from that specific syllabus's own text (see Syllabus Parsing below), not asked of the user.
 
 ## Two-Phase Commit, Same Pattern as the Project Wizard
 
@@ -34,9 +34,9 @@ RFC5545 requires `UNTIL` in UTC when the event carries a time component (a class
 
 ## Syllabus Parsing
 
-One `ask_claude(purpose="syllabus_parse", model="sonnet")` call per class — `sunny-vault/instructions/syllabus-parse.md` asks for strict JSON: `class_name` (pulled from the syllabus itself, not supplied by the caller — see Wizard Flow below), `meeting_times` (days/start_time/end_time/location), `due_dates`, `exams` (both title+date), and a free-text `summary` (grading breakdown, instructor contact). Same "ask for bare JSON, defensively strip a stray markdown fence" pattern as `project_engine.py`. Sonnet, not Haiku — this is real content extraction from an arbitrary document, not a quick judgment call, matching `project_engine.py`'s and `exam_prep.py`'s reasoning for the same model choice.
+One `ask_claude(purpose="syllabus_parse", model="sonnet")` call per class — `sunny-vault/instructions/syllabus-parse.md` asks for strict JSON: `class_name` (pulled from the syllabus itself, not supplied by the caller — see Wizard Flow below), `meeting_times` (days/start_time/end_time/location), `due_dates`, `exams` (both title+date), `semester_start`/`semester_end` (also pulled from the syllabus itself — see below), and a free-text `summary` (grading breakdown, instructor contact). Same "ask for bare JSON, defensively strip a stray markdown fence" pattern as `project_engine.py`. Sonnet, not Haiku — this is real content extraction from an arbitrary document, not a quick judgment call, matching `project_engine.py`'s and `exam_prep.py`'s reasoning for the same model choice.
 
-Dates are resolved against the semester's start/end (given to Claude in the prompt) so a syllabus date without a year still lands correctly. Never fabricates a date/time/location that isn't actually in the text — empty lists instead of guesses when the syllabus doesn't state something.
+Only a semester label (e.g. "Fall 2026") is given to Claude, not a date range — `semester_start`/`semester_end` are extracted from the syllabus text itself (an explicit statement, or the earliest/latest date in an included week-by-week schedule), the same "pull it from the source, don't ask the user to retype what's already there" treatment `class_name` already got. The label is used only to resolve a bare month/day elsewhere in the text to a real year. If a syllabus genuinely states no date information at all, both come back as empty strings rather than a guess — `class_setup_engine.commit()` skips creating recurring meeting events for that class in that case (due dates/exams are unaffected, since those are self-contained dates already). Never fabricates a date/time/location that isn't actually in the text — empty lists instead of guesses when the syllabus doesn't state something.
 
 ## Storage: Two Separate Concerns, Two Separate Places
 
@@ -55,9 +55,8 @@ This is the first genuinely *proactive, unprompted* Discord message anywhere in 
 
 "set up my classes" (or a close variant), or `/classsetup` in Discord, launches a multi-step conversation, same pending-follow-up mechanism as the project wizard (`assistant.py`'s `_pending` dict, 5-minute TTL, "cancel" to back out at any point). `/classsetup` doesn't do anything special — it just calls `handle_message("set up my classes", ...)` with the same `session_id` convention `on_message` already uses, so it starts the identical wizard and every reply after it is ordinary plain-text through the channel, no different from typing the trigger phrase directly. Public, not ephemeral, unlike `/speak` — the whole back-and-forth needs to stay visible in the channel.
 
-1. Semester name (e.g. "Fall 2026")
-2. Semester start/end dates (`"YYYY-MM-DD to YYYY-MM-DD"`, plain string parsing — no regex, matches this module's existing style for a rigid, user-guided format)
-3. Per class, looped until "done": paste a syllabus (no separate "what's this class called" question — the class name is pulled straight from the syllabus text by the same parse) → recap showing the extracted name + schedule → (on yes) real creation, then back to step 3 for the next syllabus
+1. Semester name (e.g. "Fall 2026") — a label only, used to resolve bare dates in a syllabus; the semester's actual start/end dates are never asked for, see Syllabus Parsing above
+2. Per class, looped until "done": paste a syllabus (no separate "what's this class called" question — the class name is pulled straight from the syllabus text by the same parse) → recap showing the extracted name, derived date range, and schedule → (on yes) real creation, then back to step 2 for the next syllabus
 
 **Class name correction, not a separate question.** `syllabus-parse.md` asks Claude to extract `class_name` directly from the text (course code + title if both appear, e.g. "BUS 2100 - Introduction to Business"); an empty syllabus with no course info anywhere comes back with an empty string rather than a guess. The confirm step accepts three kinds of reply, not just yes/no: "yes" (build it, blocked with a re-prompt if the name is still empty), "no" (skip this class entirely, move to the next syllabus), or *anything else* — treated as the correct class name, which re-shows the recap for another confirm round. This one mechanism covers both "the extraction was wrong" and "the syllabus never stated a name at all" without a separate state or question. `class_setup_engine.recap(parsed)` is the shared function both the initial parse and every correction round call, so the message is always identical in shape.
 
@@ -92,7 +91,8 @@ Both `class_setup_syllabus` (a syllabus paste) and `class_setup_confirm` (a corr
 
 - [x] `create_recurring_event()` — real RRULE, weekly, bounded by `until`
 - [x] `create_all_day_event()` — due dates/exams
-- [x] Syllabus parsing via Claude, strict JSON schema, dates resolved against the given semester
+- [x] Syllabus parsing via Claude, strict JSON schema, dates resolved against a semester label given as a year/season hint
+- [x] Semester start/end dates pulled from the syllabus itself, not asked of the user (2026-08-25) — recurring meeting events are skipped, not guessed, when a syllabus states no dates at all
 - [x] Per-class memory file (`class_memory.py`)
 - [x] Deadline tracking with T-2/T-0 idempotent reminder flags (`class_deadlines.py`)
 - [x] Proactive `#reminders` Discord loop, gated on a new `class_reminders` service toggle

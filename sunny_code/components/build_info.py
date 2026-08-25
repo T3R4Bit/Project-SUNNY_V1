@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 
 
 def get_build_version() -> str:
-    """Short commit hash + author date, e.g. "d56151e (2026-08-25)" -- or
-    "unknown" if git isn't available (no .git, git not installed, timeout).
-    Never raises; this is a status line, not load-bearing."""
+    """Short commit hash + author date/time, e.g. "d56151e (08/25 11:12)" --
+    or "unknown" if git isn't available (no .git, git not installed,
+    timeout). Never raises; this is a status line, not load-bearing."""
     try:
         result = subprocess.run(
-            ["git", "log", "-1", "--format=%h (%as)"],
+            ["git", "log", "-1", "--date=format:%m/%d %H:%M", "--format=%h (%ad)"],
             capture_output=True, text=True, timeout=2,
             cwd=get_settings().project_root,
         )

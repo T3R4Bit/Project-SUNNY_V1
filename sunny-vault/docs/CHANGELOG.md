@@ -18,6 +18,7 @@ Running log of real changes, most recent first. Not every commit — the milesto
 - New `sunny_code/components/build_info.py`: `get_build_version()` shells out to `git log -1 --format=%h (%as)` in the project root and returns the short commit hash + date (e.g. `d56151e (2026-08-25)`), or `"unknown"` if git isn't available — read fresh each call rather than a hand-maintained version string, since `sunny_code/__init__.py`'s `__version__` isn't bumped per change and can't answer "what build is this."
 - `/version` Discord slash command (ephemeral, chat-channel-gated, same shape as `/services`).
 - Routed into `assistant.py`'s trigger chain too, so "what version are you running" works identically over voice, the web console, and plain Discord text — not Discord-command-only.
+- **Same day, follow-up**: the timestamp shown is now `mm/dd HH:MM` (e.g. `08/25 11:12`) instead of a bare date — `git log`'s `--date=format:%m/%d %H:%M` combined with `--format=%h (%ad)`, replacing the `%as` (date-only) format string.
 
 **Class setup: syllabus → calendar + memory + proactive reminders**
 - "set up my classes" walks through a multi-step wizard (semester name → start/end dates → per-class paste-syllabus/confirm, looped until "done") and, on confirm, creates real Google Calendar events and a Sunny-managed memory file for that class.
@@ -29,6 +30,7 @@ Running log of real changes, most recent first. Not every commit — the milesto
 - `class_deadlines.py` (`sunny-vault/state/class-deadlines/`) tracks each due date/exam with idempotent T-2/T-0 reminder flags. A new `class_reminders_loop` in `discord_bot.py` (checks every 3 hours, gated on a new `class_reminders` service toggle) posts to a new `#reminders` channel (`DISCORD_REMINDERS_CHANNEL_ID`) 2 days before and the day of each deadline — the first genuinely proactive, unprompted message anywhere in this codebase. Built as its own dedicated loop rather than routed through the rules_engine.py proactive-architecture pieces, which still have no real caller.
 - Exam events created here compose automatically with the existing exam-prep feature (`find_exam_date()` searches Calendar for class name + exam keyword, independently of who created the event).
 - See [[architecture/class-setup]].
+- **Same day, third follow-up**: the wizard no longer asks for the semester's start/end dates — just the semester label ("Fall 2026"). `syllabus_parser.py`'s schema gained `semester_start`/`semester_end`, pulled from each syllabus's own text (an explicit date range, or the earliest/latest date in an included schedule) instead of a user-typed range applied uniformly to every class; the semester label is now only a year/season hint for resolving bare dates in the source text, not a source of the range itself. `class_setup_engine.recap()` surfaces the derived range before the user confirms, so a bad extraction is visible up front. If a syllabus genuinely doesn't state its dates anywhere, `commit()` skips creating recurring meeting events for that class (due dates/exams still get created — they're self-contained dates) and says so in the result message, rather than guessing a range.
 
 ## 2026-08-24
 

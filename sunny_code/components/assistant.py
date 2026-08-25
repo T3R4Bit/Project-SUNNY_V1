@@ -18,8 +18,8 @@ parser ever saw it.
 import asyncio
 import random
 import time
-from datetime import date, datetime
-from typing import Dict, Optional, Tuple
+from datetime import datetime
+from typing import Dict, Optional
 
 from sunny_code.components import (
     build_info, category_store, class_setup_engine, exam_prep, health_check, service_registry, setup_guides,
@@ -253,8 +253,8 @@ _PROJECT_SECTIONS_PROMPTS = (
     'Anything specific you want covered, or am I picking the structure? (say "you decide" to skip)',
 )
 # Exact-phrase, same reasoning as _PROJECT_TRIGGERS -- this launches a much
-# longer wizard (semester dates, then a per-class syllabus loop with real
-# calendar writes), so a false positive is far worse than a false negative.
+# longer wizard (a per-class syllabus loop with real calendar writes), so a
+# false positive is far worse than a false negative.
 _CLASS_SETUP_TRIGGERS = (
     "set up my classes",
     "set up classes",
@@ -266,32 +266,11 @@ _CLASS_SETUP_SEMESTER_PROMPTS = (
     "What semester is this? (e.g. \"Fall 2026\")",
     "Which semester are we setting up?",
 )
-_CLASS_SETUP_DATES_PROMPT = 'Start and end dates? ("YYYY-MM-DD to YYYY-MM-DD")'
 _CLASS_SETUP_SYLLABUS_PROMPTS = (
     'Paste the syllabus for a class (or say "done" if that\'s all of them).',
     'Next syllabus — paste it in, or say "done" if you\'ve added them all.',
 )
 _CLASS_SETUP_DONE_WORDS = ("done", "that's all", "thats all", "no more", "finished", "that's it", "thats it")
-
-
-def _parse_semester_dates(text: str) -> Optional[Tuple[date, date]]:
-    """"2026-08-24 to 2026-12-12" -> (start, end), or None if it doesn't
-    look like that at all. Plain string split, not regex — matches this
-    module's existing style for a rigid, user-guided format (see
-    _extract_setup_query) rather than reaching for re for the first time
-    in this file."""
-    parts = text.split(" to ")
-    if len(parts) != 2:
-        return None
-    try:
-        start = date.fromisoformat(parts[0].strip())
-        end = date.fromisoformat(parts[1].strip())
-    except ValueError:
-        return None
-    if end <= start:
-        return None
-    return start, end
-
 
 _SETUP_BARE = ("setup", "/setup", "set up", "connect", "setup steps", "connect steps")
 _SETUP_PREFIXES = (
@@ -563,11 +542,15 @@ async def _advance_project_wizard(
 
 
 async def _advance_class_setup_wizard(stripped: str, lowered: str, pending: Dict, session_id: str) -> Optional[str]:
-    """One step of the class-setup wizard: semester name -> semester
-    dates -> per-class loop (paste syllabus -> confirm/correct the
-    extracted class name -> next syllabus or done). Same "return None
-    means fall through to normal routing" contract as
-    _advance_project_wizard.
+    """One step of the class-setup wizard: semester name -> per-class loop
+    (paste syllabus -> confirm/correct the extracted class name -> next
+    syllabus or done). Same "return None means fall through to normal
+    routing" contract as _advance_project_wizard.
+
+    No separate "what are the start/end dates" question -- semester_name
+    (e.g. "Fall 2026") is only a year/season hint for the parser; the
+    semester's actual start/end dates are pulled straight from each
+    syllabus by syllabus_parser.py, same as class_name already was.
 
     class_setup_syllabus and class_setup_confirm are both excluded from
     the _looks_like_a_command gate below — a pasted syllabus is long,
@@ -593,20 +576,7 @@ async def _advance_class_setup_wizard(stripped: str, lowered: str, pending: Dict
         if not name:
             _set_pending(session_id, "class_setup_semester_name")
             return 'Still need a semester name — what is it? (or say "cancel")'
-        _set_pending(session_id, "class_setup_semester_dates", semester_name=name)
-        return _CLASS_SETUP_DATES_PROMPT
-
-    if awaiting == "class_setup_semester_dates":
-        dates = _parse_semester_dates(stripped)
-        if dates is None:
-            _set_pending(session_id, "class_setup_semester_dates", semester_name=pending["semester_name"])
-            return f'Didn\'t catch that — {_CLASS_SETUP_DATES_PROMPT}'
-        start, end = dates
-        _set_pending(
-            session_id, "class_setup_syllabus",
-            semester_name=pending["semester_name"], semester_start=start.isoformat(), semester_end=end.isoformat(),
-            count=0,
-        )
+        _set_pending(session_id, "class_setup_syllabus", semester_name=name, count=0)
         return random.choice(_CLASS_SETUP_SYLLABUS_PROMPTS)
 
     if awaiting == "class_setup_syllabus":
@@ -614,36 +584,21 @@ async def _advance_class_setup_wizard(stripped: str, lowered: str, pending: Dict
             count = pending["count"]
             return f"Class setup done — {count} class{'es' if count != 1 else ''} set up." if count else "Class setup done — nothing was added."
         if not stripped.strip():
-            _set_pending(
-                session_id, "class_setup_syllabus",
-                semester_name=pending["semester_name"], semester_start=pending["semester_start"],
-                semester_end=pending["semester_end"], count=pending["count"],
-            )
+            _set_pending(session_id, "class_setup_syllabus", semester_name=pending["semester_name"], count=pending["count"])
             return 'Still need a syllabus to paste — go ahead. (or say "done")'
-        semester_start = date.fromisoformat(pending["semester_start"])
-        semester_end = date.fromisoformat(pending["semester_end"])
-        ok, message, parsed = await class_setup_engine.preview(semester_start, semester_end, stripped)
+        ok, message, parsed = await class_setup_engine.preview(pending["semester_name"], stripped)
         if not ok:
-            _set_pending(
-                session_id, "class_setup_syllabus",
-                semester_name=pending["semester_name"], semester_start=pending["semester_start"],
-                semester_end=pending["semester_end"], count=pending["count"],
-            )
+            _set_pending(session_id, "class_setup_syllabus", semester_name=pending["semester_name"], count=pending["count"])
             return message
         _set_pending(
             session_id, "class_setup_confirm",
-            semester_name=pending["semester_name"], semester_start=pending["semester_start"],
-            semester_end=pending["semester_end"], count=pending["count"], parsed=parsed,
+            semester_name=pending["semester_name"], count=pending["count"], parsed=parsed,
         )
         return message
 
     # awaiting == "class_setup_confirm"
     if lowered in _NO_WORDS:
-        _set_pending(
-            session_id, "class_setup_syllabus",
-            semester_name=pending["semester_name"], semester_start=pending["semester_start"],
-            semester_end=pending["semester_end"], count=pending["count"],
-        )
+        _set_pending(session_id, "class_setup_syllabus", semester_name=pending["semester_name"], count=pending["count"])
         skipped_name = pending["parsed"].get("class_name") or "that one"
         return f'Skipped "{skipped_name}". ' + random.choice(_CLASS_SETUP_SYLLABUS_PROMPTS)
 
@@ -655,8 +610,7 @@ async def _advance_class_setup_wizard(stripped: str, lowered: str, pending: Dict
         parsed["class_name"] = stripped.strip().strip('"\'')
         _set_pending(
             session_id, "class_setup_confirm",
-            semester_name=pending["semester_name"], semester_start=pending["semester_start"],
-            semester_end=pending["semester_end"], count=pending["count"], parsed=parsed,
+            semester_name=pending["semester_name"], count=pending["count"], parsed=parsed,
         )
         return class_setup_engine.recap(parsed)
 
@@ -664,21 +618,12 @@ async def _advance_class_setup_wizard(stripped: str, lowered: str, pending: Dict
     if not parsed.get("class_name", "").strip():
         _set_pending(
             session_id, "class_setup_confirm",
-            semester_name=pending["semester_name"], semester_start=pending["semester_start"],
-            semester_end=pending["semester_end"], count=pending["count"], parsed=parsed,
+            semester_name=pending["semester_name"], count=pending["count"], parsed=parsed,
         )
         return "Still need a class name before I can set this up — what is it?"
 
-    semester_start = date.fromisoformat(pending["semester_start"])
-    semester_end = date.fromisoformat(pending["semester_end"])
-    result_message = await asyncio.to_thread(
-        class_setup_engine.commit, pending["semester_name"], semester_start, semester_end, parsed,
-    )
-    _set_pending(
-        session_id, "class_setup_syllabus",
-        semester_name=pending["semester_name"], semester_start=pending["semester_start"],
-        semester_end=pending["semester_end"], count=pending["count"] + 1,
-    )
+    result_message = await asyncio.to_thread(class_setup_engine.commit, pending["semester_name"], parsed)
+    _set_pending(session_id, "class_setup_syllabus", semester_name=pending["semester_name"], count=pending["count"] + 1)
     return f"{result_message} " + random.choice(_CLASS_SETUP_SYLLABUS_PROMPTS)
 
 
@@ -743,7 +688,7 @@ async def handle_message(
         # falls through to normal handling below
 
     elif pending and pending.get("awaiting") in (
-        "class_setup_semester_name", "class_setup_semester_dates", "class_setup_syllabus", "class_setup_confirm",
+        "class_setup_semester_name", "class_setup_syllabus", "class_setup_confirm",
     ):
         wizard_reply = await _advance_class_setup_wizard(stripped, lowered, pending, session_id)
         if wizard_reply is not None:
