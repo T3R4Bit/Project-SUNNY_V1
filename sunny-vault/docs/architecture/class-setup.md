@@ -34,7 +34,7 @@ RFC5545 requires `UNTIL` in UTC when the event carries a time component (a class
 
 ## Syllabus Parsing
 
-One `ask_claude(purpose="syllabus_parse", model="sonnet")` call per class — `sunny-vault/instructions/syllabus-parse.md` asks for strict JSON: `meeting_times` (days/start_time/end_time/location), `due_dates`, `exams` (both title+date), and a free-text `summary` (grading breakdown, instructor contact). Same "ask for bare JSON, defensively strip a stray markdown fence" pattern as `project_engine.py`. Sonnet, not Haiku — this is real content extraction from an arbitrary document, not a quick judgment call, matching `project_engine.py`'s and `exam_prep.py`'s reasoning for the same model choice.
+One `ask_claude(purpose="syllabus_parse", model="sonnet")` call per class — `sunny-vault/instructions/syllabus-parse.md` asks for strict JSON: `class_name` (pulled from the syllabus itself, not supplied by the caller — see Wizard Flow below), `meeting_times` (days/start_time/end_time/location), `due_dates`, `exams` (both title+date), and a free-text `summary` (grading breakdown, instructor contact). Same "ask for bare JSON, defensively strip a stray markdown fence" pattern as `project_engine.py`. Sonnet, not Haiku — this is real content extraction from an arbitrary document, not a quick judgment call, matching `project_engine.py`'s and `exam_prep.py`'s reasoning for the same model choice.
 
 Dates are resolved against the semester's start/end (given to Claude in the prompt) so a syllabus date without a year still lands correctly. Never fabricates a date/time/location that isn't actually in the text — empty lists instead of guesses when the syllabus doesn't state something.
 
@@ -57,7 +57,11 @@ This is the first genuinely *proactive, unprompted* Discord message anywhere in 
 
 1. Semester name (e.g. "Fall 2026")
 2. Semester start/end dates (`"YYYY-MM-DD to YYYY-MM-DD"`, plain string parsing — no regex, matches this module's existing style for a rigid, user-guided format)
-3. Per class, looped until "done": class name → paste syllabus → recap + yes/no confirm → (on yes) real creation, then back to step 3 for the next class
+3. Per class, looped until "done": paste a syllabus (no separate "what's this class called" question — the class name is pulled straight from the syllabus text by the same parse) → recap showing the extracted name + schedule → (on yes) real creation, then back to step 3 for the next syllabus
+
+**Class name correction, not a separate question.** `syllabus-parse.md` asks Claude to extract `class_name` directly from the text (course code + title if both appear, e.g. "BUS 2100 - Introduction to Business"); an empty syllabus with no course info anywhere comes back with an empty string rather than a guess. The confirm step accepts three kinds of reply, not just yes/no: "yes" (build it, blocked with a re-prompt if the name is still empty), "no" (skip this class entirely, move to the next syllabus), or *anything else* — treated as the correct class name, which re-shows the recap for another confirm round. This one mechanism covers both "the extraction was wrong" and "the syllabus never stated a name at all" without a separate state or question. `class_setup_engine.recap(parsed)` is the shared function both the initial parse and every correction round call, so the message is always identical in shape.
+
+Both `class_setup_syllabus` (a syllabus paste) and `class_setup_confirm` (a correction reply) are excluded from `assistant.py`'s general `_looks_like_a_command` gate — free-form pasted text or a class name could easily contain a word that coincidentally matches some other command's trigger (a syllabus policy sentence starting with "add", for instance), and both need to be taken literally as wizard input instead.
 
 ## What Wasn't Built
 
@@ -91,7 +95,8 @@ This is the first genuinely *proactive, unprompted* Discord message anywhere in 
 - [x] Per-class memory file (`class_memory.py`)
 - [x] Deadline tracking with T-2/T-0 idempotent reminder flags (`class_deadlines.py`)
 - [x] Proactive `#reminders` Discord loop, gated on a new `class_reminders` service toggle
-- [x] Multi-step wizard (semester → per-class name/syllabus/confirm loop), cancel-able at any point
+- [x] Multi-step wizard (semester → per-class syllabus/confirm loop), cancel-able at any point
+- [x] Class name auto-extracted from the syllabus text (2026-08-25) — no separate "what's this class called" question; confirm-step reply that isn't yes/no is treated as a name correction
 - [x] `sunny-vault/state/classes/` and `state/class-deadlines/` gitignored
 - [ ] Editing/removing a previously set-up class
 - [ ] Natural-language query surface for `class_deadlines.get_upcoming()`

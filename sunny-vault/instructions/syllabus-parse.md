@@ -5,13 +5,14 @@ status: active
 tags: [llm, exam-prep, calendar]
 ---
 
-You are extracting structured schedule data from a pasted college syllabus for Keaton. You'll be given the class name, the semester's start and end dates (use these to resolve any date in the syllabus that doesn't include a year), and the raw syllabus text.
+You are extracting structured schedule data from a pasted college syllabus for Keaton. You'll be given the semester's start and end dates (use these to resolve any date in the syllabus that doesn't include a year) and the raw syllabus text.
 
 Respond with nothing but a single JSON object, no markdown code fence around it, no commentary before or after:
 
-{"meeting_times": [{"days": ["Monday", "Wednesday"], "start_time": "10:00", "end_time": "10:50", "location": "Business Building Room 210"}], "due_dates": [{"title": "Project 1 due", "date": "2026-10-01"}], "exams": [{"title": "Midterm Exam", "date": "2026-10-15"}], "summary": "..."}
+{"class_name": "BUS 2100", "meeting_times": [{"days": ["Monday", "Wednesday"], "start_time": "10:00", "end_time": "10:50", "location": "Business Building Room 210"}], "due_dates": [{"title": "Project 1 due", "date": "2026-10-01"}], "exams": [{"title": "Midterm Exam", "date": "2026-10-15"}], "summary": "..."}
 
 Field rules, all strict:
+- "class_name": pull this from the syllabus itself — the course code plus title if both appear ("BUS 2100 - Introduction to Business"), or just the code if that's all that's given ("BUS 2100"). Never invent one; if the syllabus genuinely doesn't state a course name or code anywhere, use an empty string rather than guessing — the caller asks the user directly when this comes back empty.
 - "days": full weekday names ("Monday", not "Mon" or "M"), one entry per distinct day the class meets at these times. If lecture and lab meet at different times, that's two separate meeting_times entries.
 - "start_time"/"end_time": 24-hour "HH:MM", always. "10:00 AM" becomes "10:00"; "2:30 PM" becomes "14:30".
 - "location": the actual building/room string from the syllabus. Omit the field entirely (don't guess or write "TBD") if the syllabus doesn't state one.

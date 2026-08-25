@@ -55,18 +55,14 @@ def _duration_minutes(start_time: str, end_time: str) -> int:
     return minutes if minutes > 0 else 60
 
 
-async def preview(
-    class_name: str, semester_start: date, semester_end: date, syllabus_text: str
-) -> Tuple[bool, str, Optional[Dict]]:
-    """Parses the syllabus only -- creates nothing. Returns
-    (ok, message, parsed_data). ok=False means parsing failed and
-    `message` is the reason; ok=True means `message` is a recap for the
-    user to confirm and `parsed_data` is what commit() needs."""
-    parsed = await syllabus_parser.parse_syllabus(class_name, semester_start, semester_end, syllabus_text)
-    if parsed is None:
-        return False, "Couldn't parse that syllabus — try again, or paste it differently.", None
-
-    lines = [f'Here\'s what I found for "{class_name}":']
+def recap(parsed: Dict) -> str:
+    """The confirm-step message, re-shareable as-is whenever parsed data
+    changes (a fresh parse, or the user correcting a wrong/missing
+    class_name — see assistant.py's confirm-step handling, which accepts
+    a reply that isn't yes/no as a name correction and re-shows this)."""
+    class_name = parsed.get("class_name", "").strip()
+    name_line = f'"{class_name}"' if class_name else "(couldn't find a class name in the syllabus — reply with one)"
+    lines = [f"Here's what I found — class: {name_line}"]
     if parsed["meeting_times"]:
         for mt in parsed["meeting_times"]:
             days_str = "/".join(d[:3] for d in mt["days"])
@@ -75,11 +71,22 @@ async def preview(
     else:
         lines.append("- No fixed meeting time found")
     lines.append(f"- {len(parsed['due_dates'])} due date(s), {len(parsed['exams'])} exam(s)")
-    lines.append("Set this up — calendar events plus reminders 2 days before and the day of? (yes/no)")
-    return True, "\n".join(lines), parsed
+    lines.append('Set this up — calendar events plus reminders 2 days before and the day of? "yes"/"no", or reply with the correct class name if I got it wrong.')
+    return "\n".join(lines)
 
 
-def commit(class_name: str, semester_name: str, semester_start: date, semester_end: date, parsed: Dict) -> str:
+async def preview(semester_start: date, semester_end: date, syllabus_text: str) -> Tuple[bool, str, Optional[Dict]]:
+    """Parses the syllabus only -- creates nothing. Returns
+    (ok, message, parsed_data). ok=False means parsing failed and
+    `message` is the reason; ok=True means `message` is recap(parsed),
+    ready for the user to confirm (or correct the class name)."""
+    parsed = await syllabus_parser.parse_syllabus(semester_start, semester_end, syllabus_text)
+    if parsed is None:
+        return False, "Couldn't parse that syllabus — try again, or paste it differently.", None
+    return True, recap(parsed), parsed
+
+
+def commit(semester_name: str, semester_start: date, semester_end: date, parsed: Dict) -> str:
     """Creates everything from an already-parsed, already-confirmed
     syllabus. Sync, not async -- matches calendar_engine.py's own
     precedent of calling google_calendar's write functions directly
@@ -87,7 +94,10 @@ def commit(class_name: str, semester_name: str, semester_start: date, semester_e
     this off the event loop (it can make several real API calls in a
     row) should wrap the whole call, e.g. asyncio.to_thread(commit, ...).
     A single calendar-event failure is logged and skipped, not fatal to
-    the rest -- same fail-quiet spirit as google_calendar.py itself."""
+    the rest -- same fail-quiet spirit as google_calendar.py itself.
+    parsed["class_name"] must already be non-empty -- assistant.py's
+    confirm-step gate guarantees this before commit() is ever called."""
+    class_name = parsed["class_name"]
     created_events = 0
     for mt in parsed["meeting_times"]:
         start_dt = _first_occurrence(semester_start, mt["days"], mt["start_time"])
