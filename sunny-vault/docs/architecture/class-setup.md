@@ -58,7 +58,15 @@ This is the first genuinely *proactive, unprompted* Discord message anywhere in 
 "set up my classes" (or a close variant), or `/classsetup` in Discord, launches a multi-step conversation, same pending-follow-up mechanism as the project wizard (`assistant.py`'s `_pending` dict, 5-minute TTL, "cancel" to back out at any point). `/classsetup` doesn't do anything special — it just calls `handle_message("set up my classes", ...)` with the same `session_id` convention `on_message` already uses, so it starts the identical wizard and every reply after it is ordinary plain-text through the channel, no different from typing the trigger phrase directly. Public, not ephemeral, unlike `/speak` — the whole back-and-forth needs to stay visible in the channel.
 
 1. Semester name (e.g. "Fall 2026") — a label only, used to resolve bare dates in a syllabus; the semester's actual start/end dates are never asked for, see Syllabus Parsing above
-2. Per class, looped until "done": paste a syllabus (no separate "what's this class called" question — the class name is pulled straight from the syllabus text by the same parse) → recap showing the extracted name, derived date range, and schedule → (on yes) real creation, then back to step 2 for the next syllabus
+2. Per class, looped until "done": paste a syllabus, **or attach it as a PDF** (see PDF Attachments below) — no separate "what's this class called" question, the class name is pulled straight from the syllabus text by the same parse → recap showing the extracted name, derived date range, and schedule → (on yes) real creation, then back to step 2 for the next syllabus
+
+### PDF Attachments (2026-08-25)
+
+A real user tried this the first way anyone actually would — attaching syllabus PDFs as Discord files instead of pasting text — and it silently did nothing. Root cause: `discord_bot.py`'s `on_message` only ever read `message.content`; a message with only file attachments and no typed text has empty `.content`, so the wizard just kept re-prompting "still need a syllabus to paste" for each PDF sent, and the user eventually said "done" having never gotten anywhere. Confirmed directly against the Lenovo's logs and vault (`sunny-vault/KSU/`/`state/classes/` both empty) before writing the fix, not guessed.
+
+Fixed with `pdf_text.py` (`pypdf`, text-layer extraction only — no OCR, a scanned/image-only PDF comes back empty same as a corrupt or real-password-protected one) plus `discord_bot.py`'s `_resolve_message_text()`, called for every message before it reaches `handle_message()`: a message with one PDF attachment gets that PDF's extracted text appended to (or standing in for) `.content`; more than one PDF in a single message gets an honest "one syllabus at a time, send each in its own message" reply instead of guessing how to split them across classes. Not wizard-specific — works for any message, since nothing else currently expects file content and the check is a no-op (no download, no extraction) when there's no PDF attached.
+
+Capped at 20,000 characters per PDF (`pdf_text.MAX_CHARS`) — keeps one pathological file from blowing up the `syllabus_parse` prompt; a real syllabus, even a long one with a full week-by-week schedule, comes in well under that.
 
 **Class name correction, not a separate question.** `syllabus-parse.md` asks Claude to extract `class_name` directly from the text (course code + title if both appear, e.g. "BUS 2100 - Introduction to Business"); an empty syllabus with no course info anywhere comes back with an empty string rather than a guess. The confirm step accepts three kinds of reply, not just yes/no: "yes" (build it, blocked with a re-prompt if the name is still empty), "no" (skip this class entirely, move to the next syllabus), or *anything else* — treated as the correct class name, which re-shows the recap for another confirm round. This one mechanism covers both "the extraction was wrong" and "the syllabus never stated a name at all" without a separate state or question. `class_setup_engine.recap(parsed)` is the shared function both the initial parse and every correction round call, so the message is always identical in shape.
 
@@ -81,6 +89,7 @@ Both `class_setup_syllabus` (a syllabus paste) and `class_setup_confirm` (a corr
 - `sunny_code/components/discord_bot.py` — `class_reminders_loop`, `DISCORD_REMINDERS_CHANNEL_ID`, `/classsetup`
 - `sunny_code/components/setup_guides.py` — `"setup classes"` guide + overview entry
 - `sunny_code/components/exam_prep.py` — `_NON_TOPIC_FILENAMES` exclusion, `class-info.md` as review context
+- `sunny_code/components/pdf_text.py` — PDF text extraction (`pypdf`), used by `discord_bot.py`'s `_resolve_message_text()`
 - `sunny-vault/instructions/syllabus-parse.md` — the syllabus-parsing system prompt
 
 ## Dependencies
@@ -105,5 +114,6 @@ Both `class_setup_syllabus` (a syllabus paste) and `class_setup_confirm` (a corr
 - [x] `sunny-vault/state/classes/` and `state/class-deadlines/` gitignored
 - [x] `/classsetup` Discord slash command — starts the same wizard, public (not ephemeral) response
 - [x] `"setup classes"` / bare `"setup"` overview entry, live status (class count tracked)
+- [x] PDF attachment support (2026-08-25) — a syllabus can be attached as a file, not just pasted; more than one PDF in a message gets an honest rejection instead of a guess
 - [ ] Editing/removing a previously set-up class
 - [ ] Natural-language query surface for `class_deadlines.get_upcoming()`

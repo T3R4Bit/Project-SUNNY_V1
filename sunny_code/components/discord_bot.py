@@ -36,14 +36,14 @@ import asyncio
 import io
 import logging
 from datetime import datetime
-from typing import Literal
+from typing import Literal, Optional, Tuple
 
 import discord
 from discord.ext import tasks
 
 from sunny_code.components import (
-    build_info, category_store, class_deadlines, service_registry, storm_mode, token_tracker, tts, usage_chart,
-    voice_session,
+    build_info, category_store, class_deadlines, pdf_text, service_registry, storm_mode, token_tracker, tts,
+    usage_chart, voice_session,
 )
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
@@ -115,6 +115,52 @@ def _chunk_message(text: str, limit: int = MAX_MESSAGE_LENGTH):
 def _find_channel(guild: discord.Guild, name: str):
     name = name.lower().lstrip("#")
     return discord.utils.find(lambda c: c.name.lower() == name, guild.channels)
+
+
+_PDF_CONTENT_TYPES = ("application/pdf",)
+
+
+async def _resolve_message_text(message: discord.Message) -> Tuple[str, Optional[str]]:
+    """Combines message.content with text extracted from a PDF attachment
+    -- e.g. a syllabus sent as a file instead of pasted (see
+    class_setup_engine.py, the first real consumer of this; before this
+    existed, a PDF-only message had empty .content and was silently
+    treated as blank everywhere, which is exactly what made "set up my
+    classes" quietly do nothing for a real user who attached syllabus
+    PDFs instead of pasting text).
+
+    Returns (effective_text, error). error is a user-facing message to
+    send instead of proceeding -- more than one PDF in one message (no
+    safe way to guess which class each belongs to), or the one PDF
+    attached couldn't be read at all. effective_text is message.content
+    unchanged when there's no PDF attachment and no error."""
+    pdfs = [
+        a for a in message.attachments
+        if a.content_type in _PDF_CONTENT_TYPES or a.filename.lower().endswith(".pdf")
+    ]
+    if not pdfs:
+        return message.content, None
+    if len(pdfs) > 1:
+        return message.content, (
+            f"That's {len(pdfs)} PDFs in one message — I can only take one syllabus at a time. "
+            "Send each one in its own message and I'll ask about the next after each."
+        )
+
+    try:
+        pdf_bytes = await pdfs[0].read()
+    except discord.HTTPException as e:
+        logger.warning(f"Failed to download PDF attachment {pdfs[0].filename}: {e}")
+        return message.content, f'Couldn\'t download "{pdfs[0].filename}" — try attaching it again.'
+
+    extracted = pdf_text.extract_text(pdf_bytes)
+    if extracted is None:
+        return message.content, (
+            f'Couldn\'t read any text out of "{pdfs[0].filename}" — it might be a scanned image '
+            "with no real text layer, password-protected, or not a real PDF. Try pasting the text directly instead."
+        )
+
+    combined = f"{message.content}\n\n{extracted}".strip() if message.content.strip() else extracted
+    return combined, None
 
 
 def build_dashboard_embed(dashboard_data: dict, project_names: list) -> discord.Embed:
@@ -933,9 +979,14 @@ def create_discord_bot(
                 await message.channel.send(chunk)
             return
 
+        effective_text, pdf_error = await _resolve_message_text(message)
+        if pdf_error is not None:
+            await message.channel.send(pdf_error)
+            return
+
         session_id = f"discord:{message.channel.id}:{message.author.id}"
         response = await handle_message(
-            message.content, tasks_engine, briefing_engine, list_engine, scheduled_engine,
+            effective_text, tasks_engine, briefing_engine, list_engine, scheduled_engine,
             project_engine, spotify_engine, calendar_engine, session_id=session_id
         )
         for chunk in _chunk_message(response):
