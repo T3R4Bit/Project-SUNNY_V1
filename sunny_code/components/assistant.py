@@ -22,7 +22,8 @@ from datetime import date, datetime
 from typing import Dict, Optional, Tuple
 
 from sunny_code.components import (
-    category_store, class_setup_engine, exam_prep, health_check, service_registry, setup_guides, token_tracker,
+    build_info, category_store, class_setup_engine, exam_prep, health_check, service_registry, setup_guides,
+    token_tracker,
 )
 from sunny_code.components.briefing import BriefingEngine, OnChunk, OnSearchStart
 from sunny_code.components.calendar_engine import CalendarEngine
@@ -75,6 +76,7 @@ BRIEFINGS
   what's my usage — today's/this month's Claude spend, plus Anthropic's
     real remaining-tokens-this-window number if a call has been made
     since the last restart
+  what version are you running — the commit currently deployed
   my classes — classes found under sunny-vault/KSU/<semester>/<class>/
   when is my <class> exam — looks for a matching event on your calendar
   study review for <class> — Claude writes a focused review from your
@@ -95,6 +97,7 @@ DISCORD-ONLY COMMANDS
     list (also /category add|remove <name> in Discord)
   my categories — list them
   /usage [days] — chart of Claude API cost over the last N days (default 30)
+  /version — the commit currently deployed
   /services — on/off + autostart status for every background service
   /service <name> enable|disable|autostart_on|autostart_off
   /vacation on|off — same as saying "vacation mode on"/"off" below
@@ -145,6 +148,11 @@ _VACATION_OFF_TRIGGERS = ("vacation mode off", "turn off vacation mode", "stop v
 _USAGE_QUERY_TRIGGERS = (
     "what's my usage", "whats my usage", "what is my usage", "how much have i spent",
     "how much have i spent on claude", "my usage", "usage", "claude usage",
+)
+_VERSION_QUERY_TRIGGERS = (
+    "version", "what version are you running", "what version is this",
+    "what's your version", "whats your version", "what build are you running",
+    "what build is this", "build version", "what version are you on",
 )
 _CATEGORY_ADD_PREFIXES = ("add category ", "create category ", "new category ")
 _CATEGORY_REMOVE_PREFIXES = ("remove category ", "delete category ")
@@ -343,6 +351,8 @@ def _looks_like_a_command(stripped: str, lowered: str) -> bool:
         return True
     if lowered in _USAGE_QUERY_TRIGGERS:
         return True
+    if lowered in _VERSION_QUERY_TRIGGERS:
+        return True
     if (lowered in _MY_CLASSES_TRIGGERS or _extract_exam_date_query(lowered) is not None
             or _extract_study_review_query(lowered) is not None):
         return True
@@ -378,6 +388,13 @@ def _describe_usage() -> str:
         parts.append(f"{tok_remaining} of {tok_limit} tokens left in the current rate window")
 
     return ". ".join(parts) + "."
+
+
+def _describe_version() -> str:
+    """Plain-text answer to "what version are you running" -- works over
+    voice too (the hash just gets spelled out, same as any other spoken
+    identifier), not Discord-command-only like /version."""
+    return f"Running build {build_info.get_build_version()}."
 
 
 def _describe_classes() -> str:
@@ -844,6 +861,9 @@ async def handle_message(
 
     if lowered in _USAGE_QUERY_TRIGGERS:
         return _describe_usage()
+
+    if lowered in _VERSION_QUERY_TRIGGERS:
+        return _describe_version()
 
     if lowered in ("health check", "health report"):
         report = health_check.latest_report()

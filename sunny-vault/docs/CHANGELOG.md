@@ -14,6 +14,11 @@ Running log of real changes, most recent first. Not every commit — the milesto
 
 ## 2026-08-25
 
+**`/version` + a spoken "what version are you running"**
+- New `sunny_code/components/build_info.py`: `get_build_version()` shells out to `git log -1 --format=%h (%as)` in the project root and returns the short commit hash + date (e.g. `d56151e (2026-08-25)`), or `"unknown"` if git isn't available — read fresh each call rather than a hand-maintained version string, since `sunny_code/__init__.py`'s `__version__` isn't bumped per change and can't answer "what build is this."
+- `/version` Discord slash command (ephemeral, chat-channel-gated, same shape as `/services`).
+- Routed into `assistant.py`'s trigger chain too, so "what version are you running" works identically over voice, the web console, and plain Discord text — not Discord-command-only.
+
 **Class setup: syllabus → calendar + memory + proactive reminders**
 - "set up my classes" walks through a multi-step wizard (semester name → start/end dates → per-class paste-syllabus/confirm, looped until "done") and, on confirm, creates real Google Calendar events and a Sunny-managed memory file for that class.
 - `google_calendar.py` gained its first recurring-event support — `create_recurring_event()` (real RRULE, weekly, bounded by the semester end date) and `create_all_day_event()` (due dates/exams). Confirmed with the user directly that a semester of class meetings should be one real recurring event, not ~45 individual one-offs.

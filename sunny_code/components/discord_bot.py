@@ -42,7 +42,8 @@ import discord
 from discord.ext import tasks
 
 from sunny_code.components import (
-    category_store, class_deadlines, service_registry, storm_mode, token_tracker, tts, usage_chart, voice_session,
+    build_info, category_store, class_deadlines, service_registry, storm_mode, token_tracker, tts, usage_chart,
+    voice_session,
 )
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
@@ -340,6 +341,15 @@ def create_discord_bot(
             _, message = category_store.remove_category(name)
         await interaction.followup.send(message, ephemeral=True)
         await refresh_dashboard()
+
+    @tree.command(name="version", description="Show the commit Sunny is currently running")
+    async def version_command(interaction: discord.Interaction):
+        if interaction.channel_id != chat_channel_id:
+            await interaction.response.send_message(
+                "Use /version in the chat channel.", ephemeral=True
+            )
+            return
+        await interaction.response.send_message(f"Build {build_info.get_build_version()}", ephemeral=True)
 
     @tree.command(name="services", description="Show on/off + autostart status for every background service")
     async def services_command(interaction: discord.Interaction):
