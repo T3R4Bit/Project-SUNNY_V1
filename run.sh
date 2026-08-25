@@ -146,6 +146,10 @@ DISCORD_BRIEFINGS_CHANNEL_ID=
 DISCORD_WARNINGS_CHANNEL_ID=
 DISCORD_TASK_UPDATES_CHANNEL_ID=
 DISCORD_HEALTH_CHANNEL_ID=
+# Claude API usage dashboard + spend-cap alerts — falls back to the health
+# channel above, then chat, if left blank. Give it its own channel if you
+# don't want usage posts mixed in with the weekly health report.
+DISCORD_USAGE_CHANNEL_ID=
 # Class-deadline reminders (class_deadlines.py's T-2/T-0 pings) — same
 # falls-back-to-chat behavior as the output channels above.
 DISCORD_REMINDERS_CHANNEL_ID=

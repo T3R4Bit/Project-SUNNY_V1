@@ -69,9 +69,10 @@ HEALTH_MARKER = "⁠" # word joiner (U+2060) -- deliberately a *different*
 # end up configured to the same channel.
 USAGE_MARKER = "‌" # zero-width non-joiner (U+200C) -- a third distinct
 # invisible marker, same reasoning as HEALTH_MARKER. Lives in the embed
-# footer, same as HEALTH_MARKER -- both messages now live in the same
-# #health channel, so they need distinct footers to tell each other apart
-# on restart-rediscovery.
+# footer, same as HEALTH_MARKER -- kept distinct even now that usage has
+# its own optional channel (DISCORD_USAGE_CHANNEL_ID), since an unset
+# usage channel still falls back to sharing #health with the health
+# report, and pin-rediscovery needs to tell the two apart in that case.
 USAGE_ALERT_THRESHOLD = 0.7 # fraction of daily_spend_cap/monthly_spend_cap
 # that triggers a ping -- "70%" per the backlog item this implements
 _STORM_MODE_TRIGGERS = ("storm mode", "activate storm mode", "start storm mode", "turn on storm mode", "enable storm mode")
@@ -275,6 +276,7 @@ def create_discord_bot(
     warnings_channel_id: int = 0,
     task_updates_channel_id: int = 0,
     health_channel_id: int = 0,
+    usage_channel_id: int = 0,
     reminders_channel_id: int = 0,
     voice_channel_id: int = 0,
 ) -> discord.Client:
@@ -561,8 +563,8 @@ def create_discord_bot(
     client.post_to_health = post_to_health
 
     async def refresh_usage_dashboard():
-        """The Claude usage chart, posted into the same #health channel as
-        the weekly health report and in the same embed style (title +
+        """The Claude usage chart, posted into its own channel if configured
+        (falls back to #health, then chat), in the same embed style (title +
         bold-figures description, see post_to_health above), with the
         chart composited in via `set_image`. Unlike post_to_health and
         refresh_dashboard, this is delete-and-resend, not edit-in-place —
@@ -571,7 +573,7 @@ def create_discord_bot(
         fresh image every time. Called on an hourly loop (see
         usage_refresh_loop below), same "runs immediately, then every N"
         shape as the task dashboard's own 5-minute backstop."""
-        target_channel_id = health_channel_id or chat_channel_id
+        target_channel_id = usage_channel_id or health_channel_id or chat_channel_id
         if not target_channel_id:
             return
         try:
@@ -635,13 +637,14 @@ def create_discord_bot(
         state["usage_message_id"] = new_message.id
 
     async def check_usage_alerts():
-        """Pings the health channel once per day when spend crosses 70% of
-        the self-imposed daily/monthly cap, or a key is expiring within a
-        week — same expiry check the weekly health report already does,
-        surfaced immediately here instead of waiting for Sunday. Tracked
-        by date, not a one-shot flag, so a genuinely new day's crossing
-        still alerts even though yesterday's already did."""
-        target_channel_id = health_channel_id or chat_channel_id
+        """Pings the usage channel (falls back to #health, then chat) once
+        per day when spend crosses 70% of the self-imposed daily/monthly
+        cap, or a key is expiring within a week — same expiry check the
+        weekly health report already does, surfaced immediately here
+        instead of waiting for Sunday. Tracked by date, not a one-shot
+        flag, so a genuinely new day's crossing still alerts even though
+        yesterday's already did."""
+        target_channel_id = usage_channel_id or health_channel_id or chat_channel_id
         if not target_channel_id:
             return
         today = datetime.now().date().isoformat()

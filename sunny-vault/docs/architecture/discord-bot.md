@@ -95,7 +95,7 @@ Binding is always by **channel ID**, never by name — Discord doesn't let the b
 | `DISCORD_CHAT_CHANNEL_ID` | `#chat` | **Yes** — the bot won't start without this one (see Setup below) | The one channel commands are read from: Tasks/Lists/Alarms/Reminders/setup/help/server-admin. Replies land here. Default fallback destination for every optional channel below when left unset |
 | `DISCORD_TASKS_CHANNEL_ID` | `#tasks` | No — falls back to the chat channel if unset (reproduces the old single-channel behavior exactly) | **Read-only.** Hosts the pinned task dashboard only. The bot never reads anything posted here — it's a display surface, not a second command channel |
 
-Five further optional, output-only channels:
+Six further optional, output-only channels:
 
 | Env var | Suggested channel name | Required? | What it's for |
 |---|---|---|---|
@@ -103,6 +103,7 @@ Five further optional, output-only channels:
 | `DISCORD_WARNINGS_CHANNEL_ID` | `#warnings` | No | The startup missing-API-key summary. Today this is its only real user — nothing else posts here yet (see [[llm-integration]]'s Error Handling section for a planned future user: Claude API failures aren't routed to Discord yet, only logged) |
 | `DISCORD_TASK_UPDATES_CHANNEL_ID` | `#task-updates` | No | A log line for every successful task add/update/delete, from *any* interface — web console, terminal chat, or this bot |
 | `DISCORD_HEALTH_CHANNEL_ID` | `#health` | No | The weekly Sunday-4am system health report — see [[health-check]] |
+| `DISCORD_USAGE_CHANNEL_ID` | `#usage` | No | The persistent hourly usage dashboard + daily spend-cap alerts — falls back to `#health`, then chat, if unset. See [[usage-tracking]] |
 | `DISCORD_REMINDERS_CHANNEL_ID` | `#reminders` | No | Class-deadline pings (2 days before and the day of) from "set up my classes" — see [[class-setup]] |
 
 Create each channel in Discord first (by hand, or once the bot's connected: `create a channel called task-updates` in the chat channel), then copy its ID in (Developer Mode → right-click channel → Copy Channel ID) — see Setup below for the full walkthrough.
@@ -116,6 +117,7 @@ The bot still only ever *reads commands* from the chat channel (`DISCORD_CHAT_CH
 - `DISCORD_WARNINGS_CHANNEL_ID` unset → falls back to the chat channel (its behavior before this existed)
 - `DISCORD_TASK_UPDATES_CHANNEL_ID` unset → not posted anywhere extra; the pinned dashboard still updates as normal either way
 - `DISCORD_HEALTH_CHANNEL_ID` unset → the weekly health report falls back to the chat channel — see [[health-check]]
+- `DISCORD_USAGE_CHANNEL_ID` unset → the usage dashboard/alerts fall back to `#health` (`DISCORD_HEALTH_CHANNEL_ID`), then the chat channel — see [[usage-tracking]]
 - `DISCORD_REMINDERS_CHANNEL_ID` unset → class-deadline pings fall back to the chat channel — see [[class-setup]]
 
 **How it's wired**: `TaskEngine.on_change` (previously a bare no-arg "something changed, refresh yourself" signal used only for the pinned dashboard) now optionally receives the result message too. `discord_bot.py` combines both effects into one callback — refresh the dashboard *and*, if configured, log the message to `#task-updates`. Nothing about `TaskEngine` itself became Discord-aware; it just started passing along information it already had.
@@ -182,6 +184,7 @@ DISCORD_BRIEFINGS_CHANNEL_ID=<channel id, or leave blank>
 DISCORD_WARNINGS_CHANNEL_ID=<channel id, or leave blank>
 DISCORD_TASK_UPDATES_CHANNEL_ID=<channel id, or leave blank>
 DISCORD_HEALTH_CHANNEL_ID=<channel id, or leave blank>
+DISCORD_USAGE_CHANNEL_ID=<channel id, or leave blank>
 DISCORD_REMINDERS_CHANNEL_ID=<channel id, or leave blank>
 ```
 
@@ -216,7 +219,7 @@ Restart Sunny (`./run.sh`). Log line to confirm it connected: `Discord bot conne
 - [x] 30-second scheduled-item due check, posts + reschedules/deactivates
 - [x] Startup missing-API-key summary posted once per run
 - [x] Server admin: create/delete channels, create/delete roles, assign/remove roles on members — parser + execution unit-tested (mocked guild), including both guardrails
-- [x] Multi-channel output routing: optional `#briefings`/`#warnings`/`#task-updates`/`#health`/`#reminders` channels, each falling back to the chat channel if unset — routing + fallback unit-tested (mocked client)
+- [x] Multi-channel output routing: optional `#briefings`/`#warnings`/`#task-updates`/`#health`/`#usage`/`#reminders` channels, each falling back to the chat channel if unset (`#usage` falls back to `#health` first) — routing + fallback unit-tested (mocked client)
 - [x] Class-deadline reminders: `class_reminders_loop`, checks every few hours, posts to `#reminders` (or chat) — see [[class-setup]]
 - [x] **Connected to a real live server** — 2026-08-20
 - [x] First slash command: `/speak` (Piper TTS) — see [[tts-piper]]

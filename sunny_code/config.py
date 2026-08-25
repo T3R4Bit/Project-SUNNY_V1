@@ -83,6 +83,11 @@ class Settings(BaseSettings):
     discord_warnings_channel_id: int = 0
     discord_task_updates_channel_id: int = 0
     discord_health_channel_id: int = 0
+    # Claude API usage dashboard + spend-cap alerts -- unset falls back to
+    # the health channel, then the chat channel, same layered fallback as
+    # every other output-only channel. Previously always shared the health
+    # channel; this exists to split it back out into its own channel.
+    discord_usage_channel_id: int = 0
     # Class-deadline reminders (class_deadlines.py's T-2/T-0 pings) --
     # unset falls back to the chat channel, same as the other output-only
     # channels above.
@@ -99,6 +104,7 @@ class Settings(BaseSettings):
         "discord_warnings_channel_id",
         "discord_task_updates_channel_id",
         "discord_health_channel_id",
+        "discord_usage_channel_id",
         "discord_reminders_channel_id",
         "discord_voice_channel_id",
         mode="before",
