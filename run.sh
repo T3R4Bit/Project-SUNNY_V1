@@ -93,6 +93,7 @@ DISCORD_BRIEFINGS_CHANNEL_ID=
 DISCORD_WARNINGS_CHANNEL_ID=
 DISCORD_TASK_UPDATES_CHANNEL_ID=
 DISCORD_HEALTH_CHANNEL_ID=
+DISCORD_REMINDERS_CHANNEL_ID=
 # Optional — a voice channel for Sunny to stay connected to persistently
 # (say "Hey Sunny" before each request, same as before). Leave blank to skip
 # voice presence entirely; toggle on/off later with /service voice_join.

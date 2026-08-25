@@ -11,7 +11,7 @@ the "fail quietly" principle in sunny-vault/docs/architecture/briefing-engine.md
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from googleapiclient.discovery import build
@@ -168,6 +168,93 @@ def create_event(title: str, start: datetime, duration_minutes: int = 60, calend
         return None
     except Exception as e:
         logger.error(f"Unexpected error creating event: {e}", exc_info=True)
+        return None
+
+
+_RRULE_DAY_CODES = {
+    "monday": "MO", "tuesday": "TU", "wednesday": "WE", "thursday": "TH",
+    "friday": "FR", "saturday": "SA", "sunday": "SU",
+}
+
+
+def create_recurring_event(
+    title: str,
+    start: datetime,
+    duration_minutes: int,
+    days: List[str],
+    until: date,
+    location: str = None,
+    calendar_id: str = "primary",
+) -> Optional[dict]:
+    """Creates a weekly-recurring event via a real Google Calendar RRULE —
+    one event with a recurrence rule, not a series of individual one-off
+    events. Built for class_setup_engine.py's "put this semester's class
+    meeting times on the calendar" case. `start` is the first occurrence's
+    naive local datetime (matching create_event()'s convention); `days`
+    are full weekday names ("Monday", "Wednesday", ...), matched
+    case-insensitively. `until` is the last date the recurrence should
+    cover (inclusive) — typically the semester's end date. Returns None
+    on an unrecognized weekday name, same as any other failure here."""
+    service = _service()
+    if service is None:
+        return None
+
+    try:
+        byday = ",".join(_RRULE_DAY_CODES[d.strip().lower()] for d in days)
+    except KeyError as e:
+        logger.error(f"create_recurring_event: unrecognized weekday {e}")
+        return None
+
+    start_local = start.astimezone()
+    end_local = (start + timedelta(minutes=duration_minutes)).astimezone()
+    # RFC5545: UNTIL must be UTC when DTSTART carries a time component (a
+    # timed event, which a class meeting always is here) — a bare local
+    # date would be rejected by the API.
+    until_utc = datetime.combine(until, datetime.max.time()).astimezone(timezone.utc)
+    rrule = f"RRULE:FREQ=WEEKLY;BYDAY={byday};UNTIL={until_utc.strftime('%Y%m%dT%H%M%SZ')}"
+
+    body = {
+        "summary": title,
+        "start": {"dateTime": start_local.isoformat()},
+        "end": {"dateTime": end_local.isoformat()},
+        "recurrence": [rrule],
+    }
+    if location:
+        body["location"] = location
+
+    try:
+        return service.events().insert(calendarId=calendar_id, body=body).execute()
+    except HttpError as e:
+        logger.error(f"Google Calendar API error creating recurring event: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error creating recurring event: {e}", exc_info=True)
+        return None
+
+
+def create_all_day_event(title: str, day: date, calendar_id: str = "primary") -> Optional[dict]:
+    """Creates an all-day event — due dates and exams from
+    class_setup_engine.py use this, not create_event() (which always makes
+    a timed event). Calendar represents an all-day event with a bare
+    "date" field, not "dateTime", on both start and end — and end is
+    EXCLUSIVE per the Calendar API, so a one-day all-day event's end date
+    is the day *after* the event, not the same day."""
+    service = _service()
+    if service is None:
+        return None
+
+    body = {
+        "summary": title,
+        "start": {"date": day.isoformat()},
+        "end": {"date": (day + timedelta(days=1)).isoformat()},
+    }
+    try:
+        return service.events().insert(calendarId=calendar_id, body=body).execute()
+    except HttpError as e:
+        logger.error(f"Google Calendar API error creating all-day event: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error creating all-day event: {e}", exc_info=True)
         return None
 
 

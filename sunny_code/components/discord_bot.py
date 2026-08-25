@@ -41,7 +41,9 @@ from typing import Literal
 import discord
 from discord.ext import tasks
 
-from sunny_code.components import category_store, service_registry, storm_mode, token_tracker, tts, usage_chart, voice_session
+from sunny_code.components import (
+    category_store, class_deadlines, service_registry, storm_mode, token_tracker, tts, usage_chart, voice_session,
+)
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.crash_check import check_previous_crash
@@ -83,6 +85,10 @@ VOICE_PRESENCE_INTERVAL_SECONDS = 30 # how often to reconcile actual voice
 # after a drop/crash doesn't leave Sunny absent for long
 MORNING_PREP_LOOKAHEAD_SECONDS = 5 * 60 # how far ahead of an alarm to
 # prewarm the morning briefing -- "5min max" per the backlog item this implements
+CLASS_REMINDERS_CHECK_INTERVAL_SECONDS = 3 * 60 * 60 # class_deadlines.check_and_notify()
+# is date-only (not time-of-day) comparison and self-guards against
+# double-sending, so a few-times-a-day cadence is plenty -- no need for
+# scheduled_check_loop's 30s granularity here
 SPEAK_MAX_CHARS = 1000 # practical cap on synthesis time/file size, well under
 # Discord's own 6000-char slash-command string option limit
 
@@ -222,6 +228,7 @@ def create_discord_bot(
     warnings_channel_id: int = 0,
     task_updates_channel_id: int = 0,
     health_channel_id: int = 0,
+    reminders_channel_id: int = 0,
     voice_channel_id: int = 0,
 ) -> discord.Client:
     """Build (but don't start) the Discord client. chat_channel_id is the only
@@ -737,6 +744,20 @@ def create_discord_bot(
             else:
                 scheduled_engine.db.deactivate(item["id"])
 
+    @tasks.loop(seconds=CLASS_REMINDERS_CHECK_INTERVAL_SECONDS)
+    async def class_reminders_loop():
+        """Pings #reminders (or chat, if unconfigured) 2 days before and
+        the day of every tracked class due date/exam -- see
+        class_deadlines.check_and_notify() for the actual gating logic
+        that keeps this from double-posting."""
+        if not service_registry.is_enabled("class_reminders"):
+            return
+
+        async def post(text: str):
+            await _post_to(reminders_channel_id, text, fallback_channel_id=chat_channel_id)
+
+        await class_deadlines.check_and_notify(post)
+
     @client.event
     async def on_ready():
         logger.info(
@@ -761,6 +782,8 @@ def create_discord_bot(
         # scheduled_check_loop above.
         if not voice_presence_loop.is_running() and voice_channel_id:
             voice_presence_loop.start() # runs immediately, then every 30s
+        if not class_reminders_loop.is_running() and service_registry.is_autostart("class_reminders"):
+            class_reminders_loop.start() # runs immediately, then every few hours
 
         # Guild-scoped sync (instant) rather than global (~1hr to propagate) —
         # this bot is single-server by design already (see discord-bot.md).

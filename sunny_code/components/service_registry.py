@@ -41,6 +41,7 @@ SERVICES = (
     "morning_prep",
     "voice_join",
     "rules_engine",
+    "class_reminders",
 )
 
 _DEFAULTS = {name: {"enabled": True, "autostart": True} for name in SERVICES}

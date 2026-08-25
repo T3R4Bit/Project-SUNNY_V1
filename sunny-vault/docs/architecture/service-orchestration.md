@@ -19,9 +19,9 @@ Per-service on/off and autostart-on-boot control for Sunny's background loops, p
 | Vacation mode | Built — same file, `assistant.py` routing |
 | `/service`, `/services`, `/vacation` Discord commands | Built — `discord_bot.py` |
 
-## The Six Services
+## The Services
 
-`dashboard_refresh`, `scheduled_check` (alarms/reminders due-check), `usage_refresh`, `health_check`, `morning_prep`, `voice_join`. Fixed, not user-extensible — each name corresponds to a real loop or command gate wired by hand, not an open-ended concept like task categories.
+`dashboard_refresh`, `scheduled_check` (alarms/reminders due-check), `usage_refresh`, `health_check`, `morning_prep`, `voice_join`, `rules_engine` (see [[proactive-architecture]]), `class_reminders` (2026-08-25, see [[class-setup]]). Fixed, not user-extensible — each name corresponds to a real loop or command gate wired by hand, not an open-ended concept like task categories.
 
 ## Storage
 

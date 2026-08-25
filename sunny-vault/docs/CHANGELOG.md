@@ -12,6 +12,17 @@ Running log of real changes, most recent first. Not every commit — the milesto
 
 ---
 
+## 2026-08-25
+
+**Class setup: syllabus → calendar + memory + proactive reminders**
+- "set up my classes" walks through a multi-step wizard (semester name → start/end dates → per-class name/paste-syllabus/confirm, looped until "done") and, on confirm, creates real Google Calendar events and a Sunny-managed memory file for that class.
+- `google_calendar.py` gained its first recurring-event support — `create_recurring_event()` (real RRULE, weekly, bounded by the semester end date) and `create_all_day_event()` (due dates/exams). Confirmed with the user directly that a semester of class meetings should be one real recurring event, not ~45 individual one-offs.
+- `syllabus_parser.py`: one `ask_claude(purpose="syllabus_parse", model="sonnet")` call per class, strict JSON (meeting times, due dates, exams, a grading/contact summary), dates resolved against the given semester so a syllabus date without a year still lands correctly.
+- `class_memory.py` (`sunny-vault/state/classes/`) holds the syllabus summary and key-dates list per class — deliberately separate from exam-prep's `sunny-vault/KSU/` convention, which stays the user's own hand-written notes.
+- `class_deadlines.py` (`sunny-vault/state/class-deadlines/`) tracks each due date/exam with idempotent T-2/T-0 reminder flags. A new `class_reminders_loop` in `discord_bot.py` (checks every 3 hours, gated on a new `class_reminders` service toggle) posts to a new `#reminders` channel (`DISCORD_REMINDERS_CHANNEL_ID`) 2 days before and the day of each deadline — the first genuinely proactive, unprompted message anywhere in this codebase. Built as its own dedicated loop rather than routed through the rules_engine.py proactive-architecture pieces, which still have no real caller.
+- Exam events created here compose automatically with the existing exam-prep feature (`find_exam_date()` searches Calendar for class name + exam keyword, independently of who created the event).
+- See [[architecture/class-setup]].
+
 ## 2026-08-24
 
 **Task priority removed, category management everywhere, chat memory idle expiry**

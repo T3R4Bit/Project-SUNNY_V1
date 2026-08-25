@@ -18,10 +18,12 @@ parser ever saw it.
 import asyncio
 import random
 import time
-from datetime import datetime
-from typing import Dict, Optional
+from datetime import date, datetime
+from typing import Dict, Optional, Tuple
 
-from sunny_code.components import category_store, exam_prep, health_check, service_registry, setup_guides, token_tracker
+from sunny_code.components import (
+    category_store, class_setup_engine, exam_prep, health_check, service_registry, setup_guides, token_tracker,
+)
 from sunny_code.components.briefing import BriefingEngine, OnChunk, OnSearchStart
 from sunny_code.components.calendar_engine import CalendarEngine
 from sunny_code.components.device import device_from_session
@@ -77,6 +79,9 @@ BRIEFINGS
   when is my <class> exam — looks for a matching event on your calendar
   study review for <class> — Claude writes a focused review from your
     actual notes on whatever hasn't been marked mastered yet
+  set up my classes — paste a syllabus per class; creates recurring
+    calendar events for meeting times, all-day events for due dates/exams,
+    and pings #reminders 2 days before and the day of each
 
 VOICE
   /speak <text> — one-shot: Sunny says it out loud in the channel (slash command)
@@ -239,6 +244,48 @@ _PROJECT_SECTIONS_PROMPTS = (
     'Want to call out particular sections, or should I figure that out myself? (say "you decide" to skip)',
     'Anything specific you want covered, or am I picking the structure? (say "you decide" to skip)',
 )
+# Exact-phrase, same reasoning as _PROJECT_TRIGGERS -- this launches a much
+# longer wizard (semester dates, then a per-class syllabus loop with real
+# calendar writes), so a false positive is far worse than a false negative.
+_CLASS_SETUP_TRIGGERS = (
+    "set up my classes",
+    "set up classes",
+    "class setup",
+    "setup my classes",
+    "i want to set up my classes",
+)
+_CLASS_SETUP_SEMESTER_PROMPTS = (
+    "What semester is this? (e.g. \"Fall 2026\")",
+    "Which semester are we setting up?",
+)
+_CLASS_SETUP_DATES_PROMPT = 'Start and end dates? ("YYYY-MM-DD to YYYY-MM-DD")'
+_CLASS_SETUP_CLASS_NAME_PROMPTS = (
+    'What\'s the class called? (or say "done" if that\'s all of them)',
+    'Next class name — or say "done" if you\'ve added them all.',
+)
+_CLASS_SETUP_SYLLABUS_PROMPT = "Paste the syllabus text for this one."
+_CLASS_SETUP_DONE_WORDS = ("done", "that's all", "thats all", "no more", "finished", "that's it", "thats it")
+
+
+def _parse_semester_dates(text: str) -> Optional[Tuple[date, date]]:
+    """"2026-08-24 to 2026-12-12" -> (start, end), or None if it doesn't
+    look like that at all. Plain string split, not regex — matches this
+    module's existing style for a rigid, user-guided format (see
+    _extract_setup_query) rather than reaching for re for the first time
+    in this file."""
+    parts = text.split(" to ")
+    if len(parts) != 2:
+        return None
+    try:
+        start = date.fromisoformat(parts[0].strip())
+        end = date.fromisoformat(parts[1].strip())
+    except ValueError:
+        return None
+    if end <= start:
+        return None
+    return start, end
+
+
 _SETUP_BARE = ("setup", "/setup", "set up", "connect", "setup steps", "connect steps")
 _SETUP_PREFIXES = (
     "setup ", "/setup ", "set up ", "connect ",
@@ -499,6 +546,117 @@ async def _advance_project_wizard(
     return message
 
 
+async def _advance_class_setup_wizard(stripped: str, lowered: str, pending: Dict, session_id: str) -> Optional[str]:
+    """One step of the class-setup wizard: semester name -> semester
+    dates -> per-class loop (name -> paste syllabus -> confirm -> next
+    class or done). Same "return None means fall through to normal
+    routing" contract as _advance_project_wizard. Confirm isn't gated by
+    _looks_like_a_command, same reasoning as the project wizard — a bare
+    "yes"/"no" would otherwise risk being misread as some other command."""
+    awaiting = pending["awaiting"]
+
+    if lowered in _CANCEL_WORDS:
+        _pending.pop(session_id, None)
+        return "No worries — cancelled."
+
+    if awaiting != "class_setup_confirm" and _looks_like_a_command(stripped, lowered):
+        _pending.pop(session_id, None)
+        return None
+
+    _pending.pop(session_id, None)
+
+    if awaiting == "class_setup_semester_name":
+        name = stripped.strip().strip('"\'')
+        if not name:
+            _set_pending(session_id, "class_setup_semester_name")
+            return 'Still need a semester name — what is it? (or say "cancel")'
+        _set_pending(session_id, "class_setup_semester_dates", semester_name=name)
+        return _CLASS_SETUP_DATES_PROMPT
+
+    if awaiting == "class_setup_semester_dates":
+        dates = _parse_semester_dates(stripped)
+        if dates is None:
+            _set_pending(session_id, "class_setup_semester_dates", semester_name=pending["semester_name"])
+            return f'Didn\'t catch that — {_CLASS_SETUP_DATES_PROMPT}'
+        start, end = dates
+        _set_pending(
+            session_id, "class_setup_class_name",
+            semester_name=pending["semester_name"], semester_start=start.isoformat(), semester_end=end.isoformat(),
+            count=0,
+        )
+        return random.choice(_CLASS_SETUP_CLASS_NAME_PROMPTS)
+
+    if awaiting == "class_setup_class_name":
+        if lowered in _CLASS_SETUP_DONE_WORDS:
+            count = pending["count"]
+            return f"Class setup done — {count} class{'es' if count != 1 else ''} set up." if count else "Class setup done — nothing was added."
+        class_name = stripped.strip().strip('"\'')
+        if not class_name:
+            _set_pending(
+                session_id, "class_setup_class_name",
+                semester_name=pending["semester_name"], semester_start=pending["semester_start"],
+                semester_end=pending["semester_end"], count=pending["count"],
+            )
+            return 'Still need a class name — what is it? (or say "done")'
+        _set_pending(
+            session_id, "class_setup_syllabus",
+            semester_name=pending["semester_name"], semester_start=pending["semester_start"],
+            semester_end=pending["semester_end"], count=pending["count"], class_name=class_name,
+        )
+        return _CLASS_SETUP_SYLLABUS_PROMPT
+
+    if awaiting == "class_setup_syllabus":
+        semester_start = date.fromisoformat(pending["semester_start"])
+        semester_end = date.fromisoformat(pending["semester_end"])
+        ok, message, parsed = await class_setup_engine.preview(
+            pending["class_name"], semester_start, semester_end, stripped
+        )
+        if not ok:
+            _set_pending(
+                session_id, "class_setup_syllabus",
+                semester_name=pending["semester_name"], semester_start=pending["semester_start"],
+                semester_end=pending["semester_end"], count=pending["count"], class_name=pending["class_name"],
+            )
+            return message
+        _set_pending(
+            session_id, "class_setup_confirm",
+            semester_name=pending["semester_name"], semester_start=pending["semester_start"],
+            semester_end=pending["semester_end"], count=pending["count"], class_name=pending["class_name"],
+            parsed=parsed,
+        )
+        return message
+
+    # awaiting == "class_setup_confirm"
+    if lowered in _NO_WORDS:
+        _set_pending(
+            session_id, "class_setup_class_name",
+            semester_name=pending["semester_name"], semester_start=pending["semester_start"],
+            semester_end=pending["semester_end"], count=pending["count"],
+        )
+        return f'Skipped "{pending["class_name"]}". ' + random.choice(_CLASS_SETUP_CLASS_NAME_PROMPTS)
+    if lowered not in _YES_WORDS:
+        _set_pending(
+            session_id, "class_setup_confirm",
+            semester_name=pending["semester_name"], semester_start=pending["semester_start"],
+            semester_end=pending["semester_end"], count=pending["count"], class_name=pending["class_name"],
+            parsed=pending["parsed"],
+        )
+        return "Just need a yes or no — set this one up?"
+
+    semester_start = date.fromisoformat(pending["semester_start"])
+    semester_end = date.fromisoformat(pending["semester_end"])
+    result_message = await asyncio.to_thread(
+        class_setup_engine.commit,
+        pending["class_name"], pending["semester_name"], semester_start, semester_end, pending["parsed"],
+    )
+    _set_pending(
+        session_id, "class_setup_class_name",
+        semester_name=pending["semester_name"], semester_start=pending["semester_start"],
+        semester_end=pending["semester_end"], count=pending["count"] + 1,
+    )
+    return f"{result_message} " + random.choice(_CLASS_SETUP_CLASS_NAME_PROMPTS)
+
+
 async def handle_message(
     text: str,
     tasks_engine: TaskEngine,
@@ -559,6 +717,15 @@ async def handle_message(
             return wizard_reply
         # falls through to normal handling below
 
+    elif pending and pending.get("awaiting") in (
+        "class_setup_semester_name", "class_setup_semester_dates", "class_setup_class_name",
+        "class_setup_syllabus", "class_setup_confirm",
+    ):
+        wizard_reply = await _advance_class_setup_wizard(stripped, lowered, pending, session_id)
+        if wizard_reply is not None:
+            return wizard_reply
+        # falls through to normal handling below
+
     if lowered in _HELP_TRIGGERS:
         return HELP_TEXT
 
@@ -575,6 +742,10 @@ async def handle_message(
             return "Project system isn't available right now."
         _set_pending(session_id, "project_name")
         return random.choice(_PROJECT_NAME_PROMPTS)
+
+    if lowered in _CLASS_SETUP_TRIGGERS:
+        _set_pending(session_id, "class_setup_semester_name")
+        return random.choice(_CLASS_SETUP_SEMESTER_PROMPTS)
 
     setup_query = _extract_setup_query(lowered)
     if setup_query is not None:
