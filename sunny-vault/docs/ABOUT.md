@@ -120,9 +120,9 @@ Hard spending caps enforced both in-app (`daily_spend_cap`/`monthly_spend_cap` i
 
 ## Security
 
-- Caller ID allowlist + PIN for phone authentication
+- Caller ID allowlist + PIN for phone authentication (planned, once phone integration exists)
 - API keys rotated regularly, never hardcoded
-- Confirmation required for irreversible actions
+- No confirmation step today for destructive actions (delete a task, cancel a calendar event, delete a Discord channel/role) — they run immediately, matching this being a single-user personal tool
 - Tailscale network keeps devices off public internet
 - Hard spending caps at provider accounts
 

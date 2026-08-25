@@ -83,6 +83,7 @@ Logs are kept indefinitely. No pruning. This is your permanent audit trail.
 Flat, single-file logs also live directly in `log/` — simpler append-only files, not the nested per-day design above (that design is for the Discord activity mirror, not yet built as described; these predate/sit alongside it):
 
 - `requests.md` — requests Sunny couldn't fulfill with real data (`request_log.py`)
+- `rules-engine.md` — one line per fired Layer 2 rule (hardcoded, deterministic automation — vault note changed, calendar event changed), appended by `rules_engine.py`'s scheduled `evaluate()` loop.
 - `llm-usage.md` — a record of **every** `ask_claude()` attempt, not just successes — status, prompt, and (on success) response — see `llm_client.log_llm_call()` and [[../docs/architecture/llm-readiness]].
 - `health-checks.md` — the weekly Sunday-4am system health report, appended by `health_check.py` — see [[../docs/architecture/health-check]].
 

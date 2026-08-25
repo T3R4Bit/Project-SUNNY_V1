@@ -46,6 +46,7 @@ add dentist appointment to my calendar at 3pm tomorrow → Real Google Calendar 
 cancel dentist appointment from my calendar → Deletes it (no confirmation step)
 play Reptilia by The Strokes → Spotify playback (needs "setup spotify" first)
 new project → Answer 3 quick questions, get a real project folder drafted
+set up my classes → Paste a syllabus, get recurring calendar events + reminders
 study review for BUS 2100 → Night-before review from your real class notes
 storm mode → Live web-searched weather updates on a timer, not the API
 health check → Latest weekly report (or triggers one on demand)
@@ -63,10 +64,12 @@ Real registered slash commands, no plain-text equivalent:
 ```
 /speak <text>     → Sunny says it out loud in the channel (one-shot, no
                     need to be in a voice channel)
+/classsetup       → Start the class-setup wizard (paste a syllabus per class)
 /category         → Add or remove a task category
 /service, /services → Enable/disable a background service, check status
 /vacation         → Pause proactive morning/evening nudging
 /usage            → Chart of Claude API cost over the last N days
+/version          → Show the commit Sunny is currently running
 ```
 
 ## Talk to Sunny in Discord Voice

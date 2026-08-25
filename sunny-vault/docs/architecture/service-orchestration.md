@@ -51,7 +51,7 @@ Toggle from any interface: "vacation mode on"/"off" (natural language, routed th
 ## Discord Commands
 
 - `/services` — one line per service (`name: on/off (autostart/manual)`) plus vacation mode's state.
-- `/service <name> enable|disable|autostart_on|autostart_off` — `name` is a fixed dropdown (the six services above), not free text.
+- `/service <name> enable|disable|autostart_on|autostart_off` — `name` is a fixed dropdown, not free text. All eight services above are in that dropdown's `Literal` in `discord_bot.py` (`class_reminders` was briefly left off after it was added, fixed 2026-08-25).
 - `/vacation on|off` — same as the natural-language phrase.
 
 All three are channel-restricted to the configured chat channel, same as every other slash command in this bot.
@@ -59,7 +59,7 @@ All three are channel-restricted to the configured chat channel, same as every o
 ## Files
 
 - `sunny_code/components/service_registry.py` — storage, `is_enabled`/`is_autostart`/`set_enabled`/`set_autostart`/`is_vacation_mode`/`set_vacation_mode`/`status_lines`
-- `sunny_code/main.py` — health-check loop's `enabled`/`autostart` gating
+- `sunny_code/main.py` — health-check and rules-engine loops' `enabled`/`autostart` gating (both standalone, not Discord-attached — see their docstrings)
 - `sunny_code/components/discord_bot.py` — all six loops' gating (including `voice_presence_loop` as of 2026-08-24), `/service`/`/services`/`/vacation`
 - `sunny_code/components/assistant.py` — vacation-mode natural-language triggers
 

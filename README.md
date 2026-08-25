@@ -42,7 +42,7 @@ A dedicated hardware companion device (Raspberry Pi, animated face, local wake w
 
 **Web Search in Chat** — Claude can search the web from open-ended conversation when a question genuinely needs current information — it decides for itself, not on by default.
 
-**Open-Ended Q&A** — Anything that doesn't match a real command/data topic gets a real Claude answer instead of a canned "I don't know," with an honest "not connected" instead of a faked answer for anything genuinely missing (weather/calendar/etc. before they're set up).
+**Open-Ended Q&A** — Anything that doesn't match a real command/data topic gets a real Claude answer instead of a canned "I don't know," with an honest "not connected" instead of a faked answer for anything genuinely missing (weather/calendar/etc. before they're set up). Questions about Sunny itself ("how does class setup work") are grounded in Sunny's own current architecture docs via a keyword search, not answered from a guess.
 
 ---
 
@@ -73,7 +73,7 @@ See `sunny-vault/docs/phases.md` for the full build timeline and `sunny-vault/do
 ## By the Numbers
 
 - **~14,300 lines of Python** across 70 components (`sunny_code/components/`)
-- **195 commits** since the project started (2026-08-17) — roughly a week of active development
+- **200+ commits** since the project started (2026-08-17) — roughly a week of active development
 - **8 Discord slash commands** (`/speak`, `/classsetup`, `/category`, `/service`, `/services`, `/vacation`, `/usage`, `/version`) on top of natural-language everywhere else
 - **27 architecture docs**, one per major component, cross-referenced (`sunny-vault/docs/architecture/`)
 - **Under $1/month** in practice — see Estimated Costs below

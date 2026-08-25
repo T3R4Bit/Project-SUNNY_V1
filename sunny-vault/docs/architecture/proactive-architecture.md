@@ -43,7 +43,7 @@ Both actions just log (to `sunny-vault/log/rules-engine.md`, append-only, same s
 
 ## Context Engine (Layer 3)
 
-`context_engine.py` — a pure read-time aggregator, no new storage of its own. `build_context(tasks_engine, list_engine)` assembles open tasks (title/tag/priority only, not full descriptions — deliberately small), every list's name and item count, today's calendar events (title/time only), and real project folder names, from data sources that already exist. `format_context()` renders it as compact plain text sized for dropping straight into an LLM prompt — the actual "instead of sending full history" payoff the vision doc describes. No real caller yet; the next feature that needs cheap "what's going on right now" context calls this instead of re-querying each source itself.
+`context_engine.py` — a pure read-time aggregator, no new storage of its own. `build_context(tasks_engine, list_engine)` assembles open tasks (title/tag only, not full descriptions — deliberately small, and there's no priority field to include since tasks dropped priority entirely), every list's name and item count, today's calendar events (title/time only), and real project folder names, from data sources that already exist. `format_context()` renders it as compact plain text sized for dropping straight into an LLM prompt — the actual "instead of sending full history" payoff the vision doc describes. No real caller yet; the next feature that needs cheap "what's going on right now" context calls this instead of re-querying each source itself.
 
 ## Vault Write Permissions (Layer 5, partial)
 

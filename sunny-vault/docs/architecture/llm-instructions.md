@@ -70,4 +70,5 @@ Instruction files are hand-editable markdown, loaded verbatim as system prompt t
 - [x] Wired into `ask_claude()` — auto-loads when `system` isn't passed explicitly
 - [x] `sunny-vault/instructions/` created as a fourth vault lifecycle category, documented in [[../DESIGN|DESIGN.md]]
 - [x] `weekly-health-check.md` — first real instruction file, see [[health-check]]
-- [ ] More instruction files as more LLM features get built (email triage, task interpretation, etc. — none exist yet, see [[llm-readiness]])
+- [x] `general-chat.md`, `project-scaffold.md`, `storm-mode.md`, `exam-prep-review.md`, `syllabus-parse.md` — added as each of those features shipped (2026-08-21 through 2026-08-25), see [[llm-integration]]
+- [ ] More instruction files as more LLM features get built (email triage, task interpretation still not built — see [[llm-readiness]])

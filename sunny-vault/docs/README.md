@@ -4,17 +4,21 @@ A self-hosted voice assistant for personal productivity and automation.
 
 ## Overview
 
-Sunny is an always-on voice assistant that lives on a bedside device and Lenovo mini PC. It wakes you up with personalized briefings, handles phone calls, and can control your home devices—all while prioritizing privacy and minimizing token usage through deterministic APIs over LLM calls.
+Sunny is an always-on personal assistant that runs on a Lenovo mini PC today, reachable via Discord (text and live voice) and a web console. Phone calls and home-device control are still planned, not built — see Core Features below. Real task/calendar/weather data drives fixed templates wherever a fact is a fact; Claude is only called for genuine judgment, all while prioritizing privacy and minimizing token usage.
 
 ## Core Features
 
-- **Bedside Clock + Alarm** — Battery-backed hardware device with wake word detection
-- **Morning Briefing** — Calendar, weather, tasks, commute info, email triage
-- **Phone Integration** — Answer calls via Twilio and execute voice commands
-- **Remote Power Control** — Wake desktop and control devices via Tailscale network
-- **Smart Logging** — Discord activity channels, Notion sync, Obsidian vault mirroring
+- **Discord Voice** — Persistent live voice conversation (wake-word-gated, no join command — Sunny just stays in a configured voice channel), fully local STT/TTS (Vosk + Piper), plus one-shot `/speak` TTS
+- **Morning Briefing** — Calendar, weather, tasks; genuinely open-ended questions get a real Claude answer
+- **Google Calendar + Gmail** — Calendar read *and* write via natural language ("add dentist appointment..."); Gmail read-only, both via one Google Sign-In
+- **Spotify Voice Control** — play/pause/skip/volume/what's-playing, from any interface
+- **Class Setup** — Paste a syllabus (`/classsetup` or "set up my classes") and get recurring calendar events, due-date/exam events, and proactive Discord reminders
+- **Bedside Clock + Alarm** — Battery-backed hardware device with wake word detection (not yet built — Discord voice already delivers the conversational half today)
+- **Phone Integration** — Answer calls via Twilio and execute voice commands (not yet built)
+- **Remote Power Control** — Wake desktop and control devices via Tailscale network (not yet built)
+- **Smart Logging** — Discord activity channels (live) and Obsidian vault mirroring (live); Notion sync is not built
 
-None of the above beyond the briefing engine, task system, lists, and alarms/reminders are built yet — see Current Status below and [[./phases.md]] for what's actually working today versus planned.
+Beyond the hardware Clock, phone integration, and remote power control, everything above is built and live — see Current Status below and [[./phases.md]] for the full built-vs-planned breakdown.
 
 ## Design Principles
 
@@ -31,10 +35,10 @@ None of the above beyond the briefing engine, task system, lists, and alarms/rem
 - **Network**: Tailscale mesh connecting all devices securely
 
 ### Services
-- Voice: Sonic API, Piper TTS, Whisper STT, openWakeWord (not yet built)
-- Communication: Twilio, Discord bot, Tailscale/MicroLink (Tailscale is live; Twilio and Discord bot are not yet built)
-- Data: Calendar, Weather API, Email, Traffic APIs (not yet built — briefing engine runs on mock data)
-- Brain: Claude API, Notion, Obsidian vault, TrueNAS (not yet built — no LLM calls are wired up)
+- Voice: Piper TTS + Vosk STT (both live, fully local, free); Sonic API, Whisper STT, and openWakeWord are planned for the Clock hardware, not yet built
+- Communication: Discord bot (live — text + voice), Tailscale (live); Twilio and MicroLink are not yet built
+- Data: Google Calendar + Gmail (live via Sign-In), OpenWeatherMap (live); Traffic APIs not yet built
+- Brain: Claude API (live — judgment, freeform conversation, health checks), Obsidian vault (live); Notion sync and TrueNAS integration are planned, not built
 
 ## Getting Started
 
@@ -62,21 +66,20 @@ Phase 0 (Foundations) mostly complete — briefing engine (real task data, hones
 
 ## Costs
 
-Estimated monthly spend once the voice/phone phases are live: ~$5–$8
-- Claude API (primary: Haiku ~$1.50, Sonnet ~$3)
+**Today**: well under $1/month in practice — Piper and Vosk are fully local and free; Claude (Haiku) is only called for genuinely open-ended questions, study reviews, and the weekly health check — light, occasional traffic. Live numbers: `GET /api/dashboard/spend/today` / `/spend/month`, `/usage` in Discord, or ask "health check."
+
+Monthly spend once phone integration (still not built) is live, on top of the above: ~$4–$5
 - Twilio voice calls (~$0.01–$0.15/min)
-- Sonic API (hosted TTS)
 - Traffic/location APIs (~$3–$4)
+- Sonic API (hosted TTS — only if used instead of the free local Piper fallback)
 
-**Today**: $0 — no LLM or paid API is called yet. Tasks, lists, and alarms/reminders are real data; weather/calendar/email/commute/health/news say "not connected" instead of faking an answer.
-
-Hard spending caps enforced at the provider level (Anthropic, Twilio).
+Hard spending caps enforced both in-app (`daily_spend_cap`/`monthly_spend_cap` in `.env`) and at the provider account level (Anthropic).
 
 ## Security
 
 - Caller ID allowlist + PIN for phone authentication (planned, once phone integration exists)
 - API keys rotated regularly, never hardcoded
-- Confirmation required for irreversible actions
+- No confirmation step today for destructive actions (delete a task, cancel a calendar event, delete a Discord channel/role) — they run immediately, matching this being a single-user personal tool
 - Tailscale network keeps devices off public internet
 - Hard spending caps at provider accounts
 

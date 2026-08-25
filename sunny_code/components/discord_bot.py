@@ -367,7 +367,7 @@ def create_discord_bot(
         interaction: discord.Interaction,
         name: Literal[
             "dashboard_refresh", "scheduled_check", "usage_refresh", "health_check", "morning_prep",
-            "voice_join", "rules_engine",
+            "voice_join", "rules_engine", "class_reminders",
         ],
         action: Literal["enable", "disable", "autostart_on", "autostart_off"],
     ):

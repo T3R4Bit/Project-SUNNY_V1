@@ -303,7 +303,7 @@ Sunny should not try to be an LLM that does everything. Structurally:
 
 The LLM is the **reasoning component**, not the entire operating system. That's what allows Sunny to be proactive, fast, cheap to operate, predictable, personal, extensible, safe, and useful without constant prompting.
 
-*(This is close to what's already emerging in the real codebase: hardcoded parsers as Layer 2, `ask_claude`/`ask_claude_stream` as Layer 4, `token_tracker.py`'s budget caps as a crude Layer-5-adjacent guard. No real Layer 1 sensors, Layer 3 context engine, or Layer 5 structured-action executor exist yet — everything today is still request-triggered, not proactive.)*
+*(Updated 2026-08-24 — see [[proactive-architecture]] for the first real slice of this: Layer 1 sensors (`sensors.py`), Layer 2 rules engine (`rules_engine.py`), Layer 3 context engine (`context_engine.py`), and the permission-check half of Layer 5 (`vault_permissions.py`) are now built and wired into a scheduled evaluation loop — plus `suggestion_tracker.py` for §12's learning-from-behavior piece. Layer 4 (an LLM planner deciding what's worth surfacing) and the rest of Layer 5 (a structured-action executor) are still not built, and the rules engine's two seed rules only log — nothing acts on Sunny's own initiative yet. Command-path features still use hardcoded parsers and `ask_claude`/`ask_claude_stream` directly, as before.)*
 
 ---
 

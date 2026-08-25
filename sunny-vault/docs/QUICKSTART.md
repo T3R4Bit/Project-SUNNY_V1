@@ -44,7 +44,7 @@ No manual Python environment setup required — `run.sh` creates and manages its
 
 ### Task Management
 - Create, update, delete tasks
-- Filter by tag, status, priority
+- Filter by tag, status
 - Hardcoded commands (no LLM parsing)
 - Driven through the console chat/API, or the Discord bot (connected and live as of 2026-08-20) — see [[./TASK_SYSTEM.md]]
 
@@ -64,7 +64,7 @@ help → What Sunny can do
 setup → What's connected, what needs setup
 morning → Morning briefing
 show my tasks → List tasks
-add Title to my tasks → Create task (append --priority 5 etc. if you want)
+add Title to my tasks → Create task (append --tag Category etc. if you want)
 mark Title as done → Complete a task (by ID or title)
 add milk to my grocery list → Add to a list (creates it if it's new)
 what's on my grocery list → Show a list
@@ -82,6 +82,8 @@ Tell me about tomorrow → Tomorrow preview
 |---------|--------------|
 | `./run.sh` | Start web server + console (default) |
 | `./run.sh chatbot` | Console, non-reload mode |
+| `./run.sh reload` | Web server with auto-reload (local dev only) |
+| `./run.sh chat` | Terminal chat — same router as everywhere else, no browser |
 | `./run.sh cli briefing` | Interactive briefing CLI |
 | `./run.sh cli tasks` | Interactive task CLI |
 | `./run.sh test all` | Run all tests |

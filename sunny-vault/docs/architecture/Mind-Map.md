@@ -41,9 +41,11 @@ Overview of Project SUNNY's major components and how they interact.
 ### Intelligence & Control
 - [[llm-integration]] — Claude API for reasoning, judgment, and real web search
 - [[llm-instructions]] — Hand-editable per-purpose system prompts in the vault
+- [[docs-search]] — Keyword search over Sunny's own architecture docs, grounds "how does X work" questions in the general-chat fallback instead of a guess
 - [[proactive-architecture]] — Layers 1-3 + permission-check (sensors, rules engine, context engine, vault write permissions) — first working slice, no real feature acts on it yet
 - [[service-orchestration]] — per-service on/off + autostart, vacation mode
 - Priority queue — not a real scheduler; `llm_client.py`'s `asyncio.Semaphore(1)` is a lightweight stand-in, sufficient for a single-user assistant with no concurrent-call scenario yet (see [[llm-integration]])
+- Build/version reporting — `/version` Discord command plus a "what version are you running" voice/text trigger, reads the currently-deployed git commit hash + date live via `git log` (`build_info.py`) rather than a hand-bumped version string that would drift; no dedicated doc
 
 ### Logging & Storage
 - [[vault-storage]] — Tasks/lists as one markdown file per item, directly readable/editable in Obsidian
@@ -106,7 +108,7 @@ See [[../phases.md]] for the authoritative, detailed phase breakdown and checkli
 
 **Phase 2 (Briefing Engine)**: Templates and Q&A engine fully built. Tasks and weather are live; Calendar/Gmail are wired via Google Sign-In (client configured, sign-in not yet confirmed working end-to-end); traffic/commute not started.
 
-**Phase 3+ (Clock hardware, voice I/O, phone, Discord bot)**: Not yet started.
+**Phase 3+ (Clock hardware, phone)**: Clock hardware not ordered, phone/Twilio not built. Voice I/O and the Discord bot itself are **not** part of this "not yet started" — both are live today: Discord bot has been connected and live since Phase 0, and voice I/O is built and proven via Discord ([[voice-join]], [[tts-piper]]) well ahead of the physical Clock hardware. Only the Clock-specific pieces (mic/speaker, I2S streaming, on-device wake word) remain genuinely not started.
 
 ## Cost & Resources
 

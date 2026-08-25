@@ -147,15 +147,15 @@ exit # Exit dev mode
 - Morning briefing (9 sections)
 - Evening briefing (7 sections)
 - Q&A engine for custom questions
-- Tasks queried live from the Obsidian vault (markdown, not a database); no API key needed. Everything else (weather/calendar/email/commute/health/news) honestly says "not connected" instead of faking data — no mock data anywhere
+- Tasks queried live from the Obsidian vault (markdown, not a database); no API key needed. Weather, Google Calendar, and Gmail are real, live data once connected (API key / Google Sign-In). Commute, health, motorsports, and news still have no real API behind them and honestly say "not connected" instead of faking data — no mock data anywhere
 
 ### Task Management
-- Create: `add Title to my tasks` (append `--tag Category --priority 5` etc. for precision)
+- Create: `add Title to my tasks` (append `--tag Category` etc. for precision)
 - Update: `mark Title as done`
 - Delete: `delete Title`
 - Categories are free-form — any `--tag` value works, no fixed list to pick from
 - No task IDs shown anywhere — everything's referenced by title
-- Filter: By category, status, priority, due date
+- Filter: By category, status, due date
 - Dashboard: View all tasks organized by category
 - No command prefix required — plain natural phrasing, deterministic regex parsing, no LLM
 
@@ -320,7 +320,6 @@ Project-SUNNY/
 │ └── components/
 │ ├── briefing.py # Briefing engine (real tasks, honest gaps elsewhere)
 │ ├── briefing_api.py
-│ ├── briefing_data.py # Mock data structures (unused by briefing.py directly)
 │ ├── data_sources.py # Which data sources are real vs unconfigured
 │ ├── request_log.py # Logs unfulfilled requests to sunny-vault/log/requests.md
 │ ├── key_status.py # Startup summary of missing API keys

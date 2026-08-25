@@ -19,7 +19,7 @@ A lightweight web-based control panel for monitoring Sunny's health, spending, a
 **Authentication**: None (Tailscale itself provides security)
 **Storage**: SQLite sunny.db (local metrics)
 
-> **Implementation note**: The panels below (Spend, Health, Clock Battery, Tailscale, Activity) describe the target design. What's actually built today is one combined page at `/console` — chat on one side, live system stats (CPU, RAM, disk, network, temperature) and Google sign-in status on the other (`/` and the old `/chatbot` both redirect there now; there is no separate chat page anymore). A JSON backend for this dashboard also exists (`/api/dashboard/health`, `/metrics/latest`, `/metrics/record`, `/spend/today`, `/status`) but nothing calls it yet — no metrics-collection loop runs, and `/spend/today` is hardcoded to $0 since no LLM/paid API is wired up. Spend tracking, service health, and clock battery panels are not yet implemented — see [[../phases.md]] for status.
+> **Implementation note**: The panels below (Spend, Health, Clock Battery, Tailscale, Activity) describe the target design. What's actually built today is one combined page at `/console` — chat on one side, live system stats (CPU, RAM, disk, network, temperature) and Google sign-in status on the other (`/` and the old `/chatbot` both redirect there now; there is no separate chat page anymore). A JSON backend for this dashboard also exists (`/api/dashboard/health`, `/metrics/latest`, `/metrics/record`, `/spend/today`, `/spend/month`, `/usage/live`, `/status`), but the `/console` page itself renders none of it — `/metrics/record`/`/metrics/latest` are genuinely dead (nothing calls `record_metric()`, so the Host Resources/CPU-temp/disk panel below stays target-only), and service health tracking (`update_service_health()`) has no caller either, so the Health and Clock Battery panels are also still unbuilt. Spend is the exception: `/spend/today`, `/spend/month`, and `/usage/live` are real, backed by `token_tracker.py` — but the visibility surface for that data is Discord (`/usage` chart, the persistent `#health` dashboard), not a panel on this page — see [[usage-tracking]]. See [[../phases.md]] for status.
 
 ## Architecture
 
@@ -384,7 +384,7 @@ def get_activity(limit: int = 50) -> list:
 - [[brain]] — Runs FastAPI server
 - [[clock]] — Provides battery status
 - [[networking]] — Tailscale mesh
-- [[token-circuit-breaker]] — Token spend data
+- [[usage-tracking]] — token spend data (`token_tracker.py`), the real implementation behind `/spend/today`/`/spend/month`/`/usage/live`; see [[llm-integration]] for the circuit breaker itself
 - [[voice-io]] — Activity logging
 - [[briefing-engine]] — Activity logging
 - psutil (Python) — System metrics

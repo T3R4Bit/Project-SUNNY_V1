@@ -64,7 +64,7 @@ All routed directly through `assistant.py` as plain function calls (`exam_prep.p
 
 - [[google-integration]] — the only source of exam dates
 - [[llm-integration]] — `ask_claude(purpose="exam_prep_review")`
-- [[architecture/vault-storage|vault-storage]] — the slug/frontmatter pattern review state follows
+- [[vault-storage]] — the slug/frontmatter pattern review state follows
 - [[proactive-architecture]] — a natural future home for a "surface a review unprompted" rule, once Layer 4 exists
 
 ## Implementation Checklist

@@ -102,7 +102,7 @@ Priority Queue → Intent Router → [[llm-integration|Claude API]] or Direct AP
 - [[networking]] — Tailscale mesh
 - [[priority-queue]] — request orchestration
 - [[llm-integration]] — Claude API calls
-- [[obsidian-vault]] — staging area
+- [[vault-storage|obsidian vault]] — staging area
 
 **External APIs**:
 - [[llm-integration|Claude API]] — LLM reasoning

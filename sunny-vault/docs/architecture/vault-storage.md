@@ -33,7 +33,6 @@ If you do hand-edit a file anyway: every write does a read-modify-write (loads t
 id: a1b2c3d4
 tag: School
 status: open
-priority: 4
 due_date: 2026-08-20
 source: web
 created_at: 2026-08-19T14:30:00.482113
@@ -43,6 +42,8 @@ updated_at: 2026-08-19T14:30:00.482113
 
 Complete problems 1-20 from chapter 5.
 ```
+
+No `priority` field — removed 2026-08-24 (a plain 1-5 int with no real behavior tied to it beyond dashboard sort order). A task file written before the removal that still has a `priority:` line just has it ignored on read/write; nothing rewrites old files to strip it.
 
 Frontmatter field names deliberately match the dict keys `TaskDB` already returns (`created_at`, not `created`) — no translation layer between "what's on disk" and "what `get_task()` returns," since callers like `briefing.py` depend on those exact keys. A field with no value (`due_date`, `source`, `description`) is omitted from frontmatter entirely rather than written as `null` — cleaner for Dataview, and every read guarantees the key is still present in the returned dict with a `None` default (matching what SQLite always did with a NULL column) so callers using bracket access don't get a `KeyError`.
 

@@ -20,7 +20,7 @@ from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.data_sources import is_configured, missing_requirement
 from sunny_code.components.llm_client import ask_claude, ask_claude_stream
 from sunny_code.components.request_log import log_unfulfilled
-from sunny_code.components import conversation_memory, google_calendar, google_gmail, health_check, weather
+from sunny_code.components import conversation_memory, docs_search, google_calendar, google_gmail, health_check, weather
 
 OnChunk = Callable[[str], Awaitable[None]]
 OnSearchStart = Callable[[], Awaitable[None]]
@@ -304,6 +304,14 @@ Sleep well and rest up for tomorrow!
         starts, so a caller can play/show a distinct "searching" cue
         for what's otherwise unexplained extra silence.
 
+        docs_search.py runs unconditionally ahead of every fallback
+        question (cheap -- local file reads, no LLM call) and prepends
+        any well-matched doc content from sunny-vault/docs/ so a question
+        about how Sunny itself works ("how does class setup work") gets
+        answered from the real current docs instead of the model's own
+        guess -- a genuinely unrelated question just scores 0 everywhere
+        and the prompt is unchanged.
+
         session_id scopes conversation memory (see conversation_memory.py)
         for the LLM fallback specifically -- deliberately not applied to
         the deterministic branches above (weather/calendar/tasks/etc.),
@@ -385,7 +393,10 @@ Total: {len(open_tasks) + len(in_progress)} tasks
         # prompt itself, sunny-vault/instructions/general-chat.md.
         else:
             settings = get_settings()
-            prompt = conversation_memory.format_for_prompt(session_id) + question
+            prompt = (
+                docs_search.format_for_prompt(docs_search.search(question))
+                + conversation_memory.format_for_prompt(session_id) + question
+            )
             if on_chunk is not None:
                 parts = []
                 async for sentence in ask_claude_stream(

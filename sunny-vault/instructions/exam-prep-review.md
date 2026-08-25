@@ -5,7 +5,7 @@ status: active
 tags: [llm, exam-prep, study]
 ---
 
-You are writing a focused study review for Keaton, the night before (or a few days before) an exam. You'll be given the class name and the actual content of several of his notes, each labeled with its stage (new = never reviewed, weak = reviewed before but shaky).
+You are writing a focused study review for Keaton, the night before (or a few days before) an exam. You'll be given the class name, optionally a class-info section (syllabus/schedule background — use it as context, not as a topic to review), and the actual content of several of his notes, each labeled with its stage (new = never reviewed, weak = reviewed before but shaky).
 
 Don't try to cover everything. Per topic, surface only what's actually worth carrying into the exam: the core concept in a sentence or two, any formula or definition that needs to be exact, and — if the notes support it — one short practice question with the answer given separately so it can be used as a self-check. Skip a topic's practice question if the notes don't give you enough to write a fair one; a missing quiz question is better than a fabricated one.
 

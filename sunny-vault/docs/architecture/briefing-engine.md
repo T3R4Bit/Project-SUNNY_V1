@@ -50,8 +50,8 @@ You have 3 events today:
 
 Weather: 72°F, partly cloudy, 20% chance of rain.
 
-Tasks open: 5 high-priority, 2 due today.
-   Top priority: "Finish physics homework" (due 3:00pm)
+Tasks open: 5, 2 due today.
+   Next up: "Finish physics homework" (due 3:00pm)
 
 Email summary: 12 new emails.
    Urgent: 2 (flagged)
@@ -78,7 +78,7 @@ Today recap:
    - Processed 24 emails
 
 Tasks status: 3 remaining (2 overdue)
-   Top: "Engine rebuild plan" (high priority, no due date)
+   Next up: "Engine rebuild plan" (no due date)
 
 Tomorrow preview:
    - 8:30am: Gym
@@ -147,7 +147,7 @@ def generate_morning_briefing(calendar, weather, tasks, email, traffic):
     
     # Tasks section
     open_tasks = tasks.filter(status='open')
-    task_count = len([t for t in open_tasks if t['priority'] >= 4])
+    in_progress = tasks.filter(status='in_progress')
     
     # ... more sections ...
     
@@ -158,7 +158,7 @@ You have {len(events)} events today:
 
 Weather: {weather_text}
 
-Tasks open: {len(open_tasks)} total, {task_count} high-priority...
+Tasks open: {len(in_progress)} in progress, {len(open_tasks)} open...
 """
 ```
 
@@ -171,17 +171,17 @@ Tasks open: {len(open_tasks)} total, {task_count} high-priority...
 
 ## Task Integration
 
-See [[task-system]] for task counts and status.
+See [[../TASK_SYSTEM.md]] for task counts and status.
 
 The briefing mentions:
 - **Open tasks**: "You have 5 open tasks, 3 due this week"
-- **High priority**: Mentions top 2-3 priority items
+- **Next up**: Mentions the single top open/in-progress item, not a ranked top-3 (there's no priority field to rank by — see [[../TASK_SYSTEM.md]])
 - **Overdue**: "2 tasks overdue since yesterday"
 - **Yesterday incomplete**: "Yesterday's uncompleted: Read chapter 5, review notes"
 
 ## Email Integration
 
-See [[email-processing]] for email triage.
+See [[google-integration]] for email triage.
 
 The briefing includes:
 - **Urgent emails**: Count and brief subject lines
@@ -257,8 +257,8 @@ The [[dashboard]] shows:
 - [[brain]] — Execution environment
 - [[clock]] — Voice output device
 - [[voice-io]] — TTS pipeline
-- [[task-system]] — Task counts, status
-- [[email-processing]] — Email summary
+- [[../TASK_SYSTEM.md]] — Task counts, status
+- [[google-integration]] — Email summary
 - [[llm-integration]] — Optional email triage
 - [[networking]] — API access
 - [[google-integration]] — Google sign-in, Calendar + Gmail API access

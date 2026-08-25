@@ -162,14 +162,14 @@ All other requests forward to [[brain]] for LLM reasoning.
 
 ## Features
 
-### Current (Phase 3)
-- [x] Wake word detection
-- [x] Microphone input
-- [x] Speaker output
-- [x] OLED display
-- [x] Battery monitoring
-- [x] Alarm scheduling
-- [x] Tailscale networking
+### Planned (Phase 3)
+- [ ] Wake word detection
+- [ ] Microphone input
+- [ ] Speaker output
+- [ ] OLED display
+- [ ] Battery monitoring
+- [ ] Alarm scheduling
+- [ ] Tailscale networking
 
 ### Planned (Phase 3+)
 - [ ] Adaptive volume (measure ambient noise, scale output)
