@@ -14,7 +14,7 @@ A dedicated hardware companion device (Raspberry Pi, animated face, local wake w
 
 **Alarms & Reminders** — Time-based, natural phrasing ("set an alarm for 7am", "remind me to call mom at 5pm"), ping Discord when due.
 
-**Discord Bot** — The primary live interface: task dashboard (live-updating embed), health/usage dashboard, server administration (create/delete channels & roles), plus real slash commands (`/speak`, `/category`, `/service`/`/services`, `/vacation`, `/usage`).
+**Discord Bot** — The primary live interface: task dashboard (live-updating embed), health/usage dashboard, server administration (create/delete channels & roles), plus real slash commands (`/speak`, `/classsetup`, `/category`, `/service`/`/services`, `/vacation`, `/usage`, `/version`).
 
 **Persistent Live Voice** — Sunny stays connected to a configured voice channel and has a real spoken conversation ("Hey Sunny" still wakes it for each request — no open-mic listening) — free, fully local STT/TTS (Vosk + Piper), streaming replies (starts speaking the first sentence while Claude is still writing), barge-in support, session-scoped conversation memory for genuine follow-ups. Toggle on/off with `/service voice_join`, no per-use join command. Runs in an isolated process so a native audio-library crash can't take down the rest of the bot — reconnects automatically after one.
 
@@ -26,7 +26,9 @@ A dedicated hardware companion device (Raspberry Pi, animated face, local wake w
 
 **Project Wizard** — Say "new project," answer three quick questions, get a real multi-file project folder drafted under `sunny-vault/projects/` via one Claude call.
 
-**Exam Prep & Spaced Review** — Reads real class notes (`sunny-vault/KSU/<semester>/<class>/*.md`), finds exam dates from Calendar, tracks per-topic review state (new/weak/mastered), and writes a focused night-before study review from actual note content.
+**Class Setup** — Paste a syllabus per class through a short wizard ("set up my classes" or `/classsetup`); Sunny extracts the class name, meeting times, due dates, and exams, creates a real recurring Google Calendar event for meetings plus all-day events for deadlines, and proactively pings a Discord channel 2 days before and the day of each one.
+
+**Exam Prep & Spaced Review** — Reads real class notes (`sunny-vault/KSU/<semester>/<class>/*.md`), finds exam dates from Calendar (including ones created by Class Setup above), tracks per-topic review state (new/weak/mastered), and writes a focused night-before study review from actual note content.
 
 **Weekly Health Check** (Sunday 4am, or on demand) — Compacts logs/errors/unfulfilled-request patterns/API-key expiry into an LLM-written report, now including a knowledge health check (broken wikilinks, orphaned/untagged/stale notes across the vault).
 
@@ -65,6 +67,18 @@ Tailscale mesh keeps every device off the public internet — no port forwarding
 Foundations, networking, and the briefing engine (Phase 0-2) are essentially complete, well beyond their original scope — see the Core Features list above for what actually shipped on top of the original plan. The Sunny Companion hardware device (Phase 3+ equivalent: wake word, animated face, dedicated speaker/mic) is in active standalone prototyping, tracked separately in `sunny-companion/BUILD_PLAN.md` since it has its own phase structure.
 
 See `sunny-vault/docs/phases.md` for the full build timeline and `sunny-vault/docs/CHANGELOG.md` for a dated history of what shipped when.
+
+---
+
+## By the Numbers
+
+- **~14,300 lines of Python** across 70 components (`sunny_code/components/`)
+- **195 commits** since the project started (2026-08-17) — roughly a week of active development
+- **8 Discord slash commands** (`/speak`, `/classsetup`, `/category`, `/service`, `/services`, `/vacation`, `/usage`, `/version`) on top of natural-language everywhere else
+- **27 architecture docs**, one per major component, cross-referenced (`sunny-vault/docs/architecture/`)
+- **Under $1/month** in practice — see Estimated Costs below
+
+Ask "what version are you running" (any interface) or `/version` in Discord for the exact commit currently deployed.
 
 ---
 
