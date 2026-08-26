@@ -75,8 +75,18 @@ USAGE_MARKER = "‌" # zero-width non-joiner (U+200C) -- a third distinct
 # report, and pin-rediscovery needs to tell the two apart in that case.
 USAGE_ALERT_THRESHOLD = 0.7 # fraction of daily_spend_cap/monthly_spend_cap
 # that triggers a ping -- "70%" per the backlog item this implements
-_STORM_MODE_TRIGGERS = ("storm mode", "activate storm mode", "start storm mode", "turn on storm mode", "enable storm mode")
-_STORM_MODE_STOP_TRIGGERS = ("stop storm mode", "end storm mode", "turn off storm mode", "disable storm mode", "cancel storm mode")
+_STORM_MODE_TRIGGERS = (
+    "storm mode", "activate storm mode", "start storm mode", "turn on storm mode", "enable storm mode",
+    "can we start storm mode", "can you start storm mode",
+    "can we activate storm mode", "can you activate storm mode",
+    "let's start storm mode", "lets start storm mode",
+)
+_STORM_MODE_STOP_TRIGGERS = (
+    "stop storm mode", "end storm mode", "turn off storm mode", "disable storm mode", "cancel storm mode",
+    "can we stop storm mode", "can you stop storm mode",
+    "can we end storm mode", "can you end storm mode",
+    "let's stop storm mode", "lets stop storm mode",
+)
 _STORM_MODE_STATUS_TRIGGERS = ("storm mode status", "is storm mode on", "storm mode on?")
 _WIZARD_CANCEL_WORDS = ("cancel", "nevermind", "never mind", "stop", "skip", "forget it")
 MAX_MESSAGE_LENGTH = 1900 # Discord's real limit is 2000; leave headroom

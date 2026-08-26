@@ -145,8 +145,18 @@ _EVENING_TRIGGERS = (
     "going to bed", "hey sunny im going to bed", "hey sunny i'm going to bed",
 )
 _BRIEFING_KEYWORDS = _MORNING_TRIGGERS + _EVENING_TRIGGERS
-_VACATION_ON_TRIGGERS = ("vacation mode on", "vacation mode", "turn on vacation mode", "start vacation mode")
-_VACATION_OFF_TRIGGERS = ("vacation mode off", "turn off vacation mode", "stop vacation mode", "end vacation mode")
+_VACATION_ON_TRIGGERS = (
+    "vacation mode on", "vacation mode", "turn on vacation mode", "start vacation mode",
+    "can we turn on vacation mode", "can you turn on vacation mode",
+    "can we start vacation mode", "can you start vacation mode",
+    "let's turn on vacation mode", "lets turn on vacation mode",
+)
+_VACATION_OFF_TRIGGERS = (
+    "vacation mode off", "turn off vacation mode", "stop vacation mode", "end vacation mode",
+    "can we turn off vacation mode", "can you turn off vacation mode",
+    "can we stop vacation mode", "can you stop vacation mode",
+    "let's turn off vacation mode", "lets turn off vacation mode",
+)
 _USAGE_QUERY_TRIGGERS = (
     "what's my usage", "whats my usage", "what is my usage", "how much have i spent",
     "how much have i spent on claude", "my usage", "usage", "claude usage",
@@ -232,6 +242,18 @@ _PROJECT_TRIGGERS = (
     "create a new project",
     "create a project",
     "new project",
+    "can we start a new project",
+    "can you start a new project",
+    "can we make a new project",
+    "can you make a new project",
+    "can we create a new project",
+    "can you create a new project",
+    "can we create a project",
+    "can you create a project",
+    "let's start a new project",
+    "lets start a new project",
+    "let's make a new project",
+    "lets make a new project",
 )
 _SKIP_SECTIONS_WORDS = ("no", "none", "nope", "you decide", "your choice", "up to you", "doesn't matter", "whatever you think")
 _YES_WORDS = ("yes", "y", "yeah", "yep", "yup", "sure", "do it", "go ahead", "build it", "sounds good")
