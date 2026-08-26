@@ -4,8 +4,9 @@ assistant.py collects three answers (name, description, optional starting
 sections) using its existing pending-followup mechanism — the same one
 "what should the task be called?" uses — then calls scaffold() here once,
 with everything already known. This module owns exactly one LLM call (one
-round trip, not an open-ended conversation) that drafts a multi-file plan
-for the project, and writes it to sunny-vault/projects/<slug>/.
+round trip, not an open-ended conversation) that drafts a single overview
+file (explanation + proposed architecture) for the project, and writes it
+to sunny-vault/projects/<slug>/.
 
 Structured output via a JSON response (not Claude's tool-use/tool-runner
 machinery) — this is a single one-shot "give me a files plan" call with no
@@ -28,11 +29,9 @@ logger = logging.getLogger(__name__)
 # A real content-authoring call, not a quick conversational judgment call —
 # worth spending more than the app's default Haiku/short-response budget on,
 # unlike the general-chat fallback (see llm_client.py's MODELS/general-chat.md).
-# 4096 wasn't enough headroom: a real multi-file plan with "real, useful
-# starting content" per project-scaffold.md routinely runs past it and gets
-# cut off mid-JSON, which _parse_file_plan then reports as "malformed"
-# instead of what actually happened (a length cutoff). Seen in practice on
-# a 6-file plan that got cut off mid-file-6 at the old limit.
+# Kept generous even now that the plan is a single file: a real proposed
+# architecture section can run long, and a cutoff mid-JSON gets reported by
+# _parse_file_plan as "malformed" instead of what actually happened.
 _SCAFFOLD_MODEL = "sonnet"
 _SCAFFOLD_MAX_TOKENS = 8192
 
@@ -76,8 +75,9 @@ class ProjectEngine:
     the task-creation follow-ups. This class only does the final scaffold."""
 
     async def scaffold(self, name: str, description: str, sections: str = "") -> Tuple[bool, str]:
-        """Drafts a multi-file project plan via one LLM call and writes it
-        to sunny-vault/projects/<slug>/. Returns (success, message) —
+        """Drafts a single overview file (explanation + proposed
+        architecture) via one LLM call and writes it to
+        sunny-vault/projects/<slug>/. Returns (success, message) —
         never raises; a malformed LLM response or a write failure is
         reported back as a plain failure, same contract as TaskEngine's
         execute methods."""
