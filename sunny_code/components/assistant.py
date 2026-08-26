@@ -665,7 +665,7 @@ async def handle_message(
     behavior change; only reaches anything when routing falls all the
     way through to the LLM Q&A fallback."""
     stripped = text.strip()
-    lowered = stripped.lower().strip("? ")
+    lowered = stripped.lower().strip("?!. ")
     source = device_from_session(session_id)
 
     pending = _get_pending(session_id)
@@ -840,4 +840,4 @@ def is_briefing_trigger(text: str) -> bool:
     """Whether `text` would make handle_message() generate a full morning/evening
     briefing — used by discord_bot.py to decide whether to also cross-post the
     result to a #briefings channel, without duplicating the trigger phrases."""
-    return text.strip().lower().strip("? ") in _BRIEFING_KEYWORDS
+    return text.strip().lower().strip("?!. ") in _BRIEFING_KEYWORDS
