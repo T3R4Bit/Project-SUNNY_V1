@@ -163,3 +163,5 @@
 **2026-08-25T19:46:01Z** [EVENING_BRIEFING] sections without a real data source: calendar, weather, health
 **2026-08-25T19:46:01Z** [QA_QUESTION] "What's the weather?" — needs OPENWEATHERMAP_API_KEY in .env and a location — open /console and enter it in the LOCATION card, or connect GPS reporting (see "setup gps")
 **2026-08-25T19:46:01Z** [QA_QUESTION] "When is my meeting?" — needs Google sign-in — connect at /auth/google/login
+**2026-08-26T16:32:06Z** [MORNING_BRIEFING] sections without a real data source: commute, health, news
+**2026-08-26T16:33:56Z** [EVENING_BRIEFING] sections without a real data source: health
