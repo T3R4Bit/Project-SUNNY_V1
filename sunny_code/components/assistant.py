@@ -133,8 +133,9 @@ Type "help" any time to see this again."""
 _HELP_TRIGGERS = ("", "help", "/help", "commands", "info", "what can you do", "what can i ask")
 _CANCEL_WORDS = ("cancel", "nevermind", "never mind", "stop", "skip", "forget it")
 _MORNING_TRIGGERS = (
-    "morning", "morning briefing", "good morning", "good morning sunny",
-    "hey sunny good morning", "im up", "i'm up", "im up sunny", "i'm up sunny",
+    "morning", "morning briefing", "good morning", "goodmorning",
+    "good morning sunny", "goodmorning sunny", "hey sunny good morning",
+    "hey sunny goodmorning", "im up", "i'm up", "im up sunny", "i'm up sunny",
     "hey sunny im up", "hey sunny i'm up",
 )
 _EVENING_TRIGGERS = (
