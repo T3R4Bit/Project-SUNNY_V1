@@ -67,12 +67,6 @@ HEALTH_MARKER = "⁠" # word joiner (U+2060) -- deliberately a *different*
 # invisible character than DASHBOARD_MARKER, so pin-rediscovery for one
 # can never accidentally match the other's message if both channels ever
 # end up configured to the same channel.
-USAGE_MARKER = "‌" # zero-width non-joiner (U+200C) -- a third distinct
-# invisible marker, same reasoning as HEALTH_MARKER. Lives in the embed
-# footer, same as HEALTH_MARKER -- kept distinct even now that usage has
-# its own optional channel (DISCORD_USAGE_CHANNEL_ID), since an unset
-# usage channel still falls back to sharing #health with the health
-# report, and pin-rediscovery needs to tell the two apart in that case.
 USAGE_ALERT_THRESHOLD = 0.7 # fraction of daily_spend_cap/monthly_spend_cap
 # that triggers a ping -- "70%" per the backlog item this implements
 _STORM_MODE_TRIGGERS = (
@@ -309,7 +303,6 @@ def create_discord_bot(
     state = {
         "dashboard_message_id": None,
         "health_message_id": None,
-        "usage_message_id": None,
         "usage_alert_date": None,
         "storm_wizard": None,
         "morning_prep_alarm_id": None,
@@ -576,13 +569,10 @@ def create_discord_bot(
         """The Claude usage chart, posted into its own channel if configured
         (falls back to #health, then chat), in the same embed style (title +
         bold-figures description, see post_to_health above), with the
-        chart composited in via `set_image`. Unlike post_to_health and
-        refresh_dashboard, this is delete-and-resend, not edit-in-place —
-        Discord's embed image cache can hang onto a stale thumbnail after
-        an attachment-replacing edit, so a fresh message guarantees a
-        fresh image every time. Called on an hourly loop (see
-        usage_refresh_loop below), same "runs immediately, then every N"
-        shape as the task dashboard's own 5-minute backstop."""
+        chart composited in via `set_image`. Posts a new message every time
+        rather than editing/replacing a pinned one — with its own dedicated
+        channel, the message history itself is the log of past usage snapshots.
+        Called on a 6-hour loop (see usage_refresh_loop below)."""
         target_channel_id = usage_channel_id or health_channel_id or chat_channel_id
         if not target_channel_id:
             return
@@ -616,35 +606,8 @@ def create_discord_bot(
             color=discord.Color.blue(),
         )
         embed.set_image(url="attachment://usage.png")
-        embed.set_footer(text=USAGE_MARKER)
 
-        message = None
-        if state["usage_message_id"]:
-            try:
-                message = await channel.fetch_message(state["usage_message_id"])
-            except discord.NotFound:
-                message = None
-
-        if message is None:
-            # Bot restarted — look for a usage message pinned by a previous run
-            async for pin in channel.pins(limit=50):
-                if pin.author.id == client.user.id and pin.embeds and pin.embeds[0].footer.text and \
-                        pin.embeds[0].footer.text.endswith(USAGE_MARKER):
-                    message = pin
-                    break
-
-        if message is not None:
-            try:
-                await message.delete()
-            except discord.NotFound:
-                pass
-
-        new_message = await channel.send(embed=embed, file=discord.File(io.BytesIO(png_bytes), filename="usage.png"))
-        try:
-            await new_message.pin()
-        except discord.Forbidden:
-            logger.warning("Missing permission to pin the usage message — sent unpinned")
-        state["usage_message_id"] = new_message.id
+        await channel.send(embed=embed, file=discord.File(io.BytesIO(png_bytes), filename="usage.png"))
 
     async def check_usage_alerts():
         """Pings the usage channel (falls back to #health, then chat) once
@@ -757,7 +720,7 @@ def create_discord_bot(
             return
         await refresh_dashboard()
 
-    @tasks.loop(hours=1)
+    @tasks.loop(hours=6)
     async def usage_refresh_loop():
         if not service_registry.is_enabled("usage_refresh"):
             return
@@ -866,7 +829,7 @@ def create_discord_bot(
         if not scheduled_check_loop.is_running():
             scheduled_check_loop.start() # runs immediately, then every 30s
         if not usage_refresh_loop.is_running() and service_registry.is_autostart("usage_refresh"):
-            usage_refresh_loop.start() # runs immediately, then every hour
+            usage_refresh_loop.start() # runs immediately, then every 6 hours
         # Gated on voice_channel_id (a hard prerequisite -- nothing to
         # connect to without it), not is_autostart("voice_join"): the
         # per-tick is_enabled() check inside the loop is what /service
