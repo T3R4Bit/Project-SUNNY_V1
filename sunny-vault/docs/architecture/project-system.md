@@ -25,7 +25,7 @@ Say "new project" (or a close variant — see Trigger below) from any interface 
 1. **Trigger** — an exact-phrase match in `_PROJECT_TRIGGERS` (e.g. "new project", "start a new project"), checked in `assistant.py`'s routing before task/list/calendar/etc. parsing.
 2. **Name** → **Description** → **Sections** — three plain questions, each stored via `_set_pending(session_id, "project_name"|"project_description"|"project_sections", ...)`. Sections is optional — saying "you decide" (or similar) skips straight to Claude picking a sensible split based on the description.
 3. **Confirm** — a recap of what was collected, then a real yes/no. Multiple phrasings per question (not one fixed line) to avoid feeling robotic on repeat use. A firm "no" ends the wizard immediately — **the LLM is never called** for a declined project. Only "yes" proceeds.
-4. **Scaffold** — `ProjectEngine.scaffold(name, description, sections)`, the module's one entry point (the class is otherwise stateless — `assistant.py` owns all conversation state). One `ask_claude(purpose="project_scaffold", model="sonnet", max_tokens=4096)` call — Sonnet and a larger token budget deliberately, since this is real content authoring, not the quick Haiku judgment calls used elsewhere (see [[llm-integration]]).
+4. **Scaffold** — `ProjectEngine.scaffold(name, description, sections)`, the module's one entry point (the class is otherwise stateless — `assistant.py` owns all conversation state). One `ask_claude(purpose="project_scaffold", model="sonnet", max_tokens=8192)` call — Sonnet and a larger token budget deliberately, since this is real content authoring, not the quick Haiku judgment calls used elsewhere (see [[llm-integration]]).
 
 ## Output Format
 

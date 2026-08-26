@@ -28,8 +28,13 @@ logger = logging.getLogger(__name__)
 # A real content-authoring call, not a quick conversational judgment call —
 # worth spending more than the app's default Haiku/short-response budget on,
 # unlike the general-chat fallback (see llm_client.py's MODELS/general-chat.md).
+# 4096 wasn't enough headroom: a real multi-file plan with "real, useful
+# starting content" per project-scaffold.md routinely runs past it and gets
+# cut off mid-JSON, which _parse_file_plan then reports as "malformed"
+# instead of what actually happened (a length cutoff). Seen in practice on
+# a 6-file plan that got cut off mid-file-6 at the old limit.
 _SCAFFOLD_MODEL = "sonnet"
-_SCAFFOLD_MAX_TOKENS = 4096
+_SCAFFOLD_MAX_TOKENS = 8192
 
 _JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 
