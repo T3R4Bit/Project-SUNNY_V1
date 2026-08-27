@@ -15,8 +15,8 @@ Daily morning and evening briefings delivered via voice. A fixed-format script w
 | Section | Status |
 |---------|--------|
 | Tasks | Real — queried live from the vault (markdown, not a database) |
-| Calendar | OAuth client configured, sign-in not yet confirmed working end-to-end (see [[google-integration]]) |
-| Email | OAuth client configured, sign-in not yet confirmed working end-to-end (see [[google-integration]]) |
+| Calendar | Live — OAuth sign-in confirmed working end-to-end (see [[google-integration]]) |
+| Email | Live — OAuth sign-in confirmed working end-to-end (see [[google-integration]]) |
 | Weather | Code complete — needs `OPENWEATHERMAP_API_KEY` in `.env` **and** a location set on `/console` (a key alone isn't enough — see [[location]]) |
 | Commute, Health, News, Motorsports | Not connected — no integration built yet, and **not covered by Google sign-in** (see [[google-integration]] for why) |
 
@@ -96,9 +96,9 @@ Sleep well!
 
 | Data | Source | Status |
 |------|--------|--------|
-| Tasks (open/due) | Obsidian vault, markdown (`sunny-vault/state/tasks/`) | Live today |
-| Calendar events | Google Calendar API (OAuth, read-only) | Client configured, sign-in not yet confirmed, see [[google-integration]] |
-| Email (unread/important) | Gmail API (OAuth, read-only) | Client configured, sign-in not yet confirmed, see [[google-integration]] |
+| Tasks (open/due) | Obsidian vault, markdown (`sunny-vault/data/state/tasks/`) | Live today |
+| Calendar events | Google Calendar API (OAuth, read + create/delete) | Live, see [[google-integration]] |
+| Email (unread/important) | Gmail API (OAuth, read-only) | Live, see [[google-integration]] |
 | Weather | OpenWeatherMap (current + 5-day forecast) | Code complete — needs `OPENWEATHERMAP_API_KEY` + a location on `/console`, see [[location]] |
 | Commute/traffic | Google Maps/traffic API — **separate API key, not part of Google sign-in** | Not connected |
 | Location | Tailscale or location API | Not connected |
@@ -271,8 +271,8 @@ The [[dashboard]] shows:
 - [x] Template structure (hardcoded text)
 - [x] Task summary query — live against the vault (markdown, not a database)
 - [x] Honest "not connected" messaging for unconfigured sources + logging to `sunny-vault/log/requests.md`
-- [x] Calendar API integration — Google Calendar via OAuth, client configured (see [[google-integration]]), sign-in not yet confirmed working end-to-end
-- [x] Email header parsing — Gmail unread/important counts + subject lines via OAuth, same caveat as above
+- [x] Calendar API integration — Google Calendar via OAuth, sign-in confirmed working end-to-end (see [[google-integration]])
+- [x] Email header parsing — Gmail unread/important counts + subject lines via OAuth, same sign-in
 - [x] Weather API integration — OpenWeatherMap current + forecast, code complete (see `sunny_code/components/weather.py`), needs `OPENWEATHERMAP_API_KEY` in `.env` + a location set on `/console` to go live (see [[location]])
 - [ ] Traffic API integration — separate from Google sign-in, needs its own Maps API key (see [[google-integration]])
 - [ ] Text-to-speech integration

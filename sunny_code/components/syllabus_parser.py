@@ -3,7 +3,7 @@ call -- meeting times, due dates, exams, semester start/end, and a
 plain-text summary (grading breakdown, instructor contact). Same "ask for
 bare JSON, defensively strip a markdown fence if it shows up anyway"
 pattern as project_engine.py's _parse_file_plan(); see
-sunny-vault/instructions/syllabus-parse.md for the exact schema Claude is
+sunny-vault/docs/instructions/syllabus-parse.md for the exact schema Claude is
 asked to return.
 """
 

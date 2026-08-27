@@ -37,7 +37,7 @@ Type "help" for the full command list, "exit" or Ctrl+D to quit.
 
 async def main():
     settings = get_settings()
-    vault_state_dir = settings.project_root / "sunny-vault" / "state"
+    vault_state_dir = settings.project_root / "sunny-vault" / "data" / "state"
     tasks_engine = TaskEngine(TaskDB(vault_state_dir / "tasks"))
     briefing_engine = BriefingEngine()
     list_engine = ListEngine(ListDB(vault_state_dir / "lists"))

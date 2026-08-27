@@ -211,7 +211,7 @@ usage is what decides what gets built next."""
 
 def _tasks_guide() -> str:
     return """TASKS
-Status: Always connected — stored directly in the vault (sunny-vault/state/tasks/), no API or setup needed."""
+Status: Always connected — stored directly in the vault (sunny-vault/data/state/tasks/), no API or setup needed."""
 
 
 def _class_setup_guide() -> str:

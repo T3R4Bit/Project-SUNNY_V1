@@ -390,7 +390,7 @@ Total: {len(open_tasks) + len(in_progress)} tasks
         # Model/length/temperature are all live-tunable via .env
         # (LLM_CHAT_MODEL/LLM_CHAT_MAX_TOKENS/LLM_CHAT_TEMPERATURE) --
         # the actual behavior/tone/persona tuning knob is the system
-        # prompt itself, sunny-vault/instructions/general-chat.md.
+        # prompt itself, sunny-vault/docs/instructions/general-chat.md.
         else:
             settings = get_settings()
             prompt = (
@@ -439,7 +439,7 @@ class BriefingEngine:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         settings = get_settings()
-        self.tasks_db = TaskDB(settings.project_root / "sunny-vault" / "state" / "tasks")
+        self.tasks_db = TaskDB(settings.project_root / "sunny-vault" / "data" / "state" / "tasks")
         # (text, generated_at) from the most recent prewarm_morning_briefing()
         # call -- see that method and generate_morning_briefing() below.
         self._prewarmed_morning: Optional[Tuple[str, float]] = None

@@ -1,7 +1,7 @@
 """Shared helpers for reading/writing markdown files with YAML frontmatter in
 the Obsidian vault — used by tasks_db.py, lists_db.py, and
 scheduled_vault_mirror.py, the three places Sunny writes into
-sunny-vault/state/.
+sunny-vault/data/state/.
 
 Concurrency note: the safety of unsynchronized reads/writes here relies on
 every caller staying `async def` (confirmed true today for every FastAPI

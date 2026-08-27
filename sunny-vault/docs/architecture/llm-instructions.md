@@ -8,7 +8,7 @@ tags: [llm, claude, instructions, prompts, vault]
 
 # LLM Instructions — Vault-Loaded System Prompts
 
-Each `ask_claude()` "purpose" gets its system prompt from `sunny-vault/instructions/{purpose}.md` instead of a Python f-string. Hand-edit the file, no redeploy, no restart — the change takes effect on the very next call. Built alongside the LLM call catalog (see [[llm-integration]] and [[llm-readiness]]) specifically to serve the "squeeze out the least tokens possible" goal: instructions live as small, purpose-specific files, so a given call only ever pays for the one prompt it actually needs.
+Each `ask_claude()` "purpose" gets its system prompt from `sunny-vault/docs/instructions/{purpose}.md` instead of a Python f-string. Hand-edit the file, no redeploy, no restart — the change takes effect on the very next call. Built alongside the LLM call catalog (see [[llm-integration]] and [[llm-readiness]]) specifically to serve the "squeeze out the least tokens possible" goal: instructions live as small, purpose-specific files, so a given call only ever pays for the one prompt it actually needs.
 
 ## Status
 
@@ -16,7 +16,7 @@ Each `ask_claude()` "purpose" gets its system prompt from `sunny-vault/instructi
 
 ## How It Works
 
-- `ask_claude(prompt, purpose="weekly_health_check", ...)` — if `system` isn't passed explicitly, `instructions.load_instructions(purpose)` runs first, converting `purpose` to a filename (`_` → `-`, `.md` appended) and reading `sunny-vault/instructions/{filename}`'s body via `vault_io.read_body()` (frontmatter stripped, just the prompt text).
+- `ask_claude(prompt, purpose="weekly_health_check", ...)` — if `system` isn't passed explicitly, `instructions.load_instructions(purpose)` runs first, converting `purpose` to a filename (`_` → `-`, `.md` appended) and reading `sunny-vault/docs/instructions/{filename}`'s body via `vault_io.read_body()` (frontmatter stripped, just the prompt text).
 - No file for that purpose → `None`, same as not passing a system prompt at all. No error, no crash — matches this app's honest "not configured" pattern everywhere else.
 - **Not cached.** Every call re-reads the file, matching `get_settings()`'s deliberate uncached-by-design choice — the tradeoff (a little disk I/O per call) buys hand-edits that take effect immediately, with zero cache-invalidation logic to get wrong.
 - A caller that passes `system=` explicitly always wins — the vault lookup only fills in when nothing else was given.
@@ -55,7 +55,7 @@ Instruction files are hand-editable markdown, loaded verbatim as system prompt t
 - `sunny_code/components/instructions.py` — `load_instructions(purpose)`
 - `sunny_code/components/vault_io.py` — `read_body(path)`, the generic frontmatter-stripping helper this is built on
 - `sunny_code/components/llm_client.py` — the one call site (`ask_claude()`)
-- `sunny-vault/instructions/` — the files themselves
+- `sunny-vault/docs/instructions/` — the files themselves
 
 ## Dependencies
 
@@ -68,7 +68,7 @@ Instruction files are hand-editable markdown, loaded verbatim as system prompt t
 - [x] `vault_io.read_body()` — generic frontmatter-stripping read helper
 - [x] `instructions.load_instructions(purpose)` — exact-match-by-filename lookup, uncached
 - [x] Wired into `ask_claude()` — auto-loads when `system` isn't passed explicitly
-- [x] `sunny-vault/instructions/` created as a fourth vault lifecycle category, documented in [[../DESIGN|DESIGN.md]]
+- [x] `sunny-vault/docs/instructions/` created as a fourth vault lifecycle category, documented in [[../DESIGN|DESIGN.md]]
 - [x] `weekly-health-check.md` — first real instruction file, see [[health-check]]
 - [x] `general-chat.md`, `project-scaffold.md`, `storm-mode.md`, `exam-prep-review.md`, `syllabus-parse.md` — added as each of those features shipped (2026-08-21 through 2026-08-25), see [[llm-integration]]
 - [ ] More instruction files as more LLM features get built (email triage, task interpretation still not built — see [[llm-readiness]])

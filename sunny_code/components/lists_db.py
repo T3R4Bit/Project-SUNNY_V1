@@ -1,5 +1,5 @@
 """List storage — one markdown file per list in the Obsidian vault
-(sunny-vault/state/lists/<slug>.md), using native Obsidian checkbox syntax
+(sunny-vault/data/state/lists/<slug>.md), using native Obsidian checkbox syntax
 for items. Not SQLite. See sunny_code/components/tasks_db.py's module
 docstring for the shared concurrency/atomic-write reasoning, and
 sunny-vault/docs/architecture/vault-storage.md for the full rationale.

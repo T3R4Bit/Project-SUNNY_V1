@@ -3,12 +3,12 @@ id: sunny-project-system
 type: component
 status: active
 created: 2026-08-24
-tags: [projects, wizard, llm, component]
+tags: [projects, wizard, llm, claude, component]
 ---
 
 # Project Wizard
 
-Say "new project" (or a close variant — see Trigger below) from any interface (console, Discord text, Discord voice), and Sunny walks a short, fully hardcoded wizard through name → description → sections → a real yes/no confirm, then hands off to exactly one LLM call that drafts a real multi-file project folder under `sunny-vault/projects/<slug>/`. See [[../TASK_SYSTEM.md]] — this sits alongside Tasks/Lists/Alarms-Reminders as another feature routed through the same `assistant.handle_message()`, not part of the task system itself.
+Say "new project" (or a close variant — see Trigger below) from any interface (console, Discord text, Discord voice), and Sunny walks a short, fully hardcoded wizard through name → description → sections → a real yes/no confirm, then hands off to exactly one LLM call that drafts a real multi-file project folder under `sunny-vault/data/projects/<slug>/`. See [[../TASK_SYSTEM.md]] — this sits alongside Tasks/Lists/Alarms-Reminders as another feature routed through the same `assistant.handle_message()`, not part of the task system itself.
 
 ## Status
 
@@ -17,8 +17,8 @@ Say "new project" (or a close variant — see Trigger below) from any interface 
 | Wizard conversation state (name/description/sections/confirm) | Built — `assistant.py`'s pending-follow-up mechanism, same TTL/cancel pattern as the task-title/task-category prompts |
 | Trigger phrases | Built — `_PROJECT_TRIGGERS` in `assistant.py` |
 | Scaffold generation (one LLM call → real files) | Built — `sunny_code/components/project_engine.py` |
-| System prompt | Built — `sunny-vault/instructions/project-scaffold.md` |
-| Discord dashboard integration | Built — the task dashboard's Projects field lists real folder names from `sunny-vault/projects/` (`discord_bot.py`'s `build_dashboard_embed()`) |
+| System prompt | Built — `sunny-vault/docs/instructions/project-scaffold.md` |
+| Discord dashboard integration | Built — the task dashboard's Projects field lists real folder names from `sunny-vault/data/projects/` (`discord_bot.py`'s `build_dashboard_embed()`) |
 
 ## How It Works
 
@@ -35,7 +35,7 @@ Per `project-scaffold.md`'s system prompt: always exactly one top-level overview
 
 ## Storage
 
-`sunny-vault/projects/<slug>/*.md` — `slug` from `vault_io.slugify(name)`, with the same `-2`/`-3`... collision-avoidance scheme as `tasks_db.py`/`lists_db.py`, extended from a single file to a whole directory. Written via `vault_io.atomic_write_text`, one call per file — a disk error partway through a multi-file write is reported honestly ("Started writing X but hit a disk error partway through"), not silently swallowed.
+`sunny-vault/data/projects/<slug>/*.md` — `slug` from `vault_io.slugify(name)`, with the same `-2`/`-3`... collision-avoidance scheme as `tasks_db.py`/`lists_db.py`, extended from a single file to a whole directory. Written via `vault_io.atomic_write_text`, one call per file — a disk error partway through a multi-file write is reported honestly ("Started writing X but hit a disk error partway through"), not silently swallowed.
 
 ## Failure Modes
 
@@ -48,8 +48,8 @@ Every failure path returns `(False, message)`, never raises — same contract as
 
 - [[../TASK_SYSTEM.md]] — sibling feature, same routing entry point (`assistant.handle_message`)
 - [[llm-integration]] — `ask_claude(purpose="project_scaffold")`, model/token-budget choice
-- [[llm-instructions]] — `sunny-vault/instructions/project-scaffold.md`
-- [[discord-bot]] — the dashboard's Projects field reads real folder names from `sunny-vault/projects/`
+- [[llm-instructions]] — `sunny-vault/docs/instructions/project-scaffold.md`
+- [[discord-bot]] — the dashboard's Projects field reads real folder names from `sunny-vault/data/projects/`
 
 ## Implementation Checklist
 

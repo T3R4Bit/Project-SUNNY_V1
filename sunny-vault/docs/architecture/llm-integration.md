@@ -12,7 +12,7 @@ Uses Claude API for judgment and reasoning tasks only. Never for information ret
 
 **Status**: The safety-rail infrastructure this doc describes (spend caps, error handling, usage logging) is built and tested — see [[llm-readiness]] for the full built-vs-not checklist. Of the four tasks below, **Freeform Conversation is now partially wired** (2026-08-21) — see the note under that task. Email Triage, Task Interpretation, and Email Reply Drafting are still not wired up — that's a deliberate, separate decision from building the rails.
 
-`ask_claude()` is no longer only called by Freeform Conversation — as of 2026-08-23/24 it also powers the weekly health check (`purpose="weekly_health_check"`), the "new project" wizard (`purpose="project_scaffold"`), and Storm Mode's web-searched weather updates (`purpose="storm_mode"`). As of 2026-08-24/25 it also powers exam-prep's LLM-written study review (`purpose="exam_prep_review"`, see [[exam-prep]]) and class setup's syllabus parsing (`purpose="syllabus_parse"`, see [[class-setup]]). Each purpose has its own hand-editable system prompt in `sunny-vault/instructions/`, loaded automatically — see [[llm-instructions]]. Real web search is also wired in (2026-08-23): `ask_claude`/`ask_claude_stream` accept `enable_web_search=True`, which adds Anthropic's server-side `web_search_20250305` tool (capped at 3 searches/call). Claude decides for itself whether a given question needs it — used today by the Freeform Conversation fallback (`briefing.py`) and Storm Mode (`storm_mode.py`).
+`ask_claude()` is no longer only called by Freeform Conversation — as of 2026-08-23/24 it also powers the weekly health check (`purpose="weekly_health_check"`), the "new project" wizard (`purpose="project_scaffold"`), and Storm Mode's web-searched weather updates (`purpose="storm_mode"`). As of 2026-08-24/25 it also powers exam-prep's LLM-written study review (`purpose="exam_prep_review"`, see [[exam-prep]]) and class setup's syllabus parsing (`purpose="syllabus_parse"`, see [[class-setup]]). Each purpose has its own hand-editable system prompt in `sunny-vault/docs/instructions/`, loaded automatically — see [[llm-instructions]]. Real web search is also wired in (2026-08-23): `ask_claude`/`ask_claude_stream` accept `enable_web_search=True`, which adds Anthropic's server-side `web_search_20250305` tool (capped at 3 searches/call). Claude decides for itself whether a given question needs it — used today by the Freeform Conversation fallback (`briefing.py`) and Storm Mode (`storm_mode.py`).
 
 ## Core Principle
 
@@ -97,7 +97,7 @@ this exists today, reachable from both text chat and voice: when
 nothing else matches (no command, no known-topic keyword like weather/
 calendar), `briefing.py`'s `custom_briefing()` calls `ask_claude(purpose=
 "general_chat")` for a real answer instead of a canned "I don't know." The
-system prompt is `sunny-vault/instructions/general-chat.md` (hand-editable,
+system prompt is `sunny-vault/docs/instructions/general-chat.md` (hand-editable,
 no redeploy). Model/max_tokens/temperature are `.env`-configurable
 (`LLM_CHAT_MODEL`/`LLM_CHAT_MAX_TOKENS`/`LLM_CHAT_TEMPERATURE`, see
 config.py) — see [[voice-join]]'s latency chart for real, measured timing.
@@ -225,7 +225,7 @@ else:
 
 ## Prompt Engineering
 
-System prompts live in the vault, not in Python — `sunny-vault/instructions/{purpose}.md`, one file per task, loaded by `ask_claude()` automatically when a caller passes `purpose=` and no explicit `system=`. See [[llm-instructions]]. This replaced the original plan of fully-hardcoded, Python-embedded prompts — the user wanted to edit prompts directly without a redeploy, which vault-loaded prompts give for free.
+System prompts live in the vault, not in Python — `sunny-vault/docs/instructions/{purpose}.md`, one file per task, loaded by `ask_claude()` automatically when a caller passes `purpose=` and no explicit `system=`. See [[llm-instructions]]. This replaced the original plan of fully-hardcoded, Python-embedded prompts — the user wanted to edit prompts directly without a redeploy, which vault-loaded prompts give for free.
 
 **Examples**:
 - Email triage: 3-sentence prompt, ask for one-word response
@@ -274,9 +274,9 @@ response = ask_local_llm(prompt)  # Llama 3, Mistral, etc. on TrueNAS
 - [x] anthropic SDK installed (`requirements.txt`)
 - [x] Token tracking integration (`token_tracker.py`, tested)
 - [x] Error handling + retries (`llm_client.py`: rate limit, timeout/connection, invalid key, budget — all tested against mocked failures)
-- [x] Freeform conversation (Q&A slice) system prompt — `sunny-vault/instructions/general-chat.md`, live, wired into `briefing.py`'s `custom_briefing()`
+- [x] Freeform conversation (Q&A slice) system prompt — `sunny-vault/docs/instructions/general-chat.md`, live, wired into `briefing.py`'s `custom_briefing()`
 - [x] Real web search for freeform conversation + Storm Mode — `enable_web_search=True`, Anthropic's `web_search_20250305` tool, Claude decides when a question needs it
-- [x] Weekly health check, project-scaffold wizard, Storm Mode, exam-prep review, and syllabus-parse system prompts — `sunny-vault/instructions/{weekly-health-check,project-scaffold,storm-mode,exam-prep-review,syllabus-parse}.md`, all live
+- [x] Weekly health check, project-scaffold wizard, Storm Mode, exam-prep review, and syllabus-parse system prompts — `sunny-vault/docs/instructions/{weekly-health-check,project-scaffold,storm-mode,exam-prep-review,syllabus-parse}.md`, all live
 - [x] Streaming replies (`ask_claude_stream`) — sentence-boundary chunked into TTS for `/join`, live since 2026-08-21
 - [ ] Email triage system prompt — not written, feature not built
 - [ ] Task interpretation system prompt — not written, feature not built

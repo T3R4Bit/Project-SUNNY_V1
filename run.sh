@@ -84,7 +84,7 @@ MONTHLY_SPEND_CAP=100.0
 # Freeform-conversation tuning — for genuinely open-ended questions nothing
 # else can answer (see briefing.py's custom_briefing()). The actual
 # behavior/tone/persona knob is the system prompt itself:
-# sunny-vault/instructions/general-chat.md, hand-editable, no restart
+# sunny-vault/docs/instructions/general-chat.md, hand-editable, no restart
 # needed. These three are optional and take effect on the very next call.
 LLM_CHAT_MODEL=haiku
 # haiku (fast/cheap), sonnet (more capable, slower/pricier), opus (rarely

@@ -23,8 +23,8 @@ A once-a-week, LLM-written report on how Sunny's been doing: recurring errors, r
    - LLM call counts by purpose/status, from `sunny-vault/log/llm-usage.md` (see [[llm-integration]]'s call catalog), last 7 days — this is the "gets forced to an LLM" signal BACKLOG.md asked for.
    - Keys expiring within 7 days, via `key_status.expiring_within(7)`.
    - A knowledge-health scan of the Obsidian vault (2026-08-24, [[personal-assistant-vision#8-weekly-knowledge-health-check]]) — `knowledge_health_summary()`: broken wikilinks, orphaned notes (no incoming links — real entry-point docs like README.md are expected to show up here too, not a bug), untagged notes, notes untouched 180+ days. True duplicate-*content* detection (semantic, not a filename collision) is explicitly out of scope. `short_summary()`'s spoken one-liner adds a broken-link count when nonzero.
-3. **Write it up** — `ask_claude(purpose="weekly_health_check", model="haiku", prompt=<summary>)`. The system prompt auto-loads from `sunny-vault/instructions/weekly-health-check.md` (see [[llm-instructions]]) — Haiku, matching this project's default tier and "keep usage low."
-4. **Record** — the report (or, if Claude's unreachable, the raw summary with a note saying so) gets appended to `sunny-vault/log/health-checks.md`, and `sunny-vault/state/health-check.md` flips to `status: unacknowledged`.
+3. **Write it up** — `ask_claude(purpose="weekly_health_check", model="haiku", prompt=<summary>)`. The system prompt auto-loads from `sunny-vault/docs/instructions/weekly-health-check.md` (see [[llm-instructions]]) — Haiku, matching this project's default tier and "keep usage low."
+4. **Record** — the report (or, if Claude's unreachable, the raw summary with a note saying so) gets appended to `sunny-vault/log/health-checks.md`, and `sunny-vault/data/state/health-check.md` flips to `status: unacknowledged`.
 5. **Notify** — posted to its own Discord channel (`DISCORD_HEALTH_CHANNEL_ID`, falling back to the chat channel if unset) if the bot is configured and connected (`client.post_to_health`, no-ops otherwise); always logged locally regardless. The next "morning"/"evening" briefing gets one extra line (`health_check.pending_notice()`) — a nudge only, never the report content itself, matching the "tells me to check it, not what it is" requirement.
 6. **Acknowledge** — saying "health check" or "health report" (web console, terminal, or Discord) returns `health_check.latest_report()` and flips the marker back to acknowledged, so the briefing nudge stops appearing.
 
@@ -45,9 +45,9 @@ The marker persists across days on purpose, not a same-day-only check: morning b
 - `sunny_code/components/briefing.py` — the morning-briefing nudge line
 - `sunny_code/components/assistant.py` — the "health check"/"health report" chat phrase
 - `sunny_code/components/key_status.py` — `expiring_within(days)`, backed by four optional `*_EXPIRES` settings
-- `sunny-vault/instructions/weekly-health-check.md` — the system prompt
+- `sunny-vault/docs/instructions/weekly-health-check.md` — the system prompt
 - `sunny-vault/log/health-checks.md` — append-only report log
-- `sunny-vault/state/health-check.md` — acknowledged/unacknowledged marker
+- `sunny-vault/data/state/health-check.md` — acknowledged/unacknowledged marker
 
 ## Dependencies
 

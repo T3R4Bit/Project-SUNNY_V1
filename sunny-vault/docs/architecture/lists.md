@@ -14,7 +14,7 @@ A separate subsystem from [[../TASK_SYSTEM.md|Tasks]] — same "no LLM, plain pa
 
 | Piece | Status |
 |-------|--------|
-| Vault storage (`sunny-vault/state/lists/`) | Built (`sunny_code/components/lists_db.py`) — markdown, not SQLite, see [[vault-storage]] |
+| Vault storage (`sunny-vault/data/state/lists/`) | Built (`sunny_code/components/lists_db.py`) — markdown, not SQLite, see [[vault-storage]] |
 | Command parser | Built (`sunny_code/components/lists_parser.py`) |
 | List engine | Built (`sunny_code/components/lists_engine.py`) |
 | Routed into web chatbot + Discord bot | Built (both go through `assistant.handle_message`) |
@@ -23,7 +23,7 @@ A separate subsystem from [[../TASK_SYSTEM.md|Tasks]] — same "no LLM, plain pa
 
 ## How It Works
 
-- **Storage**: Markdown in the vault (`sunny-vault/state/lists/<slug>.md`), one file per list — frontmatter for the list (id, name, source, created_at), items as native Obsidian checkboxes (`- [ ] milk` / `- [x] bread`) in the body. Deleting a list's file deletes its items with it (cascade-by-construction — no separate FK step needed, since items live in the same file). Full design: [[vault-storage]].
+- **Storage**: Markdown in the vault (`sunny-vault/data/state/lists/<slug>.md`), one file per list — frontmatter for the list (id, name, source, created_at), items as native Obsidian checkboxes (`- [ ] milk` / `- [x] bread`) in the body. Deleting a list's file deletes its items with it (cascade-by-construction — no separate FK step needed, since items live in the same file). Full design: [[vault-storage]].
 - **Default list**: If you don't name one, items go to a list called "To-Do" (`DEFAULT_LIST_NAME`), created automatically on first use.
 - **Any name works**: "add milk to my grocery list" creates a "grocery" list on the spot — no setup step, same free-form philosophy as task categories.
 - **Checking items**: marking an item done doesn't delete it — it's a checkbox (`checked` column). "Remove"/"delete" is what actually deletes a row.
@@ -100,7 +100,7 @@ Removed "milk" from grocery
 
 ## Implementation Checklist
 
-- [x] Vault markdown storage (`sunny-vault/state/lists/`), cascade-by-construction (list + items in one file)
+- [x] Vault markdown storage (`sunny-vault/data/state/lists/`), cascade-by-construction (list + items in one file)
 - [x] Natural-language parser (create/add/query/remove, multi-item splitting)
 - [x] Free-form list names, default "To-Do" list
 - [x] Routed into web chatbot and Discord bot via shared `handle_message()`

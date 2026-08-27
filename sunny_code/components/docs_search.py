@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # broad-vocabulary documents (a running history, a single-page overview
 # of every component) that would out-score a specific, topical doc on
 # raw word overlap alone regardless of actual relevance. Not
-# sunny-vault/instructions/ (system prompts, not reference docs) or
+# sunny-vault/docs/instructions/ (system prompts, not reference docs) or
 # sunny-vault/KSU/ (the user's own data, unrelated to "how does Sunny
 # work").
 _DOC_DIRS = ("sunny-vault/docs/architecture",)

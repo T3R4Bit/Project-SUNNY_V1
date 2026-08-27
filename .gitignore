@@ -47,7 +47,7 @@ location.json
 location_gps.json
 categories.json
 service_registry.json
-sunny-vault/state/sensor-*.json
+sunny-vault/data/state/sensor-*.json
 
 # TLS cert/key (Tailscale-issued, host-specific — see google-integration.md)
 certs/
@@ -69,10 +69,10 @@ logs/
 
 # Live personal data stored in the vault (tasks/lists) — same privacy
 # posture as *.db above, just a different file format. Never pushed.
-sunny-vault/state/tasks/
-sunny-vault/state/lists/
-sunny-vault/state/alarms-reminders.md
-sunny-vault/state/exam-review/
+sunny-vault/data/state/tasks/
+sunny-vault/data/state/lists/
+sunny-vault/data/state/alarms-reminders.md
+sunny-vault/data/state/exam-review/
 # Real class notes and their review state — same reasoning: personal
 # content, not project source, never pushed even though this repo is
 # private. See sunny-vault/docs/architecture/exam-prep.md.

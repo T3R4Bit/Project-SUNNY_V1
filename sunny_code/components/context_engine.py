@@ -21,7 +21,7 @@ from sunny_code.config import get_settings
 
 
 def _active_project_names() -> List[str]:
-    projects_dir = get_settings().project_root / "sunny-vault" / "projects"
+    projects_dir = get_settings().project_root / "sunny-vault" / "data" / "projects"
     if not projects_dir.exists():
         return []
     return sorted(p.name for p in projects_dir.iterdir() if p.is_dir())

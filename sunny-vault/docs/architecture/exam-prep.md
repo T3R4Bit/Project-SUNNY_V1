@@ -3,7 +3,7 @@ id: sunny-exam-prep
 type: component
 status: active
 created: 2026-08-24
-tags: [exam-prep, study, llm, component]
+tags: [exam-prep, study, llm, claude, component]
 ---
 
 # Exam Prep / Spaced Review
@@ -32,11 +32,11 @@ There's no vault-side way to mark an exam date — dates come from [[google-inte
 
 ## Spaced Review: Simplified From the Vision Doc's 5 Stages to 3
 
-The vision doc describes `New → Review → Weak → Retest → Mastered`. This implementation persists three real states — `new`, `weak`, `mastered` — since Review and Retest are the *act* of calling `record_review()`, not states worth storing separately; modeling five persisted stages added complexity with no behavioral difference for a single-user tool. `record_review(class_name, note_stem, result)`: any stage + `"good"` → `mastered`; any stage + `"weak"` → `weak` (even a previously-mastered topic that's now shaky goes back to weak — normal spaced-repetition behavior, not a bug). State lives at `sunny-vault/state/exam-review/<slug>.md`, one file per (class, topic) pair, same frontmatter+slug pattern as `tasks_db.py`/`lists_db.py` — also gitignored, personal review history.
+The vision doc describes `New → Review → Weak → Retest → Mastered`. This implementation persists three real states — `new`, `weak`, `mastered` — since Review and Retest are the *act* of calling `record_review()`, not states worth storing separately; modeling five persisted stages added complexity with no behavioral difference for a single-user tool. `record_review(class_name, note_stem, result)`: any stage + `"good"` → `mastered`; any stage + `"weak"` → `weak` (even a previously-mastered topic that's now shaky goes back to weak — normal spaced-repetition behavior, not a bug). State lives at `sunny-vault/data/state/exam-review/<slug>.md`, one file per (class, topic) pair, same frontmatter+slug pattern as `tasks_db.py`/`lists_db.py` — also gitignored, personal review history.
 
 ## The Study Review (the vision doc's "night before" output)
 
-`generate_study_review(class_name)`: gathers up to 5 topics needing review (new topics first, then weak — new topics have never been looked at, so they're the highest-value use of a session), reads each topic's actual note content (capped at 2000 characters per note, keeps the prompt bounded), and hands it to `ask_claude(purpose="exam_prep_review", model="sonnet")`. System prompt at `sunny-vault/instructions/exam-prep-review.md`: per-topic core concept, exact formulas/definitions, an optional short practice question only when the notes actually support one — never fabricated. Deliberately Sonnet, not Haiku, matching `project_engine.py`'s reasoning: this is real content authoring, not a quick judgment call.
+`generate_study_review(class_name)`: gathers up to 5 topics needing review (new topics first, then weak — new topics have never been looked at, so they're the highest-value use of a session), reads each topic's actual note content (capped at 2000 characters per note, keeps the prompt bounded), and hands it to `ask_claude(purpose="exam_prep_review", model="sonnet")`. System prompt at `sunny-vault/docs/instructions/exam-prep-review.md`: per-topic core concept, exact formulas/definitions, an optional short practice question only when the notes actually support one — never fabricated. Deliberately Sonnet, not Haiku, matching `project_engine.py`'s reasoning: this is real content authoring, not a quick judgment call.
 
 ## Natural-Language Commands
 
@@ -57,7 +57,7 @@ All routed directly through `assistant.py` as plain function calls (`exam_prep.p
 ## Files
 
 - `sunny_code/components/exam_prep.py` — everything above
-- `sunny-vault/instructions/exam-prep-review.md` — the study-review system prompt
+- `sunny-vault/docs/instructions/exam-prep-review.md` — the study-review system prompt
 - `sunny_code/components/assistant.py` — natural-language triggers, response formatting
 
 ## Dependencies

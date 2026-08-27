@@ -280,7 +280,7 @@ def _append_report(report: str) -> None:
 
 
 def _marker_path() -> Path:
-    return get_settings().project_root / "sunny-vault" / "state" / "health-check.md"
+    return get_settings().project_root / "sunny-vault" / "data" / "state" / "health-check.md"
 
 
 def _write_marker(status: str) -> None:

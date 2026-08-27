@@ -137,7 +137,7 @@ async def ask_claude(
     crashing a request.
 
     If `system` isn't given, it's auto-loaded from
-    sunny-vault/instructions/{purpose}.md — see instructions.py. A caller
+    sunny-vault/docs/instructions/{purpose}.md — see instructions.py. A caller
     that passes `system` explicitly always wins.
 
     temperature controls response randomness/variety (0.0 = deterministic,

@@ -25,7 +25,7 @@ The five-layer model from [[personal-assistant-vision]] section 10 describes Sun
 
 ## Sensors (Layer 1)
 
-`sensors.py` — cheap, deterministic, no LLM calls. Two functions today, each owning its own small persisted "what have I seen before" cursor (a JSON file under `sunny-vault/state/`, same self-contained-state pattern as `category_store.py`/`location_store.py`):
+`sensors.py` — cheap, deterministic, no LLM calls. Two functions today, each owning its own small persisted "what have I seen before" cursor (a JSON file under `sunny-vault/data/state/`, same self-contained-state pattern as `category_store.py`/`location_store.py`):
 
 - `calendar_changes(days_ahead=14) -> List[Dict]` — diffs against `google_calendar.get_events_range()` by event `id`+`updated` timestamp. Returns `[]` if Calendar isn't connected (fail-quiet, same contract as `google_calendar.py` itself). Doesn't detect deletions — Google's `events().list()` just omits a deleted event, indistinguishable from "outside the window"; real deletion tracking needs `syncToken` support, out of scope for this pass.
 - `vault_file_changes() -> List[Path]` — mtime scan over `sunny-vault/`, excluding Sunny's own bookkeeping folders (`.obsidian`, `archive`, `log`, `state`, `instructions`) so it reports real content changes (a new note under a future `Classes/` or `Projects/` folder) rather than every internal task/list file rewrite this app already makes constantly on its own. A plain mtime comparison, not a content hash — cheap, and doesn't distinguish a no-op save from a real edit, which isn't worth the extra I/O to fix.

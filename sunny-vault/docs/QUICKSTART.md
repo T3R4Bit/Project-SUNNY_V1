@@ -40,7 +40,7 @@ No manual Python environment setup required — `run.sh` creates and manages its
 - Morning briefing (9 sections)
 - Evening briefing (7 sections)
 - Q&A engine (ask anything)
-- Tasks are queried live from the Obsidian vault (`sunny-vault/state/tasks/`, plain markdown — not a database); weather and Calendar/Gmail are live once configured, commute/health/news still say "not connected" honestly instead of faking data
+- Tasks are queried live from the Obsidian vault (`sunny-vault/data/state/tasks/`, plain markdown — not a database); weather and Calendar/Gmail are live once configured, commute/health/news still say "not connected" honestly instead of faking data
 
 ### Task Management
 - Create, update, delete tasks
@@ -140,7 +140,7 @@ exit
 
 ## Full Guides
 
-- **Setup & Deployment**: See [[../SETUP_LINUX.md]]
+- **Setup & Deployment**: See `SETUP_LINUX.md` (repo root)
 - **Architecture**: See [[./architecture/Mind-Map.md]]
 - **Build Timeline**: See [[./phases.md]]
 - **Task System**: See [[./TASK_SYSTEM.md]]

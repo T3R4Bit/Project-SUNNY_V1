@@ -124,7 +124,7 @@ def find_exam_date(class_name: str, days_ahead: int = 60) -> Optional[Dict]:
 
 def _review_path(class_name: str, note_stem: str) -> Path:
     slug = vault_io.slugify(f"{class_name}-{note_stem}")
-    return get_settings().project_root / "sunny-vault" / "state" / "exam-review" / f"{slug}.md"
+    return get_settings().project_root / "sunny-vault" / "data" / "state" / "exam-review" / f"{slug}.md"
 
 
 def get_review_state(class_name: str, note_stem: str) -> Dict:

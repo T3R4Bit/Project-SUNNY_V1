@@ -47,7 +47,7 @@ This is stated explicitly in the chatbot's `help` text so it's never a surprise.
 
 ## Read-Only Vault Mirror
 
-Unlike Tasks and Lists, storage here didn't change — `scheduled.db` stays SQLite, on purpose: the 30-second due-check above needs reliable, automatic background writes (reschedule/deactivate) that don't belong in a hand-browsable vault file. Instead, `sunny_code/components/scheduled_vault_mirror.py` writes a **read-only snapshot** to `sunny-vault/state/alarms-reminders.md` so current alarms/reminders are still visible in Obsidian — this file is never read back in by anything; hand-editing it has zero effect.
+Unlike Tasks and Lists, storage here didn't change — `scheduled.db` stays SQLite, on purpose: the 30-second due-check above needs reliable, automatic background writes (reschedule/deactivate) that don't belong in a hand-browsable vault file. Instead, `sunny_code/components/scheduled_vault_mirror.py` writes a **read-only snapshot** to `sunny-vault/data/state/alarms-reminders.md` so current alarms/reminders are still visible in Obsidian — this file is never read back in by anything; hand-editing it has zero effect.
 
 Wired as `ScheduledEngine.on_change` in `sunny_code/main.py` (not `discord_bot.py` — this must work whether or not Discord is configured), and also called once directly at startup so the file reflects reality from process start, not just after the first future change.
 
@@ -157,7 +157,7 @@ Most alarms never get a custom `called X` label, so they're all internally named
 ## Implementation Checklist
 
 - [x] SQLite schema (`scheduled.db`) — unaffected by the Tasks/Lists vault-storage migration
-- [x] Read-only vault mirror (`sunny-vault/state/alarms-reminders.md`), updates on change + once at startup
+- [x] Read-only vault mirror (`sunny-vault/data/state/alarms-reminders.md`), updates on change + once at startup
 - [x] Deterministic time-expression parser (clock times, relative, explicit dates, tomorrow/today)
 - [x] Recurrence parsing + next-occurrence calculation (daily/weekdays/specific weekday)
 - [x] Natural-language command parser (create/query/cancel for both alarms and reminders)

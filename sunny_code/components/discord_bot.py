@@ -669,7 +669,7 @@ def create_discord_bot(
             logger.warning(f"Cannot access Discord dashboard channel {dashboard_channel_id}: {e}")
             return
 
-        projects_dir = get_settings().project_root / "sunny-vault" / "projects"
+        projects_dir = get_settings().project_root / "sunny-vault" / "data" / "projects"
         project_names = sorted(p.name for p in projects_dir.iterdir() if p.is_dir()) if projects_dir.exists() else []
         embed = build_dashboard_embed(tasks_engine.get_dashboard_data(), project_names)
 

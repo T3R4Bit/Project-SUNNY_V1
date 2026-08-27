@@ -6,7 +6,7 @@ integration. No real caller yet: rules_engine.py is the first consumer,
 evaluating its rules against whatever these report.
 
 Each sensor owns its own small persisted "what have I seen before" cursor
-(a JSON file under sunny-vault/state/), so a caller just calls the
+(a JSON file under sunny-vault/data/state/), so a caller just calls the
 function every tick with no cursor bookkeeping of its own -- same shape as
 category_store.py/location_store.py owning their own state file.
 """
@@ -29,11 +29,11 @@ _EXCLUDED_VAULT_DIRS = {".obsidian", "archive", "log", "state", "instructions"}
 
 
 def _calendar_cursor_path() -> Path:
-    return get_settings().project_root / "sunny-vault" / "state" / "sensor-calendar-cursor.json"
+    return get_settings().project_root / "sunny-vault" / "data" / "state" / "sensor-calendar-cursor.json"
 
 
 def _vault_cursor_path() -> Path:
-    return get_settings().project_root / "sunny-vault" / "state" / "sensor-vault-cursor.json"
+    return get_settings().project_root / "sunny-vault" / "data" / "state" / "sensor-vault-cursor.json"
 
 
 def _load_json(path: Path) -> Dict:

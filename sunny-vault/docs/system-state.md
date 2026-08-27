@@ -14,11 +14,11 @@ There is no single state file. Each kind of state lives wherever fits it best, f
 
 ## Tasks and Lists — vault-markdown, one file per item
 
-`sunny-vault/state/tasks/<slug>.md`, `sunny-vault/state/lists/<slug>.md` — one file per task/list, frontmatter + body, written via `sunny_code/components/vault_io.py`'s `atomic_write_text` (temp file + `os.replace()`, safe against partial writes). See [[architecture/vault-storage]], `tasks_db.py`, `lists_db.py`. Finished/deleted tasks move to `sunny-vault/archive/finished/` or `archive/deleted/` rather than being erased — see [[TASK_SYSTEM.md]].
+`sunny-vault/data/state/tasks/<slug>.md`, `sunny-vault/data/state/lists/<slug>.md` — one file per task/list, frontmatter + body, written via `sunny_code/components/vault_io.py`'s `atomic_write_text` (temp file + `os.replace()`, safe against partial writes). See [[architecture/vault-storage]], `tasks_db.py`, `lists_db.py`. Finished/deleted tasks move to `sunny-vault/data/archive/finished/` or `archive/deleted/` rather than being erased — see [[TASK_SYSTEM.md]].
 
 ## Alarms/Reminders — SQLite, plus a read-only vault mirror
 
-`sunny.db`'s `scheduled_items` table (`scheduled_db.py`) is the real source of truth — it needs reliable writes from a 30-second background due-check loop, which doesn't suit a hand-editable markdown file. `sunny-vault/state/alarms-reminders.md` is a generated read-only snapshot (`scheduled_vault_mirror.py`) for visibility in Obsidian — nothing reads it back in.
+`sunny.db`'s `scheduled_items` table (`scheduled_db.py`) is the real source of truth — it needs reliable writes from a 30-second background due-check loop, which doesn't suit a hand-editable markdown file. `sunny-vault/data/state/alarms-reminders.md` is a generated read-only snapshot (`scheduled_vault_mirror.py`) for visibility in Obsidian — nothing reads it back in.
 
 ## Categories — a small JSON file, not the vault
 
@@ -26,7 +26,7 @@ There is no single state file. Each kind of state lives wherever fits it best, f
 
 ## Health Check — a marker file + an append-only log
 
-`sunny-vault/state/health-check.md` — a small frontmatter-only marker (`id`/`type`/`status`: `"unacknowledged"`/`"acknowledged"`/`updated_at`) tracking whether the morning briefing still needs to nudge about a new report. `sunny-vault/log/health-checks.md` is the actual append-only report history, entries separated by `---`. See `health_check.py`, [[architecture/health-check]]. This marker-file shape is the template for any new small "is there something pending" state.
+`sunny-vault/data/state/health-check.md` — a small frontmatter-only marker (`id`/`type`/`status`: `"unacknowledged"`/`"acknowledged"`/`updated_at`) tracking whether the morning briefing still needs to nudge about a new report. `sunny-vault/log/health-checks.md` is the actual append-only report history, entries separated by `---`. See `health_check.py`, [[architecture/health-check]]. This marker-file shape is the template for any new small "is there something pending" state.
 
 ## Token Usage / Spend — SQLite
 

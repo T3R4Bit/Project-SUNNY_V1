@@ -8,7 +8,7 @@ tags: [feature, tasks, lists, vault, storage]
 
 # Vault Storage (Tasks & Lists)
 
-Tasks and Lists live as markdown files in the Obsidian vault (`sunny-vault/state/tasks/`, `sunny-vault/state/lists/`) — not SQLite. This is a deliberate, scoped migration: Alarms/Reminders/Scheduled items are **unaffected** and stay SQLite (see [[alarms-reminders]]) — they get a read-only markdown mirror instead, not a storage change.
+Tasks and Lists live as markdown files in the Obsidian vault (`sunny-vault/data/state/tasks/`, `sunny-vault/data/state/lists/`) — not SQLite. This is a deliberate, scoped migration: Alarms/Reminders/Scheduled items are **unaffected** and stay SQLite (see [[alarms-reminders]]) — they get a read-only markdown mirror instead, not a storage change.
 
 ## Status
 
@@ -26,7 +26,7 @@ If you do hand-edit a file anyway: every write does a read-modify-write (loads t
 
 ## Layout & Format
 
-**Tasks** — one file per task, `sunny-vault/state/tasks/<slug>.md`, filename from the task's title (slugified) at creation time. Doesn't rename if the title changes later (avoids breaking any Obsidian backlink/graph position you've built to it) — the frontmatter `id` is the real stable identifier, the filename is just for browsing.
+**Tasks** — one file per task, `sunny-vault/data/state/tasks/<slug>.md`, filename from the task's title (slugified) at creation time. Doesn't rename if the title changes later (avoids breaking any Obsidian backlink/graph position you've built to it) — the frontmatter `id` is the real stable identifier, the filename is just for browsing.
 
 ```yaml
 ---
@@ -47,7 +47,7 @@ No `priority` field — removed 2026-08-24 (a plain 1-5 int with no real behavio
 
 Frontmatter field names deliberately match the dict keys `TaskDB` already returns (`created_at`, not `created`) — no translation layer between "what's on disk" and "what `get_task()` returns," since callers like `briefing.py` depend on those exact keys. A field with no value (`due_date`, `source`, `description`) is omitted from frontmatter entirely rather than written as `null` — cleaner for Dataview, and every read guarantees the key is still present in the returned dict with a `None` default (matching what SQLite always did with a NULL column) so callers using bracket access don't get a `KeyError`.
 
-**Lists** — one file per list, `sunny-vault/state/lists/<slug>.md`, using Obsidian's native checkbox syntax for items:
+**Lists** — one file per list, `sunny-vault/data/state/lists/<slug>.md`, using Obsidian's native checkbox syntax for items:
 
 ```yaml
 ---
@@ -80,7 +80,7 @@ Verified directly: ran `chat.py` and the web server simultaneously firing rapid,
 
 ## What's Not Tracked in Git
 
-`sunny-vault/state/tasks/` and `sunny-vault/state/lists/` are gitignored — same privacy posture `*.db` already had, personal task/list content has never left your machines and that doesn't change just because the file format did.
+`sunny-vault/data/state/tasks/` and `sunny-vault/data/state/lists/` are gitignored — same privacy posture `*.db` already had, personal task/list content has never left your machines and that doesn't change just because the file format did.
 
 ## Dependencies
 

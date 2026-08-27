@@ -3,8 +3,8 @@ syllabus summary and a structured key-dates list, so Sunny can answer
 "what's due in BUS 2100" or pull real context without re-parsing the
 syllabus. Same per-item vault-markdown pattern as tasks_db.py/lists_db.py:
 one file, slug from the class name, frontmatter + body via vault_io.
-Lives under sunny-vault/state/classes/, matching how tasks/lists keep
-Sunny-managed lookup state under state/.
+Lives under sunny-vault/data/state/classes/, matching how tasks/lists keep
+Sunny-managed lookup state under data/state/.
 
 save_class() above is Sunny's own fast-lookup copy. save_to_class_folder()
 below writes two *different* files into the user's own
@@ -12,7 +12,7 @@ sunny-vault/KSU/<semester>/<class>/ folder (exam_prep.py's existing
 convention for hand-written topic notes) -- a verbatim copy of the pasted
 syllabus, and a class-info.md with the same summary/schedule/key-dates
 content, so it's visible sitting right next to the user's own notes
-instead of tucked away in a gitignored state/ folder only Sunny reads.
+instead of tucked away in a gitignored data/state/ folder only Sunny reads.
 class-info.md is deliberately excluded from exam_prep.py's topic list
 (see _NON_TOPIC_FILENAMES there) -- it's reference context, not a
 spaced-repetition topic to track "mastered" on -- but
@@ -40,7 +40,7 @@ _UNSAFE_PATH_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
 def _classes_dir() -> Path:
-    return get_settings().project_root / "sunny-vault" / "state" / "classes"
+    return get_settings().project_root / "sunny-vault" / "data" / "state" / "classes"
 
 
 def _slug(class_name: str) -> str:

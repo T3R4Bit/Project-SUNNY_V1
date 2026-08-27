@@ -1,3 +1,11 @@
+---
+id: sunny-task-system
+type: feature
+status: active
+created: 2026-08-18
+tags: [feature, tasks, discord, vault]
+---
+
 # Task Management System
 
 Task management with hardcoded logic (no LLM required). **Discord is the intended primary interface** — connected to a live server as of 2026-08-20 (see [[architecture/discord-bot.md]]). Commands are read from a `#chat` channel; the pinned dashboard lives in its own separate, read-only channel. The web chatbot is fully working today and remains the fallback for whenever the Discord bot is down.
@@ -10,7 +18,7 @@ Tasks have no priority field (removed 2026-08-24 — it was a plain 1-5 int with
 
 | Piece | Status |
 |-------|--------|
-| Vault storage + CRUD | Built (`sunny_code/components/tasks_db.py`) — markdown in `sunny-vault/state/tasks/`, not SQLite, see [[architecture/vault-storage]] |
+| Vault storage + CRUD | Built (`sunny_code/components/tasks_db.py`) — markdown in `sunny-vault/data/state/tasks/`, not SQLite, see [[architecture/vault-storage]] |
 | Command parser (natural phrasing, no LLM) | Built (`sunny_code/components/tasks_parser.py`) |
 | Task engine (command execution, dashboard formatting) | Built (`sunny_code/components/tasks_engine.py`) |
 | REST API | Built (`sunny_code/components/tasks_api.py`) |
@@ -24,7 +32,7 @@ Tasks have no priority field (removed 2026-08-24 — it was a plain 1-5 int with
 ## Overview
 
 - **Categories**: A real, editable list (`sunny_code/components/category_store.py`) — "add category `<name>`"/"remove category `<name>`" from any interface, or `/category add`/`/category remove` in Discord specifically (2026-08-24: natural language added everywhere else, previously Discord-only). General/School/Motorsports ship as defaults; `General` can never be removed (permanent fallback). If a task's category isn't stated or clearly implied by phrasing, Sunny asks which one instead of silently defaulting.
-- **Storage**: Markdown in the Obsidian vault (`sunny-vault/state/tasks/`, one file per task) — see [[architecture/vault-storage]]. Finishing or deleting a task **archives** its file (`sunny-vault/archive/finished/` or `archive/deleted/`) rather than removing it — no task data is ever actually lost, and lifetime stats still count what finished.
+- **Storage**: Markdown in the Obsidian vault (`sunny-vault/data/state/tasks/`, one file per task) — see [[architecture/vault-storage]]. Finishing or deleting a task **archives** its file (`sunny-vault/data/archive/finished/` or `archive/deleted/`) rather than removing it — no task data is ever actually lost, and lifetime stats still count what finished.
 - **Interface today**: Console chat, Discord text, and Discord voice (Sunny's persistent voice presence — see [[architecture/voice-join]]) — all identical behavior through the same `handle_message()`
 - **Logic**: Deterministic, no LLM calls
 
@@ -137,7 +145,7 @@ Examples:
 ```
 
 ### Delete Task
-Takes an ID **or a title**. This archives the task's file (`sunny-vault/archive/deleted/`) rather than erasing it — the data isn't gone, it's just out of the active list:
+Takes an ID **or a title**. This archives the task's file (`sunny-vault/data/archive/deleted/`) rather than erasing it — the data isn't gone, it's just out of the active list:
 ```
 delete <id-or-title>
 remove <id-or-title>
@@ -161,14 +169,14 @@ If a title matches more than one task at the same step, it says so instead of gu
 ```
 You have 2 tasks titled "clean the garage" — rename one so they're not identical, then try again
 ```
-No fuzzy matching or LLM involved — just case-insensitive string comparison against whatever's in the vault (`sunny-vault/state/tasks/`).
+No fuzzy matching or LLM involved — just case-insensitive string comparison against whatever's in the vault (`sunny-vault/data/state/tasks/`).
 
 ### Legacy `!task` / `!tasks` Syntax
 The old Discord-style syntax (`!task add "Title" --tag School`, `!tasks --tag School`, `!task <id> delete`) still works — the parser tries it first — but it's no longer required or shown in the UI. Existing scripts/tests that use it keep working unchanged.
 
 ## Discord Dashboard (Built and Live)
 
-Since 2026-08-23, the dashboard is a real Discord **embed** (`discord_bot.py`'s `build_dashboard_embed()`), not plain text — one field per active category, plus a **Projects** field listing whatever real project folders exist under `sunny-vault/projects/` (see the Project Wizard below). It lives in its own dedicated, read-only channel, separate from the `#chat` channel commands are read from.
+Since 2026-08-23, the dashboard is a real Discord **embed** (`discord_bot.py`'s `build_dashboard_embed()`), not plain text — one field per active category, plus a **Projects** field listing whatever real project folders exist under `sunny-vault/data/projects/` (see the Project Wizard below). It lives in its own dedicated, read-only channel, separate from the `#chat` channel commands are read from.
 
 Refreshes automatically every 5 minutes, plus an on-demand reaction to update instantly. See [[architecture/discord-bot.md]] for setup, and [[../phases.md]] "Discord Activity Log" for the broader (not yet built) multi-channel activity-log idea this is scoped out of.
 
@@ -176,11 +184,11 @@ The console chat stays available as the fallback interface for whenever the Disc
 
 ## Project Wizard
 
-Say "new project" (or a close variant) and Sunny walks through three quick questions (name, description, sections — or "you decide" to let Claude choose), recaps them, and asks a real yes/no before building anything — a firm "no" ends the conversation with zero LLM calls; "yes" hands off to one `ask_claude(purpose="project_scaffold")` call that drafts a real multi-file folder under `sunny-vault/projects/<name>/`, always at least an overview file plus two or more topic files, never a single-file stub. Built in `sunny_code/components/project_engine.py`, wizard state lives in `assistant.py`'s pending-follow-up mechanism (same TTL/cancel pattern as the task-title/task-category prompts). See `sunny-vault/instructions/project-scaffold.md` for the system prompt.
+Say "new project" (or a close variant) and Sunny walks through three quick questions (name, description, sections — or "you decide" to let Claude choose), recaps them, and asks a real yes/no before building anything — a firm "no" ends the conversation with zero LLM calls; "yes" hands off to one `ask_claude(purpose="project_scaffold")` call that drafts a real multi-file folder under `sunny-vault/data/projects/<name>/`, always at least an overview file plus two or more topic files, never a single-file stub. Built in `sunny_code/components/project_engine.py`, wizard state lives in `assistant.py`'s pending-follow-up mechanism (same TTL/cancel pattern as the task-title/task-category prompts). See `sunny-vault/docs/instructions/project-scaffold.md` for the system prompt.
 
 ## Storage Schema
 
-### Vault markdown (`sunny-vault/state/tasks/<slug>.md`)
+### Vault markdown (`sunny-vault/data/state/tasks/<slug>.md`)
 
 One file per task, filename slugified from the title at creation (doesn't rename if the title changes later). Full design, concurrency reasoning, and migration details: [[architecture/vault-storage]].
 
@@ -263,10 +271,10 @@ Category cannot be empty
 ## Integration Points
 
 ### With Briefing Engine
-The briefing engine already queries the vault for its "Tasks" section (see [[briefing-engine]]) — this part is built and working, just running against whatever's actually in `sunny-vault/state/tasks/` rather than mock task data.
+The briefing engine already queries the vault for its "Tasks" section (see [[briefing-engine]]) — this part is built and working, just running against whatever's actually in `sunny-vault/data/state/tasks/` rather than mock task data.
 
 ### With Obsidian Staging (Still Not Built — Different From Vault Storage Above)
-Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging convention (see [[../staging]]) as a transient, Notion-export-bound summary. Nothing writes there yet. **Don't confuse this with `sunny-vault/state/tasks/`** (above) — that's tasks' live, permanent storage (built, in use today); `staging/` would be a separate, temporary copy for pushing to Notion, a different concept that's still just a plan.
+Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging convention (see [[../DESIGN.md#Obsidian Vault Structure|DESIGN.md]]) as a transient, Notion-export-bound summary. Nothing writes there yet. **Don't confuse this with `sunny-vault/data/state/tasks/`** (above) — that's tasks' live, permanent storage (built, in use today); `staging/` would be a separate, temporary copy for pushing to Notion, a different concept that's still just a plan.
 
 ### Cost Impact
 - **Zero LLM tokens** — all hardcoded, confirmed in code (no `anthropic` calls anywhere in the task system)
@@ -283,7 +291,7 @@ Plan: new tasks get logged to `staging/task-<date>.md` per the vault's staging c
 
 ## Implementation Checklist
 
-- [x] Vault markdown storage (`sunny-vault/state/tasks/`) — see [[architecture/vault-storage]]
+- [x] Vault markdown storage (`sunny-vault/data/state/tasks/`) — see [[architecture/vault-storage]]
 - [x] Command parser (regex-based)
 - [x] Task CRUD operations
 - [x] Dashboard formatter (`format_dashboard()`)

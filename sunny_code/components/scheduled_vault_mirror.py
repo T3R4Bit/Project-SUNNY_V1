@@ -66,7 +66,7 @@ def _render(scheduled_db: ScheduledDB) -> str:
 def write_scheduled_mirror(scheduled_db: ScheduledDB, vault_root: Path) -> None:
     """Sync entry point — also called once directly at startup so the mirror
     reflects reality from process start, not just after the first change."""
-    path = vault_root / "state" / "alarms-reminders.md"
+    path = vault_root / "data" / "state" / "alarms-reminders.md"
     vault_io.atomic_write_text(path, _render(scheduled_db))
 
 

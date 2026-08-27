@@ -13,7 +13,7 @@ from sunny_code.components.tasks_engine import TaskEngine
 async def main():
     """Interactive task CLI."""
     settings = get_settings()
-    db = TaskDB(settings.project_root / "sunny-vault" / "state" / "tasks")
+    db = TaskDB(settings.project_root / "sunny-vault" / "data" / "state" / "tasks")
     engine = TaskEngine(db)
 
     print("""

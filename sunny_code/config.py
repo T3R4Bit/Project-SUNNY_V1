@@ -230,7 +230,7 @@ class Settings(BaseSettings):
 
     # LLM freeform-conversation tuning (see briefing.py's custom_briefing()
     # fallback and sunny_code/components/llm_client.py's ask_claude()) —
-    # the system prompt itself lives in sunny-vault/instructions/
+    # the system prompt itself lives in sunny-vault/docs/instructions/
     # general-chat.md (hand-editable, no restart needed, see
     # instructions.py); these three control everything ask_claude() takes
     # besides the prompt text. All optional, all take effect on the very

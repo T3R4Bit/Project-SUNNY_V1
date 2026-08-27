@@ -1,5 +1,5 @@
 """Task storage — one markdown file per task in the Obsidian vault
-(sunny-vault/state/tasks/<slug>.md), not SQLite. See
+(sunny-vault/data/state/tasks/<slug>.md), not SQLite. See
 sunny-vault/docs/architecture/vault-storage.md for the migration rationale.
 
 Sunny is the sole writer — these files are meant to be browsed in Obsidian,

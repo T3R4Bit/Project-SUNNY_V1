@@ -3,7 +3,7 @@ id: sunny-docs-search
 type: component
 status: active
 created: 2026-08-25
-tags: [feature, llm, briefing, docs, component]
+tags: [feature, llm, claude, briefing, docs, component]
 ---
 
 # Docs Search — Grounding "How Does Sunny Work" Questions
@@ -16,7 +16,7 @@ Before this, a question like "how does class setup work" landed in the same gene
 |-------|--------|
 | Keyword search over `sunny-vault/docs/architecture/*.md` | Built — `docs_search.py`'s `search()` |
 | Wired into the general-chat LLM fallback | Built — `briefing.py`'s `custom_briefing()`, unconditional on every fallback question |
-| Instructed in the system prompt | Built — `sunny-vault/instructions/general-chat.md`'s "Sunny's own documentation" section |
+| Instructed in the system prompt | Built — `sunny-vault/docs/instructions/general-chat.md`'s "Sunny's own documentation" section |
 
 ## Why Keyword Scoring, Not a Real Tool-Use Loop
 
@@ -40,7 +40,7 @@ Every deterministic command/trigger in `assistant.py`'s routing chain (tasks, li
 
 - `sunny_code/components/docs_search.py` — `search()`, `format_for_prompt()`
 - `sunny_code/components/briefing.py` — `custom_briefing()`'s LLM fallback, where the result is prepended to the prompt alongside `conversation_memory.format_for_prompt()`
-- `sunny-vault/instructions/general-chat.md` — tells Claude what the injected context is and how to use it
+- `sunny-vault/docs/instructions/general-chat.md` — tells Claude what the injected context is and how to use it
 
 ## Dependencies
 

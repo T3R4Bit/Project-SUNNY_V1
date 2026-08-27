@@ -3,7 +3,7 @@ id: sunny-class-setup
 type: component
 status: active
 created: 2026-08-25
-tags: [class-setup, calendar, exam-prep, llm, component]
+tags: [class-setup, calendar, exam-prep, llm, claude, component]
 ---
 
 # Class Setup — Syllabus → Calendar + Memory + Reminders
@@ -35,17 +35,17 @@ RFC5545 requires `UNTIL` in UTC when the event carries a time component (a class
 
 ## Syllabus Parsing
 
-One `ask_claude(purpose="syllabus_parse", model="sonnet")` call per class — `sunny-vault/instructions/syllabus-parse.md` asks for strict JSON: `class_name` (pulled from the syllabus itself, not supplied by the caller — see Wizard Flow below), `meeting_times` (days/start_time/end_time/location), `due_dates`, `exams` (both title+date), `semester_start`/`semester_end` (also pulled from the syllabus itself — see below), and a free-text `summary` (grading breakdown, instructor contact). Same "ask for bare JSON, defensively strip a stray markdown fence" pattern as `project_engine.py`. Sonnet, not Haiku — this is real content extraction from an arbitrary document, not a quick judgment call, matching `project_engine.py`'s and `exam_prep.py`'s reasoning for the same model choice.
+One `ask_claude(purpose="syllabus_parse", model="sonnet")` call per class — `sunny-vault/docs/instructions/syllabus-parse.md` asks for strict JSON: `class_name` (pulled from the syllabus itself, not supplied by the caller — see Wizard Flow below), `meeting_times` (days/start_time/end_time/location), `due_dates`, `exams` (both title+date), `semester_start`/`semester_end` (also pulled from the syllabus itself — see below), and a free-text `summary` (grading breakdown, instructor contact). Same "ask for bare JSON, defensively strip a stray markdown fence" pattern as `project_engine.py`. Sonnet, not Haiku — this is real content extraction from an arbitrary document, not a quick judgment call, matching `project_engine.py`'s and `exam_prep.py`'s reasoning for the same model choice.
 
 Only a semester label (e.g. "Fall 2026") is given to Claude, not a date range — `semester_start`/`semester_end` are extracted from the syllabus text itself (an explicit statement, or the earliest/latest date in an included week-by-week schedule), the same "pull it from the source, don't ask the user to retype what's already there" treatment `class_name` already got. The label is used only to resolve a bare month/day elsewhere in the text to a real year. If a syllabus genuinely states no date information at all, both come back as empty strings rather than a guess — `class_setup_engine.commit()` skips creating recurring meeting events for that class in that case (due dates/exams are unaffected, since those are self-contained dates already). Never fabricates a date/time/location that isn't actually in the text — empty lists instead of guesses when the syllabus doesn't state something.
 
 ## Storage: Sunny's Own Lookup State, Plus a Copy Sitting With the User's Notes
 
-- **`class_memory.py`** (`sunny-vault/state/classes/<slug>.md`) — one file per class: the syllabus summary plus a rendered key-dates list. Sunny-managed reference state, gitignored, used today only to count classes for `setup_guides.py`'s status line — not a user-facing surface.
+- **`class_memory.py`** (`sunny-vault/data/state/classes/<slug>.md`) — one file per class: the syllabus summary plus a rendered key-dates list. Sunny-managed reference state, gitignored, used today only to count classes for `setup_guides.py`'s status line — not a user-facing surface.
 - **`class_memory.save_to_class_folder()`** (`sunny-vault/KSU/<semester>/<class>/`) — two more files, written into the *same* folder [[exam-prep]] already reads the user's own hand-written topic notes from: `syllabus.md` (the pasted syllabus, verbatim, untouched by the parse) and `class-info.md` (the same summary/schedule/key-dates content `class_memory.save_class()` tracks internally, rendered as plain markdown). This is what makes the syllabus actually visible sitting next to the user's own notes in Obsidian, instead of only existing as a gitignored state file only Sunny ever reads. Both filenames are constants (`class_memory.SYLLABUS_FILENAME`/`CLASS_INFO_FILENAME`) that `exam_prep.py`'s `list_classes()` explicitly excludes from the topic-notes glob — they're reference context, not something to spaced-repetition-track "mastered" on — but `generate_study_review()` still reads `class-info.md` in as extra prompt context when it exists, ahead of the actual topic sections. Overwritten wholesale on a re-run, same "fresh paste is the new source of truth" behavior as `save_class()`; never touches any other file already in that folder.
-- **`class_deadlines.py`** (`sunny-vault/state/class-deadlines/<slug>.md`) — one file per due date/exam, tracking whether its T-2 and T-0 reminder pings have already fired. Deliberately *not* reused from the existing alarms/reminders system (`scheduled_db.py`/`scheduled_engine.py`) — that system fires once per item at one trigger time; a class deadline needs two independent pings per item with its own idempotency tracking, different enough semantics that bolting it onto the personal-alarm system risked complicating both. Both stores follow the same per-item vault-markdown pattern as `tasks_db.py`.
+- **`class_deadlines.py`** (`sunny-vault/data/state/class-deadlines/<slug>.md`) — one file per due date/exam, tracking whether its T-2 and T-0 reminder pings have already fired. Deliberately *not* reused from the existing alarms/reminders system (`scheduled_db.py`/`scheduled_engine.py`) — that system fires once per item at one trigger time; a class deadline needs two independent pings per item with its own idempotency tracking, different enough semantics that bolting it onto the personal-alarm system risked complicating both. Both stores follow the same per-item vault-markdown pattern as `tasks_db.py`.
 
-`sunny-vault/state/classes/` and `sunny-vault/state/class-deadlines/` are gitignored, same reasoning as `state/tasks/`/`state/lists/` — personal content, never pushed. `sunny-vault/KSU/` is gitignored too (real class notes), so `syllabus.md`/`class-info.md` land there but still never get pushed to GitHub.
+`sunny-vault/data/state/classes/` and `sunny-vault/data/state/class-deadlines/` are gitignored, same reasoning as `state/tasks/`/`state/lists/` — personal content, never pushed. `sunny-vault/KSU/` is gitignored too (real class notes), so `syllabus.md`/`class-info.md` land there but still never get pushed to GitHub.
 
 ## Proactive Reminders: `#reminders`, T-2 and T-0
 
@@ -90,7 +90,7 @@ Both `class_setup_syllabus` (a syllabus paste) and `class_setup_confirm` (a corr
 - `sunny_code/components/setup_guides.py` — `"setup classes"` guide + overview entry
 - `sunny_code/components/exam_prep.py` — `_NON_TOPIC_FILENAMES` exclusion, `class-info.md` as review context
 - `sunny_code/components/pdf_text.py` — PDF text extraction (`pypdf`), used by `discord_bot.py`'s `_resolve_message_text()`
-- `sunny-vault/instructions/syllabus-parse.md` — the syllabus-parsing system prompt
+- `sunny-vault/docs/instructions/syllabus-parse.md` — the syllabus-parsing system prompt
 
 ## Dependencies
 
@@ -111,7 +111,7 @@ Both `class_setup_syllabus` (a syllabus paste) and `class_setup_confirm` (a corr
 - [x] Proactive `#reminders` Discord loop, gated on a new `class_reminders` service toggle
 - [x] Multi-step wizard (semester → per-class syllabus/confirm loop), cancel-able at any point
 - [x] Class name auto-extracted from the syllabus text (2026-08-25) — no separate "what's this class called" question; confirm-step reply that isn't yes/no is treated as a name correction
-- [x] `sunny-vault/state/classes/` and `state/class-deadlines/` gitignored
+- [x] `sunny-vault/data/state/classes/` and `state/class-deadlines/` gitignored
 - [x] `/classsetup` Discord slash command — starts the same wizard, public (not ephemeral) response
 - [x] `"setup classes"` / bare `"setup"` overview entry, live status (class count tracked)
 - [x] PDF attachment support (2026-08-25) — a syllabus can be attached as a file, not just pasted; more than one PDF in a message gets an honest rejection instead of a guess

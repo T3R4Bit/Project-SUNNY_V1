@@ -24,7 +24,7 @@ A dedicated hardware companion device (Raspberry Pi, animated face, local wake w
 
 **Weather & Storm Mode** — Real API data normally; "storm mode" switches to a real web-searched LLM update on a set interval/duration instead, for actively-developing weather.
 
-**Project Wizard** — Say "new project," answer three quick questions, get a real multi-file project folder drafted under `sunny-vault/projects/` via one Claude call.
+**Project Wizard** — Say "new project," answer three quick questions, get a real multi-file project folder drafted under `sunny-vault/data/projects/` via one Claude call.
 
 **Class Setup** — Paste a syllabus per class through a short wizard ("set up my classes" or `/classsetup`); Sunny extracts the class name, meeting times, due dates, and exams (semester start/end dates too — only a semester label like "Fall 2026" is asked for, never a date range), creates a real recurring Google Calendar event for meetings plus all-day events for deadlines, saves the syllabus and a generated summary into that class's own vault folder, and proactively pings a Discord channel 2 days before and the day of each deadline.
 

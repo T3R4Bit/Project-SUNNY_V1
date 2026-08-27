@@ -6,7 +6,7 @@ sections) using its existing pending-followup mechanism — the same one
 with everything already known. This module owns exactly one LLM call (one
 round trip, not an open-ended conversation) that drafts a single overview
 file (explanation + proposed architecture) for the project, and writes it
-to sunny-vault/projects/<slug>/.
+to sunny-vault/data/projects/<slug>/.
 
 Structured output via a JSON response (not Claude's tool-use/tool-runner
 machinery) — this is a single one-shot "give me a files plan" call with no
@@ -39,7 +39,7 @@ _JSON_FENCE_RE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 
 
 def _projects_dir() -> Path:
-    return get_settings().project_root / "sunny-vault" / "projects"
+    return get_settings().project_root / "sunny-vault" / "data" / "projects"
 
 
 def _unique_project_slug(name: str) -> str:
@@ -77,7 +77,7 @@ class ProjectEngine:
     async def scaffold(self, name: str, description: str, sections: str = "") -> Tuple[bool, str]:
         """Drafts a single overview file (explanation + proposed
         architecture) via one LLM call and writes it to
-        sunny-vault/projects/<slug>/. Returns (success, message) —
+        sunny-vault/data/projects/<slug>/. Returns (success, message) —
         never raises; a malformed LLM response or a write failure is
         reported back as a plain failure, same contract as TaskEngine's
         execute methods."""

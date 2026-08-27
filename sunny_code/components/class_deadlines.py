@@ -26,7 +26,7 @@ PostFn = Callable[[str], Awaitable[None]]
 
 
 def _deadlines_dir() -> Path:
-    return get_settings().project_root / "sunny-vault" / "state" / "class-deadlines"
+    return get_settings().project_root / "sunny-vault" / "data" / "state" / "class-deadlines"
 
 
 def create_deadline(class_name: str, title: str, deadline_date: str, kind: Literal["due", "exam"]) -> str:

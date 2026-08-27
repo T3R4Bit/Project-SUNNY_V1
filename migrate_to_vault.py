@@ -54,7 +54,7 @@ def main():
 
     old_tasks_db = settings.project_root / "tasks.db"
     old_lists_db = settings.project_root / "lists.db"
-    vault_state_dir = settings.project_root / "sunny-vault" / "state"
+    vault_state_dir = settings.project_root / "sunny-vault" / "data" / "state"
 
     tasks = _read_tasks(old_tasks_db)
     lists, items_by_list = _read_lists_and_items(old_lists_db)

@@ -59,7 +59,7 @@ class SunnyCore:
         # sole writer — see sunny-vault/docs/architecture/vault-storage.md),
         # not SQLite. Alarms/Reminders/Scheduled items are unaffected and stay
         # SQLite — see the read-only vault mirror wiring below instead.
-        vault_state_dir = self.settings.project_root / "sunny-vault" / "state"
+        vault_state_dir = self.settings.project_root / "sunny-vault" / "data" / "state"
         tasks_db = TaskDB(vault_state_dir / "tasks")
         self.tasks_engine = TaskEngine(tasks_db)
         self.briefing_engine = BriefingEngine()
