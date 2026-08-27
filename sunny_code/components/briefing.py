@@ -12,7 +12,7 @@ to sunny-vault/log/requests.md.
 import asyncio
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 from sunny_code.config import get_settings
@@ -41,6 +41,21 @@ _TOPIC_LABELS = {
 
 class BriefingTemplates:
     """Hardcoded briefing templates. Real data where it exists, honest gaps where it doesn't."""
+
+    # Before this hour, a goodnight is still talking about the day you were
+    # awake for, not the calendar day that technically started at midnight --
+    # a goodnight said at 3am on the 27th recaps the 26th and previews the
+    # 27th (the day not yet been through), not the 28th. Only evening_briefing
+    # uses this; morning_briefing always reports the actual calendar date.
+    _DAY_BOUNDARY_HOUR = 5
+
+    @staticmethod
+    def _perceived_today(now: datetime):
+        """Recap date for evening_briefing -- see _DAY_BOUNDARY_HOUR."""
+        today = now.date()
+        if now.hour < BriefingTemplates._DAY_BOUNDARY_HOUR:
+            today -= timedelta(days=1)
+        return today
 
     @staticmethod
     def format_time_list(events: List[Dict], key: str = "time") -> str:
@@ -217,8 +232,15 @@ Have a productive day!
     async def evening_briefing(tasks_db: TaskDB) -> str:
         """Evening briefing: real tasks, honest gaps everywhere else."""
         now = datetime.now()
-        date_str = now.strftime("%A, %B %d, %Y")
-        today_prefix = now.strftime("%Y-%m-%d")
+        perceived_today = BriefingTemplates._perceived_today(now)
+        date_str = perceived_today.strftime("%A, %B %d, %Y")
+        today_prefix = perceived_today.strftime("%Y-%m-%d")
+
+        # Said before the day boundary (still up from the day before) --
+        # the "day not yet been through" is actually today's real date, not
+        # tomorrow's. See _DAY_BOUNDARY_HOUR.
+        is_late_night = now.hour < BriefingTemplates._DAY_BOUNDARY_HOUR
+        tomorrow_day_offset = 0 if is_late_night else 1
 
         unconfigured = []
 
@@ -231,8 +253,8 @@ Have a productive day!
 
         # Concurrent, not sequential -- see morning_briefing's comment.
         calendar_note, weather_note = await asyncio.gather(
-            BriefingTemplates._calendar_text(1, unconfigured),  # tomorrow preview
-            BriefingTemplates._weather_text(True, unconfigured),  # tomorrow's forecast
+            BriefingTemplates._calendar_text(tomorrow_day_offset, unconfigured),  # tomorrow preview
+            BriefingTemplates._weather_text(not is_late_night, unconfigured),  # tomorrow's forecast
         )
         health_note = note("health")
 
