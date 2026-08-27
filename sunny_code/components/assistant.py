@@ -23,7 +23,7 @@ from typing import Dict, Optional
 
 from sunny_code.components import (
     build_info, category_store, class_setup_engine, exam_prep, health_check, service_registry, setup_guides,
-    token_tracker,
+    token_tracker, trace,
 )
 from sunny_code.components.briefing import BriefingEngine, OnChunk, OnSearchStart
 from sunny_code.components.calendar_engine import CalendarEngine
@@ -665,6 +665,229 @@ async def _advance_class_setup_wizard(stripped: str, lowered: str, pending: Dict
     return f"{result_message} " + random.choice(_CLASS_SETUP_SYLLABUS_PROMPTS)
 
 
+async def _handle_message_inner(
+    text: str,
+    tasks_engine: TaskEngine,
+    briefing_engine: BriefingEngine,
+    list_engine: Optional[ListEngine] = None,
+    scheduled_engine: Optional[ScheduledEngine] = None,
+    project_engine: Optional[ProjectEngine] = None,
+    spotify_engine: Optional[SpotifyEngine] = None,
+    calendar_engine: Optional[CalendarEngine] = None,
+    session_id: str = "default",
+    on_chunk: Optional[OnChunk] = None,
+    on_search_start: Optional[OnSearchStart] = None,
+) -> str:
+    """The actual routing chain -- see handle_message() below for the public
+    entry point (adds execution tracing around this). Every return here
+    should be preceded by trace.mark_route(route, path) so the Logs tab can
+    show which branch handled the message; an untagged branch just shows up
+    as "unclassified" rather than breaking anything."""
+    stripped = text.strip()
+    lowered = stripped.lower().strip("?!. ")
+    source = device_from_session(session_id)
+
+    pending = _get_pending(session_id)
+    if pending and pending.get("awaiting") == "task_title":
+        if lowered in _CANCEL_WORDS:
+            _pending.pop(session_id, None)
+            trace.mark_route("wizard:task_title", "cancel")
+            return "No worries — cancelled."
+
+        if not _looks_like_a_command(stripped, lowered):
+            _pending.pop(session_id, None)
+            trace.mark_route("wizard:task_title", "create_task")
+            return await _create_task_from_reply(stripped, tasks_engine, session_id, source)
+
+        _pending.pop(session_id, None)
+        # falls through to normal handling below
+
+    elif pending and pending.get("awaiting") == "task_category":
+        task_data = {k: v for k, v in pending.items() if k not in ("awaiting", "ts")}
+        if lowered in _CANCEL_WORDS:
+            _pending.pop(session_id, None)
+            trace.mark_route("wizard:task_category", "cancel")
+            return "No worries — cancelled."
+
+        if not _looks_like_a_command(stripped, lowered):
+            _pending.pop(session_id, None)
+            trace.mark_route("wizard:task_category", "finish_task")
+            return await _finish_task_with_category(stripped, task_data, tasks_engine, session_id, source)
+
+        _pending.pop(session_id, None)
+        # falls through to normal handling below
+
+    elif pending and pending.get("awaiting") in (
+        "project_name", "project_description", "project_sections", "project_confirm"
+    ):
+        wizard_reply = await _advance_project_wizard(stripped, lowered, pending, project_engine, session_id)
+        if wizard_reply is not None:
+            trace.mark_route("wizard:project", pending.get("awaiting", ""))
+            return wizard_reply
+        # falls through to normal handling below
+
+    elif pending and pending.get("awaiting") in (
+        "class_setup_semester_name", "class_setup_syllabus", "class_setup_confirm",
+    ):
+        wizard_reply = await _advance_class_setup_wizard(stripped, lowered, pending, session_id)
+        if wizard_reply is not None:
+            trace.mark_route("wizard:class_setup", pending.get("awaiting", ""))
+            return wizard_reply
+        # falls through to normal handling below
+
+    if lowered in _HELP_TRIGGERS:
+        trace.mark_route("help")
+        return HELP_TEXT
+
+    if lowered in _VACATION_ON_TRIGGERS:
+        _, message = service_registry.set_vacation_mode(True)
+        trace.mark_route("vacation_mode", "on")
+        return message
+
+    if lowered in _VACATION_OFF_TRIGGERS:
+        _, message = service_registry.set_vacation_mode(False)
+        trace.mark_route("vacation_mode", "off")
+        return message
+
+    if lowered in _PROJECT_TRIGGERS:
+        if project_engine is None:
+            trace.mark_route("wizard:project", "unavailable")
+            return "Project system isn't available right now."
+        _set_pending(session_id, "project_name")
+        trace.mark_route("wizard:project", "start")
+        return random.choice(_PROJECT_NAME_PROMPTS)
+
+    if lowered in _CLASS_SETUP_TRIGGERS:
+        _set_pending(session_id, "class_setup_semester_name")
+        trace.mark_route("wizard:class_setup", "start")
+        return random.choice(_CLASS_SETUP_SEMESTER_PROMPTS)
+
+    setup_query = _extract_setup_query(lowered)
+    if setup_query is not None:
+        trace.mark_route("setup_guides", str(setup_query))
+        return setup_guides.respond(setup_query)
+
+    if list_engine is not None:
+        handled, _, message = list_engine.try_execute(stripped, source=source)
+        if handled:
+            trace.mark_route("list_engine")
+            return message
+
+    if scheduled_engine is not None:
+        handled, _, message = await scheduled_engine.try_execute(stripped, source=source)
+        if handled:
+            trace.mark_route("scheduled_engine")
+            return message
+
+    if calendar_engine is not None:
+        handled, _, message = await calendar_engine.try_execute(stripped, source=source)
+        if handled:
+            trace.mark_route("calendar_engine")
+            return message
+
+    if spotify_engine is not None:
+        handled, _, message = await spotify_engine.try_execute(stripped, source=source)
+        if handled:
+            trace.mark_route("spotify_engine")
+            return message
+
+    if lowered in _CATEGORY_LIST_TRIGGERS:
+        trace.mark_route("category_store", "list")
+        return "Categories: " + ", ".join(category_store.get_categories())
+
+    category_to_add = _extract_category_add(stripped, lowered)
+    if category_to_add is not None:
+        _, message = category_store.add_category(category_to_add)
+        trace.mark_route("category_store", "add")
+        return message
+
+    category_to_remove = _extract_category_remove(stripped, lowered)
+    if category_to_remove is not None:
+        _, message = category_store.remove_category(category_to_remove)
+        trace.mark_route("category_store", "remove")
+        return message
+
+    cmd_type, success, task_data = TaskCommandParser.parse_command(stripped, category_store.get_categories())
+
+    if cmd_type == "add" and not success:
+        # The only real failure mode for a natural "add" is a missing title
+        # (e.g. bare "make a task") — ask for it instead of just erroring out.
+        _set_pending(session_id, "task_title")
+        trace.mark_route("wizard:task_title", "start")
+        return 'Sure — what should I call it? (or say "cancel")'
+
+    if cmd_type == "add" and success and "tag" not in task_data:
+        # Title (and any --flags) resolved, but no category was stated or
+        # recognized inline — ask instead of silently defaulting to General.
+        _set_pending(session_id, "task_category", **task_data)
+        categories = category_store.get_categories()
+        trace.mark_route("wizard:task_category", "start")
+        return f'Got it — which category: {", ".join(categories)}? (or say "cancel")'
+
+    if cmd_type != "unknown":
+        _, message = await tasks_engine.execute_command(
+            stripped, source=source, known_categories=category_store.get_categories()
+        )
+        trace.mark_route("tasks_engine", cmd_type)
+        return message
+
+    if lowered in _MORNING_TRIGGERS:
+        trace.mark_route("briefing", "morning")
+        return await briefing_engine.generate_morning_briefing()
+
+    if lowered in _EVENING_TRIGGERS:
+        trace.mark_route("briefing", "evening")
+        return await briefing_engine.generate_evening_briefing()
+
+    # Substring, not an exact-phrase tuple -- "can you run a system health
+    # check" (a real phrasing that failed live, 2026-08-23) doesn't match
+    # a fixed tuple entry, and unlike "health" alone, "health check"/
+    # "system health" isn't generic enough to collide with the unrelated
+    # personal-wellness "health"/"sleep"/"mood" keyword check further down
+    # this routing chain (see briefing.py's custom_briefing) -- catching
+    # it here, before that fallback is ever reached, is what fixes it.
+    # The exact bare phrase means "show me the last one"; anything else
+    # that mentions it ("run a health check", "check system health",
+    # "can you run a system health check") reads as wanting a fresh one --
+    # simpler and more robust than trying to enumerate every verb someone
+    # might use ("check" itself is ambiguous, since it's also half of the
+    # bare phrase this branch has to leave alone).
+    if lowered in _MY_CLASSES_TRIGGERS:
+        trace.mark_route("classes", "describe")
+        return _describe_classes()
+
+    exam_date_query = _extract_exam_date_query(lowered)
+    if exam_date_query is not None:
+        trace.mark_route("exam_prep", "exam_date")
+        return await _describe_exam_date(exam_date_query)
+
+    study_review_query = _extract_study_review_query(lowered)
+    if study_review_query is not None:
+        trace.mark_route("exam_prep", "study_review")
+        return await _run_study_review(study_review_query)
+
+    if lowered in _USAGE_QUERY_TRIGGERS:
+        trace.mark_route("usage", "describe")
+        return _describe_usage()
+
+    if lowered in _VERSION_QUERY_TRIGGERS:
+        trace.mark_route("version", "describe")
+        return _describe_version()
+
+    if lowered in ("health check", "health report"):
+        report = health_check.latest_report()
+        trace.mark_route("health_check", "report")
+        return report if report else "No health check report yet — the first one runs Sunday at 4am."
+    if "health check" in lowered or "system health" in lowered:
+        trace.mark_route("health_check", "run_now")
+        return await _run_health_check_now(session_id)
+
+    trace.mark_route("briefing", "qa")
+    return await briefing_engine.answer_question(
+        stripped, session_id=session_id, on_chunk=on_chunk, on_search_start=on_search_start
+    )
+
+
 async def handle_message(
     text: str,
     tasks_engine: TaskEngine,
@@ -686,177 +909,38 @@ async def handle_message(
     meaningful alongside on_chunk. Every caller that doesn't pass them
     (every text interface) sees zero
     behavior change; only reaches anything when routing falls all the
-    way through to the LLM Q&A fallback."""
-    stripped = text.strip()
-    lowered = stripped.lower().strip("?!. ")
+    way through to the LLM Q&A fallback.
+
+    This is the single shared entry point for the web chatbot, Discord bot,
+    and Pi companion, so it's also where every message gets recorded for the
+    web console's Logs tab (see trace.py) -- one wrapper here covers all
+    three interfaces instead of instrumenting each caller separately."""
     source = device_from_session(session_id)
-
-    pending = _get_pending(session_id)
-    if pending and pending.get("awaiting") == "task_title":
-        if lowered in _CANCEL_WORDS:
-            _pending.pop(session_id, None)
-            return "No worries — cancelled."
-
-        if not _looks_like_a_command(stripped, lowered):
-            _pending.pop(session_id, None)
-            return await _create_task_from_reply(stripped, tasks_engine, session_id, source)
-
-        _pending.pop(session_id, None)
-        # falls through to normal handling below
-
-    elif pending and pending.get("awaiting") == "task_category":
-        task_data = {k: v for k, v in pending.items() if k not in ("awaiting", "ts")}
-        if lowered in _CANCEL_WORDS:
-            _pending.pop(session_id, None)
-            return "No worries — cancelled."
-
-        if not _looks_like_a_command(stripped, lowered):
-            _pending.pop(session_id, None)
-            return await _finish_task_with_category(stripped, task_data, tasks_engine, session_id, source)
-
-        _pending.pop(session_id, None)
-        # falls through to normal handling below
-
-    elif pending and pending.get("awaiting") in (
-        "project_name", "project_description", "project_sections", "project_confirm"
-    ):
-        wizard_reply = await _advance_project_wizard(stripped, lowered, pending, project_engine, session_id)
-        if wizard_reply is not None:
-            return wizard_reply
-        # falls through to normal handling below
-
-    elif pending and pending.get("awaiting") in (
-        "class_setup_semester_name", "class_setup_syllabus", "class_setup_confirm",
-    ):
-        wizard_reply = await _advance_class_setup_wizard(stripped, lowered, pending, session_id)
-        if wizard_reply is not None:
-            return wizard_reply
-        # falls through to normal handling below
-
-    if lowered in _HELP_TRIGGERS:
-        return HELP_TEXT
-
-    if lowered in _VACATION_ON_TRIGGERS:
-        _, message = service_registry.set_vacation_mode(True)
-        return message
-
-    if lowered in _VACATION_OFF_TRIGGERS:
-        _, message = service_registry.set_vacation_mode(False)
-        return message
-
-    if lowered in _PROJECT_TRIGGERS:
-        if project_engine is None:
-            return "Project system isn't available right now."
-        _set_pending(session_id, "project_name")
-        return random.choice(_PROJECT_NAME_PROMPTS)
-
-    if lowered in _CLASS_SETUP_TRIGGERS:
-        _set_pending(session_id, "class_setup_semester_name")
-        return random.choice(_CLASS_SETUP_SEMESTER_PROMPTS)
-
-    setup_query = _extract_setup_query(lowered)
-    if setup_query is not None:
-        return setup_guides.respond(setup_query)
-
-    if list_engine is not None:
-        handled, _, message = list_engine.try_execute(stripped, source=source)
-        if handled:
-            return message
-
-    if scheduled_engine is not None:
-        handled, _, message = await scheduled_engine.try_execute(stripped, source=source)
-        if handled:
-            return message
-
-    if calendar_engine is not None:
-        handled, _, message = await calendar_engine.try_execute(stripped, source=source)
-        if handled:
-            return message
-
-    if spotify_engine is not None:
-        handled, _, message = await spotify_engine.try_execute(stripped, source=source)
-        if handled:
-            return message
-
-    if lowered in _CATEGORY_LIST_TRIGGERS:
-        return "Categories: " + ", ".join(category_store.get_categories())
-
-    category_to_add = _extract_category_add(stripped, lowered)
-    if category_to_add is not None:
-        _, message = category_store.add_category(category_to_add)
-        return message
-
-    category_to_remove = _extract_category_remove(stripped, lowered)
-    if category_to_remove is not None:
-        _, message = category_store.remove_category(category_to_remove)
-        return message
-
-    cmd_type, success, task_data = TaskCommandParser.parse_command(stripped, category_store.get_categories())
-
-    if cmd_type == "add" and not success:
-        # The only real failure mode for a natural "add" is a missing title
-        # (e.g. bare "make a task") — ask for it instead of just erroring out.
-        _set_pending(session_id, "task_title")
-        return 'Sure — what should I call it? (or say "cancel")'
-
-    if cmd_type == "add" and success and "tag" not in task_data:
-        # Title (and any --flags) resolved, but no category was stated or
-        # recognized inline — ask instead of silently defaulting to General.
-        _set_pending(session_id, "task_category", **task_data)
-        categories = category_store.get_categories()
-        return f'Got it — which category: {", ".join(categories)}? (or say "cancel")'
-
-    if cmd_type != "unknown":
-        _, message = await tasks_engine.execute_command(
-            stripped, source=source, known_categories=category_store.get_categories()
+    start = time.monotonic()
+    error_text: Optional[str] = None
+    result: Optional[str] = None
+    try:
+        result = await _handle_message_inner(
+            text, tasks_engine, briefing_engine, list_engine, scheduled_engine,
+            project_engine, spotify_engine, calendar_engine, session_id=session_id,
+            on_chunk=on_chunk, on_search_start=on_search_start,
         )
-        return message
-
-    if lowered in _MORNING_TRIGGERS:
-        return await briefing_engine.generate_morning_briefing()
-
-    if lowered in _EVENING_TRIGGERS:
-        return await briefing_engine.generate_evening_briefing()
-
-    # Substring, not an exact-phrase tuple -- "can you run a system health
-    # check" (a real phrasing that failed live, 2026-08-23) doesn't match
-    # a fixed tuple entry, and unlike "health" alone, "health check"/
-    # "system health" isn't generic enough to collide with the unrelated
-    # personal-wellness "health"/"sleep"/"mood" keyword check further down
-    # this routing chain (see briefing.py's custom_briefing) -- catching
-    # it here, before that fallback is ever reached, is what fixes it.
-    # The exact bare phrase means "show me the last one"; anything else
-    # that mentions it ("run a health check", "check system health",
-    # "can you run a system health check") reads as wanting a fresh one --
-    # simpler and more robust than trying to enumerate every verb someone
-    # might use ("check" itself is ambiguous, since it's also half of the
-    # bare phrase this branch has to leave alone).
-    if lowered in _MY_CLASSES_TRIGGERS:
-        return _describe_classes()
-
-    exam_date_query = _extract_exam_date_query(lowered)
-    if exam_date_query is not None:
-        return await _describe_exam_date(exam_date_query)
-
-    study_review_query = _extract_study_review_query(lowered)
-    if study_review_query is not None:
-        return await _run_study_review(study_review_query)
-
-    if lowered in _USAGE_QUERY_TRIGGERS:
-        return _describe_usage()
-
-    if lowered in _VERSION_QUERY_TRIGGERS:
-        return _describe_version()
-
-    if lowered in ("health check", "health report"):
-        report = health_check.latest_report()
-        return report if report else "No health check report yet — the first one runs Sunday at 4am."
-    if "health check" in lowered or "system health" in lowered:
-        return await _run_health_check_now(session_id)
-
-    return await briefing_engine.answer_question(
-        stripped, session_id=session_id, on_chunk=on_chunk, on_search_start=on_search_start
-    )
+        return result
+    except Exception as e:
+        error_text = f"{type(e).__name__}: {e}"
+        raise
+    finally:
+        route, path = trace.current_route()
+        trace.record_trace(
+            source=source,
+            session_id=session_id,
+            input_text=text,
+            route=route,
+            path=path,
+            result=result,
+            error=error_text,
+            duration_ms=(time.monotonic() - start) * 1000,
+        )
 
 
 def is_briefing_trigger(text: str) -> bool:

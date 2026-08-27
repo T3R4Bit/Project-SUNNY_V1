@@ -24,9 +24,8 @@ from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_db import ScheduledDB
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.scheduled_vault_mirror import create_scheduled_vault_mirror, write_scheduled_mirror
-from sunny_code.components.chatbot_ui import create_chatbot_router
 from sunny_code.components.pi_companion import create_pi_companion_router
-from sunny_code.components.console_stats import create_console_router
+from sunny_code.components.console import create_console_router
 from sunny_code.components.discord_bot import create_discord_bot
 from sunny_code.components.google_routes import create_google_auth_router
 from sunny_code.components.spotify_engine import SpotifyEngine
@@ -245,13 +244,6 @@ class SunnyCore:
         tasks_router = create_tasks_router(self.tasks_engine)
         app.include_router(tasks_router, prefix="/api")
 
-        # Chatbot UI
-        chatbot_router = create_chatbot_router(
-            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine, self.project_engine,
-            self.spotify_engine, self.calendar_engine,
-        )
-        app.include_router(chatbot_router)
-
         # Sunny Companion hardware device -- /ws/pi (bypasses Discord entirely,
         # see sunny-companion/BUILD_PLAN.md Phase 6)
         async def _post_to_warnings_if_configured(text: str) -> None:
@@ -275,8 +267,11 @@ class SunnyCore:
         )
         app.include_router(pi_companion_router)
 
-        # Console stats dashboard
-        console_router = create_console_router()
+        # Web console — chat, stats, logs, OAuth links (see console.py)
+        console_router = create_console_router(
+            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine, self.project_engine,
+            self.spotify_engine, self.calendar_engine,
+        )
         app.include_router(console_router)
 
         # Google Sign-In (OAuth) — /auth/google/login, /callback, /status, /disconnect
