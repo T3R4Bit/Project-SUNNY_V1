@@ -76,7 +76,15 @@ MIC_GAIN = 8
 
 def listen(on_wake) -> None:
     """Blocks forever, calling on_wake() (no args) on each wake word trigger."""
-    model = Model(wakeword_models=[WAKE_WORD_MODEL], inference_framework="onnx")
+    # ncpu=2: openWakeWord's own default (ncpu=1, single-threaded ONNX
+    # sessions) measured at ~70ms/block on real Pi 3B hardware (2026-08-28)
+    # -- 87.5% of the 80ms budget, leaving almost nothing for the audio
+    # thread and causing continuous "input overflow". ncpu=2 measured at
+    # ~44ms/block: parallelizing across 2 of the Pi's 4 cores is faster
+    # than 1, while still leaving 2 cores free (unlike ncpu=4/"auto", which
+    # measured *slower* at ~58ms -- likely thread-contention overhead on
+    # this many-core-but-slow-per-core ARM chip).
+    model = Model(wakeword_models=[WAKE_WORD_MODEL], inference_framework="onnx", ncpu=2)
     audio_queue: queue.Queue[np.ndarray] = queue.Queue()
 
     # Validated on real Pi 3B hardware (2026-08-28): openWakeWord's embedding
