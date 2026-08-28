@@ -26,11 +26,32 @@ detection needs a live run -- that's on whoever runs this script.
 from __future__ import annotations
 
 import queue
+import re
 import sys
 
 import numpy as np
 import sounddevice as sd
 from openwakeword.model import Model
+
+# Match the mic by name substring, not a hardcoded PortAudio/ALSA index --
+# USB enumeration order can shift across reboots (other USB devices, hub
+# order), which is exactly the risk BUILD_PLAN.md's Phase 3 flags. Also,
+# critically, resolve to "plughw:<card>,<dev>" rather than PortAudio's own
+# default device: that default resolves to the raw "hw:X,Y" ALSA node,
+# which has no sample-rate conversion and rejects 16kHz outright (confirmed
+# on real hardware -- PaErrorCode -9997 "Invalid sample rate"). "plughw"
+# adds ALSA's conversion layer, same as the `arecord -D plughw:2,0` command
+# that was used to validate the mic manually.
+MIC_NAME_HINT = "USB PnP Sound Device"
+
+
+def _resolve_mic_device() -> str:
+    for dev in sd.query_devices():
+        if MIC_NAME_HINT in dev["name"] and dev["max_input_channels"] > 0:
+            m = re.search(r"\(hw:(\d+),(\d+)\)", dev["name"])
+            if m:
+                return f"plughw:{m.group(1)},{m.group(2)}"
+    raise RuntimeError(f"No input device matching {MIC_NAME_HINT!r} found")
 
 WAKE_WORD_MODEL = "hey_jarvis"  # placeholder -- see module docstring
 SAMPLE_RATE = 16000
@@ -58,6 +79,7 @@ def listen(on_wake) -> None:
         audio_queue.put(boosted.astype(np.int16))
 
     with sd.InputStream(
+        device=_resolve_mic_device(),
         samplerate=SAMPLE_RATE,
         channels=1,
         dtype="int16",
