@@ -79,12 +79,22 @@ def listen(on_wake) -> None:
     model = Model(wakeword_models=[WAKE_WORD_MODEL], inference_framework="onnx")
     audio_queue: queue.Queue[np.ndarray] = queue.Queue()
 
+    # Validated on real Pi 3B hardware (2026-08-28): openWakeWord's embedding
+    # model alone takes ~58ms of the 80ms/block real-time budget (measured via
+    # direct AudioFeatures.embedding_model_predict() timing) -- a genuine CPU
+    # cost of the ONNX inference itself, not something fixable in this code.
+    # Keeping any extra work (decimation, gain) in this callback compounded
+    # that, causing continuous PortAudio "input overflow" (the callback
+    # wasn't being serviced fast enough while the main thread was pinned in
+    # inference). Fix: make the callback do the bare minimum -- just copy the
+    # raw block into the queue -- and move decimation/gain to the consumer
+    # loop below, which also always processes only the newest buffered chunk
+    # rather than working through a backlog, so a slow inference cycle
+    # doesn't cause ever-growing latency.
     def audio_callback(indata, frames, time_info, status):
         if status:
             print(f"audio input status: {status}", file=sys.stderr)
-        downsampled = decimate(indata[:, 0], DECIMATION_FACTOR, ftype="fir")
-        boosted = np.clip(downsampled.astype(np.int32) * MIC_GAIN, -32768, 32767)
-        audio_queue.put(boosted.astype(np.int16))
+        audio_queue.put(indata[:, 0].copy())
 
     with sd.InputStream(
         device=_resolve_mic_device(),
@@ -97,8 +107,13 @@ def listen(on_wake) -> None:
         print(f"Listening for '{WAKE_WORD_MODEL}'... (Ctrl+C to stop)")
         triggered = False
         while True:
-            frame = audio_queue.get()
-            scores = model.predict(frame)
+            raw = audio_queue.get()
+            while not audio_queue.empty():
+                raw = audio_queue.get_nowait()  # drop backlog, keep only the newest
+
+            downsampled = decimate(raw, DECIMATION_FACTOR, ftype="fir")
+            boosted = np.clip(downsampled.astype(np.int32) * MIC_GAIN, -32768, 32767)
+            scores = model.predict(boosted.astype(np.int16))
             score = scores[WAKE_WORD_MODEL]
 
             if score > DETECTION_THRESHOLD and not triggered:
