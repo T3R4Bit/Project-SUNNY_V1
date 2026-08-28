@@ -26,24 +26,41 @@ detection needs a live run -- that's on whoever runs this script.
 from __future__ import annotations
 
 import queue
+import re
+import subprocess
 import sys
+import threading
 
 import numpy as np
-import sounddevice as sd
 from openwakeword.model import Model
 from scipy.signal import decimate
 
-# Match the mic by name substring, not a hardcoded PortAudio/ALSA index --
-# USB enumeration order can shift across reboots (other USB devices, hub
-# order), which is exactly the risk BUILD_PLAN.md's Phase 3 flags.
+# Match the mic by name substring, not a hardcoded ALSA card index -- USB
+# enumeration order can shift across reboots (other USB devices, hub order),
+# which is exactly the risk BUILD_PLAN.md's Phase 3 flags.
 MIC_NAME_HINT = "USB PnP Sound Device"
 
 
-def _resolve_mic_device() -> int:
-    for i, dev in enumerate(sd.query_devices()):
-        if MIC_NAME_HINT in dev["name"] and dev["max_input_channels"] > 0:
-            return i
-    raise RuntimeError(f"No input device matching {MIC_NAME_HINT!r} found")
+def _resolve_alsa_device() -> str:
+    """Returns an ALSA device string like 'hw:2,0' for the mic, by name.
+
+    Validated on real Pi 3B hardware (2026-08-28): capture goes through
+    `arecord` directly (see _capture_thread below), not sounddevice/
+    PortAudio -- PortAudio's ALSA backend was dropping frames continuously
+    ("input overflow" on nearly every callback) even with a callback doing
+    zero work, while plain `arecord` at the same rate ran gapless for 8s+.
+    This looks like a PortAudio<->ALSA period/buffer negotiation bug
+    specific to this device, not a real-time CPU or USB bandwidth problem
+    (ruled out separately). `arecord -l`'s raw hw device is what was proven
+    reliable, so that's what gets used here instead of chasing PortAudio's
+    stream parameters further.
+    """
+    output = subprocess.run(["arecord", "-l"], capture_output=True, text=True, check=True).stdout
+    for line in output.splitlines():
+        m = re.match(r"card (\d+): .*\[(.*?)\].*device (\d+):", line)
+        if m and MIC_NAME_HINT in m.group(2):
+            return f"hw:{m.group(1)},{m.group(3)}"
+    raise RuntimeError(f"No ALSA capture device matching {MIC_NAME_HINT!r} found in `arecord -l`")
 
 
 WAKE_WORD_MODEL = "hey_jarvis"  # placeholder -- see module docstring
@@ -74,46 +91,52 @@ NATIVE_FRAME_SAMPLES = FRAME_SAMPLES * DECIMATION_FACTOR
 MIC_GAIN = 8
 
 
+def _capture_thread(
+    device: str,
+    audio_queue: "queue.Queue[np.ndarray]",
+    stop_event: threading.Event,
+) -> None:
+    """Reads raw PCM from `arecord` and pushes native-rate int16 chunks onto the queue."""
+    chunk_bytes = NATIVE_FRAME_SAMPLES * 2  # int16 = 2 bytes/sample
+    proc = subprocess.Popen(
+        [
+            "arecord", "-D", device, "-f", "S16_LE", "-r", str(NATIVE_SAMPLE_RATE),
+            "-c", "1", "-t", "raw", "-q", "-",
+        ],
+        stdout=subprocess.PIPE,
+    )
+    try:
+        while not stop_event.is_set():
+            raw = proc.stdout.read(chunk_bytes)
+            if len(raw) < chunk_bytes:
+                print("arecord capture ended unexpectedly", file=sys.stderr)
+                break
+            audio_queue.put(np.frombuffer(raw, dtype=np.int16).copy())
+    finally:
+        proc.terminate()
+        proc.wait(timeout=2)
+
+
 def listen(on_wake) -> None:
     """Blocks forever, calling on_wake() (no args) on each wake word trigger."""
     # ncpu=2: openWakeWord's own default (ncpu=1, single-threaded ONNX
     # sessions) measured at ~70ms/block on real Pi 3B hardware (2026-08-28)
-    # -- 87.5% of the 80ms budget, leaving almost nothing for the audio
-    # thread and causing continuous "input overflow". ncpu=2 measured at
-    # ~44ms/block: parallelizing across 2 of the Pi's 4 cores is faster
-    # than 1, while still leaving 2 cores free (unlike ncpu=4/"auto", which
-    # measured *slower* at ~58ms -- likely thread-contention overhead on
-    # this many-core-but-slow-per-core ARM chip).
+    # -- 87.5% of the 80ms budget. ncpu=2 measured at ~44ms/block: parallelizing
+    # across 2 of the Pi's 4 cores is faster than 1, while still leaving 2 cores
+    # free (unlike ncpu=4/"auto", which measured *slower* at ~58ms -- likely
+    # thread-contention overhead on this many-core-but-slow-per-core ARM chip).
     model = Model(wakeword_models=[WAKE_WORD_MODEL], inference_framework="onnx", ncpu=2)
     audio_queue: queue.Queue[np.ndarray] = queue.Queue()
+    stop_event = threading.Event()
 
-    # Validated on real Pi 3B hardware (2026-08-28): openWakeWord's embedding
-    # model alone takes ~58ms of the 80ms/block real-time budget (measured via
-    # direct AudioFeatures.embedding_model_predict() timing) -- a genuine CPU
-    # cost of the ONNX inference itself, not something fixable in this code.
-    # Keeping any extra work (decimation, gain) in this callback compounded
-    # that, causing continuous PortAudio "input overflow" (the callback
-    # wasn't being serviced fast enough while the main thread was pinned in
-    # inference). Fix: make the callback do the bare minimum -- just copy the
-    # raw block into the queue -- and move decimation/gain to the consumer
-    # loop below, which also always processes only the newest buffered chunk
-    # rather than working through a backlog, so a slow inference cycle
-    # doesn't cause ever-growing latency.
-    def audio_callback(indata, frames, time_info, status):
-        if status:
-            print(f"audio input status: {status}", file=sys.stderr)
-        audio_queue.put(indata[:, 0].copy())
+    device = _resolve_alsa_device()
+    threading.Thread(
+        target=_capture_thread, args=(device, audio_queue, stop_event), daemon=True
+    ).start()
 
-    with sd.InputStream(
-        device=_resolve_mic_device(),
-        samplerate=NATIVE_SAMPLE_RATE,
-        channels=1,
-        dtype="int16",
-        blocksize=NATIVE_FRAME_SAMPLES,
-        callback=audio_callback,
-    ):
-        print(f"Listening for '{WAKE_WORD_MODEL}'... (Ctrl+C to stop)")
-        triggered = False
+    print(f"Listening for '{WAKE_WORD_MODEL}' via {device}... (Ctrl+C to stop)")
+    triggered = False
+    try:
         while True:
             raw = audio_queue.get()
             while not audio_queue.empty():
@@ -129,6 +152,8 @@ def listen(on_wake) -> None:
                 on_wake()
             elif score <= DETECTION_THRESHOLD:
                 triggered = False
+    finally:
+        stop_event.set()
 
 
 if __name__ == "__main__":
