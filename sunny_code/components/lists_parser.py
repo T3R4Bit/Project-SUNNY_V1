@@ -47,7 +47,20 @@ class ListCommandParser:
 
     @staticmethod
     def _split_items(text: str) -> List[str]:
-        """Split 'milk, eggs, and bread' -> ['milk', 'eggs', 'bread']."""
+        """Split 'milk, eggs, and bread' -> ['milk', 'eggs', 'bread'], and
+        'milk, eggs and bread' (no Oxford comma) the same way -- but leave a
+        bare "X and Y" with *no* comma anywhere alone as a single item.
+
+        The presence of any comma is what signals "this is actually a list"
+        -- once that's established, "and" before the last item splits fine
+        even without its own comma (the common no-Oxford-comma phrasing).
+        Without a signaling comma, splitting on bare "and" used to turn a
+        single item whose name legitimately contains the word ("mac and
+        cheese", "salt and pepper") into two wrong items; the trade-off is
+        that a genuinely comma-less two-item list ("add milk and eggs to my
+        list") now needs an explicit comma to be recognized as two items."""
+        if ',' not in text:
+            return [text.strip().strip('"\'')] if text.strip() else []
         text = re.sub(r'\s*,?\s+and\s+', ', ', text, flags=re.IGNORECASE)
         parts = [p.strip().strip('"\'') for p in text.split(',')]
         return [p for p in parts if p]

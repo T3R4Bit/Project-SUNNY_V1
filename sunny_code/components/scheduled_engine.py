@@ -13,6 +13,7 @@ from sunny_code.components.scheduled_db import ScheduledDB
 from sunny_code.components.scheduled_parser import ScheduledCommandParser
 from sunny_code.components.time_parse import parse_time_expression
 from sunny_code.components.request_log import log_unfulfilled
+from sunny_code.components import trace
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,19 @@ class ScheduledEngine:
 
         return True, success, message
 
+    @staticmethod
+    def _recur_note(data: Dict) -> str:
+        """Repeat-schedule suffix for the create_alarm/create_reminder reply.
+        If an "every ..." clause was present but not understood, say so
+        instead of silently creating a one-time item with no explanation --
+        see ScheduledCommandParser._extract_every."""
+        if data.get("recurrence"):
+            return f" (repeats {data['recurrence']})"
+        if data.get("recurrence_unparsed"):
+            trace.note_guard(f'recurrence phrase "every {data["recurrence_unparsed"]}" not understood — created as one-time')
+            return f' — didn\'t understand "every {data["recurrence_unparsed"]}" as a repeat schedule, created as one-time'
+        return ""
+
     def _create_alarm(self, data: Dict, source: Optional[str]) -> Tuple[bool, str]:
         trigger_at = parse_time_expression(data["time_expr"])
         if trigger_at is None:
@@ -81,8 +95,7 @@ class ScheduledEngine:
 
         self.db.create_item("alarm", data["label"], trigger_at, recurrence=data.get("recurrence"), source=source)
         when = trigger_at.strftime("%A, %B %d at %I:%M %p").replace(" 0", " ")
-        recur_note = f" (repeats {data['recurrence']})" if data.get("recurrence") else ""
-        return True, f'Alarm "{data["label"]}" set for {when}{recur_note}'
+        return True, f'Alarm "{data["label"]}" set for {when}{self._recur_note(data)}'
 
     def _create_reminder(self, data: Dict, source: Optional[str]) -> Tuple[bool, str]:
         trigger_at = parse_time_expression(data["time_expr"])
@@ -91,8 +104,7 @@ class ScheduledEngine:
 
         self.db.create_item("reminder", data["task"], trigger_at, recurrence=data.get("recurrence"), source=source)
         when = trigger_at.strftime("%A, %B %d at %I:%M %p").replace(" 0", " ")
-        recur_note = f" (repeats {data['recurrence']})" if data.get("recurrence") else ""
-        return True, f'I\'ll remind you to {data["task"]} on {when}{recur_note}'
+        return True, f'I\'ll remind you to {data["task"]} on {when}{self._recur_note(data)}'
 
     def _query_alarms(self) -> str:
         alarms = self.db.get_active_items(kind="alarm")

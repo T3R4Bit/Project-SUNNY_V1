@@ -26,8 +26,8 @@ _ALARM_QUERY_TRIGGERS = [
     re.compile(r"^when\s+is\s+my\s+next\s+alarm\??$", re.IGNORECASE),
     re.compile(r"^(?:show|list)\s+(?:my\s+)?alarms\??$", re.IGNORECASE),
 ]
-_ALARM_CANCEL_ALL_RE = re.compile(r"^cancel\s+all\s+alarms$", re.IGNORECASE)
-_ALARM_CANCEL_ONE_RE = re.compile(r"^cancel\s+(?:my\s+)?(.+?)\s+alarm$", re.IGNORECASE)
+_ALARM_CANCEL_ALL_RE = re.compile(r"^cancel\s+all\s+(?:my\s+)?alarms$", re.IGNORECASE)
+_ALARM_CANCEL_ONE_RE = re.compile(r"^cancel\s+(?:my\s+)?(.+?)\s+alarms?$", re.IGNORECASE)
 
 _REMINDER_CREATE_RE = re.compile(
     r"^(?:set\s+(?:a\s+recurring\s+)?reminder\s+to|remind\s+me\s+to)\s+(.+)$",
@@ -38,7 +38,11 @@ _REMINDER_QUERY_TRIGGERS = [
     re.compile(r"^(?:show|list)\s+(?:my\s+)?reminders\??$", re.IGNORECASE),
 ]
 _REMINDER_CLEAR_ALL_RE = re.compile(r"^clear\s+all\s+reminders$", re.IGNORECASE)
-_REMINDER_DELETE_ONE_RE = re.compile(r"^delete\s+(?:my\s+)?reminder\s+to\s+(.+)$", re.IGNORECASE)
+# "delete" only used to be accepted -- "remove my reminder to call mom" (a
+# real, natural phrasing) missed this entirely and fell through to
+# tasks_parser's own delete/remove pattern, which tried to delete a task
+# literally titled "my reminder to call mom" instead.
+_REMINDER_DELETE_ONE_RE = re.compile(r"^(?:delete|remove|cancel)\s+(?:my\s+)?reminder\s+to\s+(.+)$", re.IGNORECASE)
 
 
 class ScheduledCommandParser:
@@ -54,12 +58,21 @@ class ScheduledCommandParser:
         return text[: match.start()].strip(), match.group(1).strip()
 
     @staticmethod
-    def _extract_every(text: str) -> Tuple[str, Optional[str]]:
+    def _extract_every(text: str) -> Tuple[str, Optional[str], Optional[str]]:
+        """Returns (remaining_text, recurrence, unparsed_phrase). unparsed_phrase
+        is only set when an "every ..." clause was present but parse_recurrence
+        didn't understand it (anything beyond daily/weekdays/a single weekday
+        name, e.g. "every other week") -- previously that text was stripped
+        and silently discarded either way, so a request like "every other
+        week" created a one-time alarm/reminder with no indication the
+        recurrence wasn't understood."""
         match = _EVERY_RE.search(text)
         if not match:
-            return text.strip(), None
-        recurrence = parse_recurrence("every " + match.group(1).strip())
-        return text[: match.start()].strip(), recurrence
+            return text.strip(), None, None
+        raw_phrase = match.group(1).strip()
+        recurrence = parse_recurrence("every " + raw_phrase)
+        unparsed = None if recurrence else raw_phrase
+        return text[: match.start()].strip(), recurrence, unparsed
 
     @classmethod
     def parse(cls, command: str) -> Optional[Tuple[str, Dict]]:
@@ -77,7 +90,7 @@ class ScheduledCommandParser:
 
         match = _ALARM_CREATE_RE.match(stripped)
         if match:
-            rest, recurrence = cls._extract_every(match.group(1))
+            rest, recurrence, recurrence_unparsed = cls._extract_every(match.group(1))
             rest, label = cls._extract_called(rest)
             time_expr = rest.strip()
             if not time_expr:
@@ -86,6 +99,7 @@ class ScheduledCommandParser:
                 "time_expr": time_expr,
                 "label": label or "Alarm",
                 "recurrence": recurrence,
+                "recurrence_unparsed": recurrence_unparsed,
             }
 
         # --- Reminders ---
@@ -110,7 +124,7 @@ class ScheduledCommandParser:
                     f'I can still remind you to "{task}" at a specific time instead, e.g. "remind me to {task} at 5pm".'
                 }
 
-            rest, recurrence = cls._extract_every(rest)
+            rest, recurrence, recurrence_unparsed = cls._extract_every(rest)
 
             duration_match = _IN_DURATION_RE.search(rest)
             on_at_match = _ON_AT_RE.search(rest)
@@ -134,6 +148,9 @@ class ScheduledCommandParser:
             if not time_expr:
                 return "create_reminder", {"error": f'When should I remind you to {task}? Try "at 5pm" or "in 30 minutes".'}
 
-            return "create_reminder", {"task": task, "time_expr": time_expr, "recurrence": recurrence}
+            return "create_reminder", {
+                "task": task, "time_expr": time_expr, "recurrence": recurrence,
+                "recurrence_unparsed": recurrence_unparsed,
+            }
 
         return None

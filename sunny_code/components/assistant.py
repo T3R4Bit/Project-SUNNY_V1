@@ -13,6 +13,23 @@ tasks on purpose: their trigger phrases require a specific keyword
 otherwise swallow "delete my reminder to X", "remove milk from my list", or
 "cancel my dentist appointment from my calendar" before the more specific
 parser ever saw it.
+
+Routing policy (audited 2026-08-28, see trace.py for the confidence/function
+labels this maps to):
+1. Exact match (a fixed-phrase tuple, or an in-progress wizard step) ->
+   hardcode, confidence="exact".
+2. Well-shaped extraction (a regex/parser with an unambiguous shape) ->
+   hardcode, confidence="heuristic" -- but if a precondition inside that
+   match fails (an unknown category word, an unparseable recurrence clause,
+   an incomplete legacy command), don't guess: back off to an existing safe
+   path (the category wizard, a real error message) instead of falling into
+   an unrelated feature's catch-all. trace.note_guard() records why.
+3. Nothing matches -> fall through the whole chain to Claude,
+   confidence="fallback".
+4. Genuinely ambiguous phrasing spanning features ("cancel my dentist
+   appointment" -- task? alarm? calendar event?) is *correctly* left
+   unmatched -- this needs real reasoning about context the hardcoded layer
+   doesn't have, so it's a Claude case by design, not a gap to regex away.
 """
 
 import asyncio
@@ -168,6 +185,10 @@ _VERSION_QUERY_TRIGGERS = (
 )
 _CATEGORY_ADD_PREFIXES = ("add category ", "create category ", "new category ")
 _CATEGORY_REMOVE_PREFIXES = ("remove category ", "delete category ")
+# Same prefixes, no trailing space -- matches a bare "add category" (no name
+# given at all) so that case can be told apart from "not a category command."
+_CATEGORY_ADD_BARE_PREFIXES = tuple(p.strip() for p in _CATEGORY_ADD_PREFIXES)
+_CATEGORY_REMOVE_BARE_PREFIXES = tuple(p.strip() for p in _CATEGORY_REMOVE_PREFIXES)
 _CATEGORY_LIST_TRIGGERS = ("my categories", "what categories are there", "list categories", "show categories")
 
 
@@ -372,7 +393,7 @@ def _looks_like_a_command(stripped: str, lowered: str) -> bool:
     if (lowered in _CATEGORY_LIST_TRIGGERS or _extract_category_add(stripped, lowered) is not None
             or _extract_category_remove(stripped, lowered) is not None):
         return True
-    task_cmd_type, _, _ = TaskCommandParser.parse_command(stripped)
+    task_cmd_type, _, _ = TaskCommandParser.parse_command(stripped, category_store.get_categories())
     if task_cmd_type not in ("unknown", "add"):
         return True
     if ListCommandParser.parse(stripped) is not None:
@@ -422,13 +443,21 @@ def _describe_classes() -> str:
 
 
 def _format_exam_time(event: Dict) -> str:
+    """dateTime/date parsing is wrapped defensively -- a calendar event
+    created by something other than this app (e.g. a professor's shared
+    invite) commonly uses a "Z" (UTC) suffix, which fromisoformat() only
+    understands from Python 3.11 onward; on an older runtime this would
+    otherwise raise ValueError uncaught, crashing the whole request."""
     start = event.get("start", {})
-    if "dateTime" in start:
-        dt = datetime.fromisoformat(start["dateTime"])
-        return dt.strftime("%A, %B %d at %I:%M %p").replace(" 0", " ")
-    if "date" in start:
-        dt = datetime.fromisoformat(start["date"])
-        return dt.strftime("%A, %B %d") + " (all day)"
+    try:
+        if "dateTime" in start:
+            dt = datetime.fromisoformat(start["dateTime"])
+            return dt.strftime("%A, %B %d at %I:%M %p").replace(" 0", " ")
+        if "date" in start:
+            dt = datetime.fromisoformat(start["date"])
+            return dt.strftime("%A, %B %d") + " (all day)"
+    except ValueError:
+        return "an unrecognized time"
     return "an unknown time"
 
 
@@ -797,14 +826,28 @@ async def _handle_message_inner(
         trace.mark_route("category_store", "list", confidence="exact", function="category_store.get_categories")
         return "Categories: " + ", ".join(category_store.get_categories())
 
-    category_to_add = _extract_category_add(stripped, lowered)
-    if category_to_add is not None:
+    # Checked by prefix first, not just by _extract_category_add's return
+    # value, so "add category" with no name at all (prefix matches, name
+    # doesn't) is distinguishable from "not a category command" -- it used
+    # to silently fall through to TaskCommandParser's bare "add X" catch-all,
+    # creating a task titled "category" and then asking which category it
+    # belonged in.
+    if lowered.startswith(_CATEGORY_ADD_BARE_PREFIXES):
+        category_to_add = _extract_category_add(stripped, lowered)
+        if category_to_add is None:
+            trace.note_guard(f"{stripped!r} looked like an add-category command but had no name")
+            trace.mark_route("category_store", "add_missing_name", confidence="exact", function="static:error")
+            return 'Category needs a name — try "add category School".'
         _, message = category_store.add_category(category_to_add)
         trace.mark_route("category_store", "add", confidence="heuristic", function="category_store.add_category")
         return message
 
-    category_to_remove = _extract_category_remove(stripped, lowered)
-    if category_to_remove is not None:
+    if lowered.startswith(_CATEGORY_REMOVE_BARE_PREFIXES):
+        category_to_remove = _extract_category_remove(stripped, lowered)
+        if category_to_remove is None:
+            trace.note_guard(f"{stripped!r} looked like a remove-category command but had no name")
+            trace.mark_route("category_store", "remove_missing_name", confidence="exact", function="static:error")
+            return 'Category needs a name — try "remove category School".'
         _, message = category_store.remove_category(category_to_remove)
         trace.mark_route("category_store", "remove", confidence="heuristic", function="category_store.remove_category")
         return message
@@ -812,6 +855,14 @@ async def _handle_message_inner(
     cmd_type, success, task_data = TaskCommandParser.parse_command(stripped, category_store.get_categories())
 
     if cmd_type == "add" and not success:
+        if stripped.startswith("!task"):
+            # Legacy syntax error (e.g. missing quotes around the title) --
+            # the parser already has a precise reason; show it instead of
+            # launching the natural-language title wizard, which would just
+            # confuse someone typing the legacy !task syntax on purpose.
+            trace.note_guard(f"legacy add syntax error: {stripped!r}")
+            trace.mark_route("tasks_engine", "legacy_add_error", confidence="exact", function="tasks_parser.parse_add_command")
+            return task_data.get("error", "Invalid add command format.")
         # The only real failure mode for a natural "add" is a missing title
         # (e.g. bare "make a task") — ask for it instead of just erroring out.
         _set_pending(session_id, "task_title")
@@ -932,7 +983,7 @@ async def handle_message(
         error_text = f"{type(e).__name__}: {e}"
         raise
     finally:
-        route, path, confidence, function = trace.current_route()
+        route, path, confidence, function, notes = trace.current_route()
         trace.record_trace(
             source=source,
             session_id=session_id,
@@ -941,6 +992,7 @@ async def handle_message(
             path=path,
             confidence=confidence,
             function=function,
+            notes=notes,
             result=result,
             error=error_text,
             duration_ms=(time.monotonic() - start) * 1000,

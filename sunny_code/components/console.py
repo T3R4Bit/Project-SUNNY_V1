@@ -1147,6 +1147,9 @@ _SCRIPT = """
                 '<dt>input</dt><dd>' + escapeHtml(ev.input) + '</dd>' +
                 '<dt>result</dt><dd>' + escapeHtml(ev.result || '\\u2014') + '</dd>' +
                 '<dt>error</dt><dd>' + escapeHtml(ev.error || '\\u2014') + '</dd>' +
+                ((ev.notes && ev.notes.length)
+                    ? '<dt>guard notes</dt><dd>' + ev.notes.map(escapeHtml).join('<br>') + '</dd>'
+                    : '') +
                 '</dl>';
             detail.appendChild(detailCell);
 

@@ -30,6 +30,7 @@ _route_var: contextvars.ContextVar[str] = contextvars.ContextVar("trace_route", 
 _path_var: contextvars.ContextVar[str] = contextvars.ContextVar("trace_path", default="")
 _confidence_var: contextvars.ContextVar[str] = contextvars.ContextVar("trace_confidence", default="")
 _function_var: contextvars.ContextVar[str] = contextvars.ContextVar("trace_function", default="")
+_notes_var: contextvars.ContextVar[tuple] = contextvars.ContextVar("trace_notes", default=())
 
 _subscribers: set = set()
 
@@ -78,17 +79,27 @@ def mark_route(route: str, path: str = "", *, confidence: str = "", function: st
     _function_var.set(function)
 
 
+def note_guard(message: str) -> None:
+    """Record that a precondition check inside some branch didn't hold and
+    the branch backed off to a safe fallback instead of guessing. Notes
+    accumulate across the whole handle_message() call -- a guard can fire
+    before the eventual winning route is even decided -- and are reset
+    alongside route/path/confidence/function once read back."""
+    _notes_var.set(_notes_var.get() + (message,))
+
+
 def current_route() -> tuple:
     """Read back what the active branch tagged, then reset for the next
     call on this task."""
-    route, path, confidence, function = (
-        _route_var.get(), _path_var.get(), _confidence_var.get(), _function_var.get()
+    route, path, confidence, function, notes = (
+        _route_var.get(), _path_var.get(), _confidence_var.get(), _function_var.get(), _notes_var.get()
     )
     _route_var.set(_UNCLASSIFIED)
     _path_var.set("")
     _confidence_var.set("")
     _function_var.set("")
-    return route, path, confidence, function
+    _notes_var.set(())
+    return route, path, confidence, function, list(notes)
 
 
 def record_trace(
@@ -100,6 +111,7 @@ def record_trace(
     path: str,
     confidence: str = "",
     function: str = "",
+    notes: Optional[list] = None,
     result: Optional[str],
     error: Optional[str],
     duration_ms: float,
@@ -115,6 +127,7 @@ def record_trace(
         "path": path,
         "confidence": confidence,
         "function": function,
+        "notes": notes or [],
         "result": result,
         "error": error,
         "success": error is None,

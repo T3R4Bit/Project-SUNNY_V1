@@ -137,13 +137,25 @@ class SpotifyEngine:
         return True, f"Playing {label}."
 
     async def _search_track(self, query: str) -> Tuple[Optional[str], Optional[str]]:
-        """"X by Y" biases the search toward that artist; either way, returns
-        (track_uri, "Track by Artist") for the first hit, or (None, None)."""
-        search_query = query
+        """Returns (track_uri, "Track by Artist") for the first hit, or
+        (None, None). Tries the raw query first -- only if that comes back
+        empty does it retry with an "X by Y" -> title/artist-biased split,
+        since splitting unconditionally on the first " by " mangles any
+        track whose actual title contains that phrase ("Stand By Me" ->
+        searching for title "Stand" by artist "Me", which finds nothing or
+        the wrong track)."""
+        result = await self._search_once(query)
+        if result[0] is not None:
+            return result
+
         if " by " in query.lower():
             title, _, artist = query.rpartition(" by ")
-            search_query = f"{title.strip()} artist:{artist.strip()}"
+            split_query = f"{title.strip()} artist:{artist.strip()}"
+            result = await self._search_once(split_query)
 
+        return result
+
+    async def _search_once(self, search_query: str) -> Tuple[Optional[str], Optional[str]]:
         resp = await self._request("GET", "/search", params={"q": search_query, "type": "track", "limit": 1})
         if resp.status_code != 200:
             return None, None

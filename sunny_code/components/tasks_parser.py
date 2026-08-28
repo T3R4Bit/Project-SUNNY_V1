@@ -26,9 +26,20 @@ class TaskCommandParser:
     TASK_UPDATE_PATTERN = r'!task\s+(\w+)\s+(\w+)\s+(.*)'  # !task id field value
     TASK_DELETE_PATTERN = r'!task\s+(\w+)\s+delete'  # !task id delete
     TASK_LIST_PATTERN = r'!tasks?(?:\s+(.*))?'  # !tasks [filters]
+    # A field name given with no value ("!task abc123 status") fails
+    # TASK_UPDATE_PATTERN (needs a 3rd whitespace-delimited group) and would
+    # otherwise fall through to TASK_LIST_PATTERN, silently becoming "list
+    # all tasks" instead of surfacing the missing value. Checked between the
+    # two in parse_command.
+    TASK_UPDATE_INCOMPLETE_PATTERN = re.compile(
+        r'^!task\s+(\w+)\s+(status|tag|title|describe|due)\s*$', re.IGNORECASE
+    )
 
     # Sub-patterns for extracting flags (shared by legacy and natural add/list)
-    TAG_PATTERN = r'--tag\s+(["\']?)([^"\'\s]+)\1'
+    # Same shape as DESCRIPTION_PATTERN below -- .+? bounded by the next
+    # --flag or end of string, not [^\s]+, so a multi-word tag ("--tag School
+    # Stuff") isn't silently truncated at the first space.
+    TAG_PATTERN = r'--tag\s+(["\']?)(.+?)\1(?:\s--|$)'
     DUE_PATTERN = r'--due\s+([\d\-]+)'  # YYYY-MM-DD
     DESCRIPTION_PATTERN = r'--describe\s+(["\']?)(.+?)\1(?:\s--|$)'
 
@@ -192,8 +203,21 @@ class TaskCommandParser:
                 title = cat_match.group(1).strip().strip('"\'')
                 category_word = cat_match.group(2).strip()
                 matched = next((c for c in known_categories if c.lower() == category_word.lower()), None)
-                if matched and title:
-                    result = {"title": title, "tag": matched}
+                # Return here on ANY syntactic match of this shape, known
+                # category word or not -- title is extracted correctly either
+                # way. Previously this only returned when the word matched a
+                # known category, so an unrecognized word (a typo, a plural,
+                # a synonym) fell through to NATURAL_ADD_TRIGGERS below, none
+                # of which actually cover "extra word between my/tasks" --
+                # the bare "add X" catch-all won instead and swallowed the
+                # whole phrase ("buy milk to my homework tasks") as the
+                # title. Leaving "tag" unset when unmatched keeps this
+                # function's documented contract (caller asks instead of
+                # guessing) actually true.
+                if title:
+                    result = {"title": title}
+                    if matched:
+                        result["tag"] = matched
                     # Applied after the inline-category default so an explicit
                     # --tag flag (rare in the same phrase, but possible) wins.
                     result.update(TaskCommandParser._fields_from_flags(flags))
@@ -320,6 +344,10 @@ class TaskCommandParser:
         elif re.match(TaskCommandParser.TASK_UPDATE_PATTERN, command):
             success, data = TaskCommandParser.parse_update_command(command)
             return "update", success, data
+        elif TaskCommandParser.TASK_UPDATE_INCOMPLETE_PATTERN.match(command):
+            field = TaskCommandParser.TASK_UPDATE_INCOMPLETE_PATTERN.match(command).group(2).lower()
+            task_id = TaskCommandParser.TASK_UPDATE_INCOMPLETE_PATTERN.match(command).group(1)
+            return "update", False, {"error": f'Missing a value — try "!task {task_id} {field} <value>"'}
         elif command.startswith("!tasks") or command.startswith("!task"):
             success, data = TaskCommandParser.parse_list_command(command)
             return "list", success, data
