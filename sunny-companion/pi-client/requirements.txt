@@ -1,6 +1,20 @@
 # Runs on the Pi (or, for now, a dev machine for local testing) --
 # separate from the root requirements.txt, which is the server's.
+#
+# openwakeword's own declared dependency `tflite-runtime` has NO prebuilt
+# wheels for Raspberry Pi OS Trixie/aarch64 on any Python version (piwheels
+# has none at all -- looks abandoned upstream), confirmed 2026-08-28 on real
+# Pi 3B hardware. Install openwakeword itself with --no-deps and let its
+# real runtime deps below satisfy it instead; wake_word_listener.py already
+# forces inference_framework="onnx", so tflite-runtime is never actually
+# used at runtime, only demanded by the package's metadata:
+#   pip install --no-deps openwakeword
+#   pip install -r requirements.txt
 openwakeword>=0.6.0
+onnxruntime>=1.20.0  # openwakeword's actual inference backend here (see above)
+scipy>=1.11.0        # openwakeword dep, also used directly for mic downsampling
+scikit-learn>=1.3.0  # openwakeword dep
+tqdm>=4.60.0          # openwakeword dep
 sounddevice>=0.4.6
 numpy>=1.26.0
 websockets>=12.0

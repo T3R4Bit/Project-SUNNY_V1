@@ -26,37 +26,44 @@ detection needs a live run -- that's on whoever runs this script.
 from __future__ import annotations
 
 import queue
-import re
 import sys
 
 import numpy as np
 import sounddevice as sd
 from openwakeword.model import Model
+from scipy.signal import decimate
 
 # Match the mic by name substring, not a hardcoded PortAudio/ALSA index --
 # USB enumeration order can shift across reboots (other USB devices, hub
-# order), which is exactly the risk BUILD_PLAN.md's Phase 3 flags. Also,
-# critically, resolve to "plughw:<card>,<dev>" rather than PortAudio's own
-# default device: that default resolves to the raw "hw:X,Y" ALSA node,
-# which has no sample-rate conversion and rejects 16kHz outright (confirmed
-# on real hardware -- PaErrorCode -9997 "Invalid sample rate"). "plughw"
-# adds ALSA's conversion layer, same as the `arecord -D plughw:2,0` command
-# that was used to validate the mic manually.
+# order), which is exactly the risk BUILD_PLAN.md's Phase 3 flags.
 MIC_NAME_HINT = "USB PnP Sound Device"
 
 
-def _resolve_mic_device() -> str:
-    for dev in sd.query_devices():
+def _resolve_mic_device() -> int:
+    for i, dev in enumerate(sd.query_devices()):
         if MIC_NAME_HINT in dev["name"] and dev["max_input_channels"] > 0:
-            m = re.search(r"\(hw:(\d+),(\d+)\)", dev["name"])
-            if m:
-                return f"plughw:{m.group(1)},{m.group(2)}"
+            return i
     raise RuntimeError(f"No input device matching {MIC_NAME_HINT!r} found")
+
 
 WAKE_WORD_MODEL = "hey_jarvis"  # placeholder -- see module docstring
 SAMPLE_RATE = 16000
 FRAME_SAMPLES = 1280  # 80ms @ 16kHz -- openWakeWord's recommended chunk size
 DETECTION_THRESHOLD = 0.5
+
+# Validated on real Pi 3B hardware (2026-08-28): the SunFounder USB mic's raw
+# ALSA hw device only supports 44100/48000 Hz, not the 16kHz openWakeWord
+# needs (opening the stream at 16kHz directly fails outright, PaErrorCode
+# -9997 "Invalid sample rate"). ALSA's "plug" conversion layer would fix this
+# for command-line tools like `arecord -D plughw:...`, but sounddevice/
+# PortAudio's device matching only sees the raw "hw:X,Y" nodes it enumerates,
+# not arbitrary plughw device strings -- so capture at the mic's native rate
+# and downsample to 16kHz here instead. 48000 is an exact 3x multiple of
+# 16000, so decimate(..., 3) is a clean, anti-aliased downsample with no
+# resampling artifacts from a non-integer ratio.
+NATIVE_SAMPLE_RATE = 48000
+DECIMATION_FACTOR = NATIVE_SAMPLE_RATE // SAMPLE_RATE
+NATIVE_FRAME_SAMPLES = FRAME_SAMPLES * DECIMATION_FACTOR
 
 # Validated on real Pi 3B hardware with the SunFounder USB mic (2026-08-28):
 # even with ALSA capture gain maxed out (amixer -c <card> sset Mic 16, the
@@ -75,15 +82,16 @@ def listen(on_wake) -> None:
     def audio_callback(indata, frames, time_info, status):
         if status:
             print(f"audio input status: {status}", file=sys.stderr)
-        boosted = np.clip(indata[:, 0].astype(np.int32) * MIC_GAIN, -32768, 32767)
+        downsampled = decimate(indata[:, 0], DECIMATION_FACTOR, ftype="fir")
+        boosted = np.clip(downsampled.astype(np.int32) * MIC_GAIN, -32768, 32767)
         audio_queue.put(boosted.astype(np.int16))
 
     with sd.InputStream(
         device=_resolve_mic_device(),
-        samplerate=SAMPLE_RATE,
+        samplerate=NATIVE_SAMPLE_RATE,
         channels=1,
         dtype="int16",
-        blocksize=FRAME_SAMPLES,
+        blocksize=NATIVE_FRAME_SAMPLES,
         callback=audio_callback,
     ):
         print(f"Listening for '{WAKE_WORD_MODEL}'... (Ctrl+C to stop)")
