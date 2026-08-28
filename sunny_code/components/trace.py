@@ -28,6 +28,8 @@ _UNCLASSIFIED = "unclassified"
 
 _route_var: contextvars.ContextVar[str] = contextvars.ContextVar("trace_route", default=_UNCLASSIFIED)
 _path_var: contextvars.ContextVar[str] = contextvars.ContextVar("trace_path", default="")
+_confidence_var: contextvars.ContextVar[str] = contextvars.ContextVar("trace_confidence", default="")
+_function_var: contextvars.ContextVar[str] = contextvars.ContextVar("trace_function", default="")
 
 _subscribers: set = set()
 
@@ -54,22 +56,39 @@ def _ensure_configured() -> None:
     _configured = True
 
 
-def mark_route(route: str, path: str = "") -> None:
+def mark_route(route: str, path: str = "", *, confidence: str = "", function: str = "") -> None:
     """Tag the routing decision (and optional sub-path) for the trace that
     will be recorded when the current handle_message() call finishes. A
     branch that never calls this just reports "unclassified" -- harmless,
-    just a label worth tightening later."""
+    just a label worth tightening later.
+
+    confidence is a coarse label, not a probability -- Sunny's router is
+    rule-based (keyword/tuple matching and a hand-parsed command grammar),
+    not a scored classifier, so there's no real number to report. Use
+    "exact" for a fixed-phrase/tuple match or an in-progress wizard state
+    machine, "heuristic" for a parser/regex extraction that has to
+    interpret free text, and "fallback" for the catch-all that hands off
+    to the LLM Q&A path. function names the callable that actually
+    produced the result (an engine method, a helper in this module, or a
+    short "static:"/literal label for trivial branches) -- lets the Logs
+    tab show which code ran, not just which label was attached to it."""
     _route_var.set(route)
     _path_var.set(path)
+    _confidence_var.set(confidence)
+    _function_var.set(function)
 
 
 def current_route() -> tuple:
     """Read back what the active branch tagged, then reset for the next
     call on this task."""
-    route, path = _route_var.get(), _path_var.get()
+    route, path, confidence, function = (
+        _route_var.get(), _path_var.get(), _confidence_var.get(), _function_var.get()
+    )
     _route_var.set(_UNCLASSIFIED)
     _path_var.set("")
-    return route, path
+    _confidence_var.set("")
+    _function_var.set("")
+    return route, path, confidence, function
 
 
 def record_trace(
@@ -79,6 +98,8 @@ def record_trace(
     input_text: str,
     route: str,
     path: str,
+    confidence: str = "",
+    function: str = "",
     result: Optional[str],
     error: Optional[str],
     duration_ms: float,
@@ -92,6 +113,8 @@ def record_trace(
         "input": input_text,
         "route": route,
         "path": path,
+        "confidence": confidence,
+        "function": function,
         "result": result,
         "error": error,
         "success": error is None,

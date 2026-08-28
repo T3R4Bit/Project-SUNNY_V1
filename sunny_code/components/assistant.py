@@ -680,9 +680,11 @@ async def _handle_message_inner(
 ) -> str:
     """The actual routing chain -- see handle_message() below for the public
     entry point (adds execution tracing around this). Every return here
-    should be preceded by trace.mark_route(route, path) so the Logs tab can
-    show which branch handled the message; an untagged branch just shows up
-    as "unclassified" rather than breaking anything."""
+    should be preceded by trace.mark_route(route, path, confidence=...,
+    function=...) so the Logs tab can show which branch handled the
+    message, how sure that match was, and which callable produced the
+    result; an untagged branch just shows up as "unclassified" rather than
+    breaking anything."""
     stripped = text.strip()
     lowered = stripped.lower().strip("?!. ")
     source = device_from_session(session_id)
@@ -691,12 +693,12 @@ async def _handle_message_inner(
     if pending and pending.get("awaiting") == "task_title":
         if lowered in _CANCEL_WORDS:
             _pending.pop(session_id, None)
-            trace.mark_route("wizard:task_title", "cancel")
+            trace.mark_route("wizard:task_title", "cancel", confidence="exact", function="cancel")
             return "No worries — cancelled."
 
         if not _looks_like_a_command(stripped, lowered):
             _pending.pop(session_id, None)
-            trace.mark_route("wizard:task_title", "create_task")
+            trace.mark_route("wizard:task_title", "create_task", confidence="exact", function="_create_task_from_reply")
             return await _create_task_from_reply(stripped, tasks_engine, session_id, source)
 
         _pending.pop(session_id, None)
@@ -706,12 +708,12 @@ async def _handle_message_inner(
         task_data = {k: v for k, v in pending.items() if k not in ("awaiting", "ts")}
         if lowered in _CANCEL_WORDS:
             _pending.pop(session_id, None)
-            trace.mark_route("wizard:task_category", "cancel")
+            trace.mark_route("wizard:task_category", "cancel", confidence="exact", function="cancel")
             return "No worries — cancelled."
 
         if not _looks_like_a_command(stripped, lowered):
             _pending.pop(session_id, None)
-            trace.mark_route("wizard:task_category", "finish_task")
+            trace.mark_route("wizard:task_category", "finish_task", confidence="exact", function="_finish_task_with_category")
             return await _finish_task_with_category(stripped, task_data, tasks_engine, session_id, source)
 
         _pending.pop(session_id, None)
@@ -722,7 +724,7 @@ async def _handle_message_inner(
     ):
         wizard_reply = await _advance_project_wizard(stripped, lowered, pending, project_engine, session_id)
         if wizard_reply is not None:
-            trace.mark_route("wizard:project", pending.get("awaiting", ""))
+            trace.mark_route("wizard:project", pending.get("awaiting", ""), confidence="exact", function="_advance_project_wizard")
             return wizard_reply
         # falls through to normal handling below
 
@@ -731,80 +733,80 @@ async def _handle_message_inner(
     ):
         wizard_reply = await _advance_class_setup_wizard(stripped, lowered, pending, session_id)
         if wizard_reply is not None:
-            trace.mark_route("wizard:class_setup", pending.get("awaiting", ""))
+            trace.mark_route("wizard:class_setup", pending.get("awaiting", ""), confidence="exact", function="_advance_class_setup_wizard")
             return wizard_reply
         # falls through to normal handling below
 
     if lowered in _HELP_TRIGGERS:
-        trace.mark_route("help")
+        trace.mark_route("help", confidence="exact", function="static:HELP_TEXT")
         return HELP_TEXT
 
     if lowered in _VACATION_ON_TRIGGERS:
         _, message = service_registry.set_vacation_mode(True)
-        trace.mark_route("vacation_mode", "on")
+        trace.mark_route("vacation_mode", "on", confidence="exact", function="service_registry.set_vacation_mode")
         return message
 
     if lowered in _VACATION_OFF_TRIGGERS:
         _, message = service_registry.set_vacation_mode(False)
-        trace.mark_route("vacation_mode", "off")
+        trace.mark_route("vacation_mode", "off", confidence="exact", function="service_registry.set_vacation_mode")
         return message
 
     if lowered in _PROJECT_TRIGGERS:
         if project_engine is None:
-            trace.mark_route("wizard:project", "unavailable")
+            trace.mark_route("wizard:project", "unavailable", confidence="exact", function="static:unavailable")
             return "Project system isn't available right now."
         _set_pending(session_id, "project_name")
-        trace.mark_route("wizard:project", "start")
+        trace.mark_route("wizard:project", "start", confidence="exact", function="_set_pending")
         return random.choice(_PROJECT_NAME_PROMPTS)
 
     if lowered in _CLASS_SETUP_TRIGGERS:
         _set_pending(session_id, "class_setup_semester_name")
-        trace.mark_route("wizard:class_setup", "start")
+        trace.mark_route("wizard:class_setup", "start", confidence="exact", function="_set_pending")
         return random.choice(_CLASS_SETUP_SEMESTER_PROMPTS)
 
     setup_query = _extract_setup_query(lowered)
     if setup_query is not None:
-        trace.mark_route("setup_guides", str(setup_query))
+        trace.mark_route("setup_guides", str(setup_query), confidence="heuristic", function="setup_guides.respond")
         return setup_guides.respond(setup_query)
 
     if list_engine is not None:
         handled, _, message = list_engine.try_execute(stripped, source=source)
         if handled:
-            trace.mark_route("list_engine")
+            trace.mark_route("list_engine", confidence="heuristic", function="list_engine.try_execute")
             return message
 
     if scheduled_engine is not None:
         handled, _, message = await scheduled_engine.try_execute(stripped, source=source)
         if handled:
-            trace.mark_route("scheduled_engine")
+            trace.mark_route("scheduled_engine", confidence="heuristic", function="scheduled_engine.try_execute")
             return message
 
     if calendar_engine is not None:
         handled, _, message = await calendar_engine.try_execute(stripped, source=source)
         if handled:
-            trace.mark_route("calendar_engine")
+            trace.mark_route("calendar_engine", confidence="heuristic", function="calendar_engine.try_execute")
             return message
 
     if spotify_engine is not None:
         handled, _, message = await spotify_engine.try_execute(stripped, source=source)
         if handled:
-            trace.mark_route("spotify_engine")
+            trace.mark_route("spotify_engine", confidence="heuristic", function="spotify_engine.try_execute")
             return message
 
     if lowered in _CATEGORY_LIST_TRIGGERS:
-        trace.mark_route("category_store", "list")
+        trace.mark_route("category_store", "list", confidence="exact", function="category_store.get_categories")
         return "Categories: " + ", ".join(category_store.get_categories())
 
     category_to_add = _extract_category_add(stripped, lowered)
     if category_to_add is not None:
         _, message = category_store.add_category(category_to_add)
-        trace.mark_route("category_store", "add")
+        trace.mark_route("category_store", "add", confidence="heuristic", function="category_store.add_category")
         return message
 
     category_to_remove = _extract_category_remove(stripped, lowered)
     if category_to_remove is not None:
         _, message = category_store.remove_category(category_to_remove)
-        trace.mark_route("category_store", "remove")
+        trace.mark_route("category_store", "remove", confidence="heuristic", function="category_store.remove_category")
         return message
 
     cmd_type, success, task_data = TaskCommandParser.parse_command(stripped, category_store.get_categories())
@@ -813,7 +815,7 @@ async def _handle_message_inner(
         # The only real failure mode for a natural "add" is a missing title
         # (e.g. bare "make a task") — ask for it instead of just erroring out.
         _set_pending(session_id, "task_title")
-        trace.mark_route("wizard:task_title", "start")
+        trace.mark_route("wizard:task_title", "start", confidence="exact", function="_set_pending")
         return 'Sure — what should I call it? (or say "cancel")'
 
     if cmd_type == "add" and success and "tag" not in task_data:
@@ -821,22 +823,22 @@ async def _handle_message_inner(
         # recognized inline — ask instead of silently defaulting to General.
         _set_pending(session_id, "task_category", **task_data)
         categories = category_store.get_categories()
-        trace.mark_route("wizard:task_category", "start")
+        trace.mark_route("wizard:task_category", "start", confidence="exact", function="_set_pending")
         return f'Got it — which category: {", ".join(categories)}? (or say "cancel")'
 
     if cmd_type != "unknown":
         _, message = await tasks_engine.execute_command(
             stripped, source=source, known_categories=category_store.get_categories()
         )
-        trace.mark_route("tasks_engine", cmd_type)
+        trace.mark_route("tasks_engine", cmd_type, confidence="exact", function="tasks_engine.execute_command")
         return message
 
     if lowered in _MORNING_TRIGGERS:
-        trace.mark_route("briefing", "morning")
+        trace.mark_route("briefing", "morning", confidence="exact", function="briefing_engine.generate_morning_briefing")
         return await briefing_engine.generate_morning_briefing()
 
     if lowered in _EVENING_TRIGGERS:
-        trace.mark_route("briefing", "evening")
+        trace.mark_route("briefing", "evening", confidence="exact", function="briefing_engine.generate_evening_briefing")
         return await briefing_engine.generate_evening_briefing()
 
     # Substring, not an exact-phrase tuple -- "can you run a system health
@@ -853,36 +855,36 @@ async def _handle_message_inner(
     # might use ("check" itself is ambiguous, since it's also half of the
     # bare phrase this branch has to leave alone).
     if lowered in _MY_CLASSES_TRIGGERS:
-        trace.mark_route("classes", "describe")
+        trace.mark_route("classes", "describe", confidence="exact", function="_describe_classes")
         return _describe_classes()
 
     exam_date_query = _extract_exam_date_query(lowered)
     if exam_date_query is not None:
-        trace.mark_route("exam_prep", "exam_date")
+        trace.mark_route("exam_prep", "exam_date", confidence="heuristic", function="_describe_exam_date")
         return await _describe_exam_date(exam_date_query)
 
     study_review_query = _extract_study_review_query(lowered)
     if study_review_query is not None:
-        trace.mark_route("exam_prep", "study_review")
+        trace.mark_route("exam_prep", "study_review", confidence="heuristic", function="_run_study_review")
         return await _run_study_review(study_review_query)
 
     if lowered in _USAGE_QUERY_TRIGGERS:
-        trace.mark_route("usage", "describe")
+        trace.mark_route("usage", "describe", confidence="exact", function="_describe_usage")
         return _describe_usage()
 
     if lowered in _VERSION_QUERY_TRIGGERS:
-        trace.mark_route("version", "describe")
+        trace.mark_route("version", "describe", confidence="exact", function="_describe_version")
         return _describe_version()
 
     if lowered in ("health check", "health report"):
         report = health_check.latest_report()
-        trace.mark_route("health_check", "report")
+        trace.mark_route("health_check", "report", confidence="exact", function="health_check.latest_report")
         return report if report else "No health check report yet — the first one runs Sunday at 4am."
     if "health check" in lowered or "system health" in lowered:
-        trace.mark_route("health_check", "run_now")
+        trace.mark_route("health_check", "run_now", confidence="heuristic", function="_run_health_check_now")
         return await _run_health_check_now(session_id)
 
-    trace.mark_route("briefing", "qa")
+    trace.mark_route("briefing", "qa", confidence="fallback", function="briefing_engine.answer_question")
     return await briefing_engine.answer_question(
         stripped, session_id=session_id, on_chunk=on_chunk, on_search_start=on_search_start
     )
@@ -930,13 +932,15 @@ async def handle_message(
         error_text = f"{type(e).__name__}: {e}"
         raise
     finally:
-        route, path = trace.current_route()
+        route, path, confidence, function = trace.current_route()
         trace.record_trace(
             source=source,
             session_id=session_id,
             input_text=text,
             route=route,
             path=path,
+            confidence=confidence,
+            function=function,
             result=result,
             error=error_text,
             duration_ms=(time.monotonic() - start) * 1000,

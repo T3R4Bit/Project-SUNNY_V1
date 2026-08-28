@@ -290,6 +290,7 @@ def _render_page(tailscale_url: str) -> str:
                             <th>Input</th>
                             <th>Routing Decision</th>
                             <th>Path Taken</th>
+                            <th>Confidence</th>
                             <th>Result</th>
                             <th>Errors</th>
                         </tr>
@@ -811,6 +812,11 @@ _STYLE = """
         .logs-table tr.trace-detail dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
         .logs-table tr.trace-detail dt { color: var(--cyan); }
         .logs-table tr.trace-detail dd { color: var(--text); }
+        .confidence-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid currentColor; }
+        .confidence-badge.conf-exact { color: var(--green); }
+        .confidence-badge.conf-heuristic { color: var(--cyan); }
+        .confidence-badge.conf-fallback { color: var(--warning); }
+        .confidence-badge.conf-none { color: var(--dim); }
 
         /* ---- OAuth Links ---- */
 
@@ -1121,6 +1127,8 @@ _SCRIPT = """
                 '<td>' + escapeHtml(truncate(ev.input, 60)) + '</td>' +
                 '<td>' + escapeHtml(ev.route || 'unclassified') + '</td>' +
                 '<td>' + escapeHtml(ev.path || '\\u2014') + '</td>' +
+                '<td><span class="confidence-badge conf-' + escapeHtml(ev.confidence || 'none') + '">' +
+                    escapeHtml(ev.confidence || '\\u2014') + '</span></td>' +
                 '<td class="result">' + escapeHtml(truncate(ev.result, 60)) + '</td>' +
                 '<td class="err">' + escapeHtml(truncate(ev.error, 60)) + '</td>';
 
@@ -1128,11 +1136,13 @@ _SCRIPT = """
             detail.className = 'trace-detail hidden';
             detail.id = id;
             const detailCell = document.createElement('td');
-            detailCell.colSpan = 6;
+            detailCell.colSpan = 7;
             detailCell.innerHTML =
                 '<dl>' +
                 '<dt>source</dt><dd>' + escapeHtml(ev.source) + '</dd>' +
                 '<dt>session</dt><dd>' + escapeHtml(ev.session_id) + '</dd>' +
+                '<dt>function called</dt><dd>' + escapeHtml(ev.function || '\\u2014') + '</dd>' +
+                '<dt>confidence</dt><dd>' + escapeHtml(ev.confidence || '\\u2014') + '</dd>' +
                 '<dt>duration</dt><dd>' + escapeHtml(ev.duration_ms) + ' ms</dd>' +
                 '<dt>input</dt><dd>' + escapeHtml(ev.input) + '</dd>' +
                 '<dt>result</dt><dd>' + escapeHtml(ev.result || '\\u2014') + '</dd>' +
