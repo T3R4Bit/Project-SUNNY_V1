@@ -37,6 +37,14 @@ SAMPLE_RATE = 16000
 FRAME_SAMPLES = 1280  # 80ms @ 16kHz -- openWakeWord's recommended chunk size
 DETECTION_THRESHOLD = 0.5
 
+# Validated on real Pi 3B hardware with the SunFounder USB mic (2026-08-28):
+# even with ALSA capture gain maxed out (amixer -c <card> sset Mic 16, the
+# top of its 0-16 range), close-range voice peaks ~18x quieter than the same
+# mic's response to a physical tap on the capsule -- the capsule itself is
+# fine, it's just acoustically insensitive. 8x digital gain brought a
+# barely-audible recording up to clear with zero sample clipping.
+MIC_GAIN = 8
+
 
 def listen(on_wake) -> None:
     """Blocks forever, calling on_wake() (no args) on each wake word trigger."""
@@ -46,7 +54,8 @@ def listen(on_wake) -> None:
     def audio_callback(indata, frames, time_info, status):
         if status:
             print(f"audio input status: {status}", file=sys.stderr)
-        audio_queue.put(indata[:, 0].copy())
+        boosted = np.clip(indata[:, 0].astype(np.int32) * MIC_GAIN, -32768, 32767)
+        audio_queue.put(boosted.astype(np.int16))
 
     with sd.InputStream(
         samplerate=SAMPLE_RATE,

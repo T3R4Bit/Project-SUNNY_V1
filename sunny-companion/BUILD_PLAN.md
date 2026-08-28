@@ -29,16 +29,16 @@ Updating the device going forward is just `git pull` on the Pi + restarting the 
 ## Phase 0 — Parts arrival
 
 - [x] Board bought (Pi 3 Model B, $32)
-- [ ] Rest of BOM ordered (screen, mic, SD card, PSU — see [README.md](README.md) for links)
-- [ ] Parts arrive
+- [x] Rest of BOM ordered (screen, mic, SD card, PSU — see [README.md](README.md) for links)
+- [x] Parts arrive
 
 ## Phase 1 — Base OS
 
-- [ ] Flash **Raspberry Pi OS Lite (64-bit, Bookworm)** to the microSD card — headless, no desktop environment
-- [ ] First boot: enable SSH, set WiFi credentials, set hostname (e.g. `sunny-companion.local` via avahi) so the server can find it by name
-- [ ] `sudo apt update && sudo apt upgrade`
-- [ ] Confirm the board is reachable over SSH on the home WiFi network before doing anything else
-- [ ] Set up a dedicated read-only deploy key / fine-grained PAT, `git clone` this repo onto the Pi (see Repo layout above)
+- [x] Flash **Raspberry Pi OS Lite (64-bit)** to the microSD card — headless, no desktop environment. **2026-08-28: actual image turned out to be Debian 13 (Trixie)-based, not Bookworm as originally planned** — Raspberry Pi OS's current release had moved on by the time of flashing. Ships Python 3.13 by default (no 3.11/3.12 package available via apt), which had downstream effects — see Phase 5's openWakeWord note
+- [x] First boot: SSH enabled, WiFi connected, hostname `sunny-companion` (user account is `sunny`, not `sunny-companion` — only the hostname uses that string). Note: the Raspberry Pi Imager's "public-key authentication" field silently didn't take — first boot only accepted the account password, not the pasted key; keys were added manually via `~/.ssh/authorized_keys` after logging in with the password instead
+- [ ] `sudo apt update && sudo apt upgrade` — only targeted package installs done so far (`git`, `python3-venv`, `python3-pip`, `portaudio19-dev`, `alsa-utils`), not a full system upgrade
+- [x] Confirmed reachable over SSH on the home WiFi network (`sunny@sunny-companion.local`, port 44 — moved off default port 22 to match the sunny-lenovo convention)
+- [x] Dedicated read-only GitHub deploy key generated on the Pi itself and added via the repo's Settings → Deploy keys (repo is private, so this was required, not optional); `git clone` done to `~/Project-SUNNY`
 
 ## Phase 2 — Kiosk display stack
 
@@ -50,10 +50,10 @@ Updating the device going forward is just `git pull` on the Pi + restarting the 
 
 ## Phase 3 — Audio I/O
 
-- [ ] Confirm 3.5mm audio out works: `speaker-test` or `aplay` a test WAV through the Pi's onboard jack
-- [ ] Plug in the USB mic, confirm it's detected: `arecord -l`
-- [ ] Record a short clip and play it back to confirm mic quality/levels: `arecord -d 5 test.wav && aplay test.wav`
-- [ ] Set explicit default ALSA input/output devices (`/etc/asound.conf` or `.asoundrc`) so they don't shift if USB device order changes on reboot
+- [ ] Confirm 3.5mm audio out works: `speaker-test` or `aplay` a test WAV through the Pi's onboard jack — not tested yet, mic came first
+- [x] Plug in the USB mic, confirm it's detected: `arecord -l` — shows up as `card 2: USB PnP Sound Device` (TI PCM2902 codec)
+- [x] Record a short clip and play it back to confirm mic quality/levels — **2026-08-28 finding: the SunFounder mic's default ALSA capture gain was 0% (muted-equivalent, despite showing `[on]`)**; raised to 100% (`amixer -c 2 sset Mic 16`, its max — 23.81dB) which fixed detection but voice was still barely audible even at point-blank range. A tap-the-capsule test at the same gain setting hit full digital clipping (peak 32768) while close-range voice only peaked ~1800 — proves the capture path (USB/ALSA/wiring) is completely fine, the capsule itself is just acoustically insensitive to voice specifically, not defective. Fix: an 8x digital gain multiplier applied in software after capture (zero clipping at that level, confirmed audible on playback) — implemented in `wake_word_listener.py`'s `MIC_GAIN` constant. Software gain amplifies noise along with signal, so this is a workaround, not a substitute for a more sensitive mic if it proves inadequate at real desk distance (only tested point-blank so far)
+- [ ] Set explicit default ALSA input/output devices (`/etc/asound.conf` or `.asoundrc`) so they don't shift if USB device order changes on reboot — not done yet
 
 ## Phase 4 — Face renderer (scrapped and restarting)
 
@@ -81,7 +81,7 @@ Regardless of what Phase 4 turns out to be, something needs to receive `/ws/pi`'
 
 ## Phase 5 — Device client (Python, runs on the Pi)
 
-- [x] Pick and install a local wake-word engine — `pi-client/wake_word_listener.py`, using openWakeWord. **No pretrained "hey sunny" model exists** — using "hey_jarvis" as a placeholder to prove the mechanism (continuous low-compute listening → trigger callback) actually works; verified the model loads and stays near-zero on silence/noise, and the live audio stream opens and runs without crashing. Not yet verified against a real spoken wake word — training a real "hey sunny" model is separate follow-up work (needs synthetic data generation via openWakeWord's own training notebooks)
+- [x] Pick and install a local wake-word engine — `pi-client/wake_word_listener.py`, using openWakeWord. **No pretrained "hey sunny" model exists** — using "hey_jarvis" as a placeholder to prove the mechanism (continuous low-compute listening → trigger callback) actually works. **2026-08-28: `requirements.txt` installed for real on Pi 3B hardware** (not just Docker emulation) — hit and worked around a real blocker: `openwakeword`'s declared dependency `tflite-runtime` has zero prebuilt wheels for this platform on piwheels (any Python version, not just 3.13 — the package looks abandoned upstream). Worked around by installing openWakeWord with `--no-deps` plus its actual runtime deps by hand (`onnxruntime`, `scipy`, `scikit-learn`, `tqdm`) and forcing `inference_framework="onnx"` (already what this script used) instead of tflite — confirmed working: model loads, `download_models()` pulls the ONNX weights, and `predict()` returns a clean near-zero score on silence. Not yet verified against a real spoken wake word — training a real "hey sunny" model is separate follow-up work (needs synthetic data generation via openWakeWord's own training notebooks). Mic input feeding this pipeline needs the `MIC_GAIN` boost from Phase 3's finding to be audible
 - [ ] On wake-word trigger: immediately push a `listening` state to the face renderer (local, no network wait), then start streaming mic audio to the new server endpoint (Phase 6) — **not wired together yet**: the wake-word listener and the server endpoint both work independently (see Phase 6), but nothing yet connects the trigger to opening a `/ws/pi` connection and streaming mic audio into it
 - [ ] Receive state events + TTS audio back from the server; forward state events to whatever Phase 4 becomes, play TTS audio through ALSA/3.5mm out — not built yet (the scrapped avatar-lab attempt connected to `/ws/pi` directly itself as a testing shortcut, not the real design — this Python client should own that connection instead)
 - [x] Wake-on-LAN: `pi-client/wake_on_lan.py` — pure `socket`, no dependency, unit-tested (magic packet builds to the correct 102 bytes: 6×0xFF + 16×MAC)
