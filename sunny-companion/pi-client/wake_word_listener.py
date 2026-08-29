@@ -1,4 +1,4 @@
-"""Local wake-word listener prototype (Phase 5).
+"""Local wake-word listener (Phase 5).
 
 Continuously listens on the default microphone at low CPU cost and calls
 `on_wake()` whenever the wake word's score crosses the threshold. This is
@@ -7,20 +7,28 @@ STT locally -- only after a detection should real audio get streamed to
 the server's /ws/pi endpoint (sunny_code/components/pi_companion.py), which
 is not wired up here yet; this script only proves the local trigger works.
 
-Placeholder wake word: no pretrained "hey sunny" model exists yet.
-openWakeWord ships a handful of pretrained wake words (alexa, hey_mycroft,
-hey_jarvis, hey_rhasspy) but nothing custom -- training one requires
-generating synthetic speech data via openWakeWord's own training notebooks
-(https://github.com/dscripka/openWakeWord#training-new-models), which is
-real, separate follow-up work. This uses "hey_jarvis" as a stand-in so the
-actual mechanism (continuous low-compute local listening -> trigger) can
-be tested with a real voice right now; swap WAKE_WORD_MODEL once a real
-"hey sunny" model is trained.
+Custom "hey sunny" model (2026-08-28): trained via openWakeWord's automatic
+training pipeline (synthetic TTS positives via a Piper-based generator,
+~30k hours of precomputed negative-audio features, augmented with room
+impulse responses + AudioSet/FMA background noise), on an RTX 3070 Ti in
+WSL2 -- CUDA passthrough worked out of the box, no separate Linux NVIDIA
+driver needed. Two real gotchas along the way, for next time: (1) the
+notebook's linked piper-sample-generator is the wrong repo (upstream
+rhasspy/piper-sample-generator has since been restructured into a
+different tool entirely) -- the correct one is dscripka's fork, which
+custom_model.yml actually points at; (2) train.py needs the `onnx` pip
+package (separate from `onnxruntime`) purely for its final export step,
+not documented as a dependency anywhere. Model file: models/hey_sunny.onnx.
 
-Verified so far (silence/noise smoke test, not a live voice test): the
-model loads, processes real int16 audio frames, and stays near-zero on
-non-speech input. Actually saying the wake word out loud to confirm
-detection needs a live run -- that's on whoever runs this script.
+Validated on the training machine: 0 false positives across held-out
+negative test clips, but only ~45% of held-out positive clips crossed the
+0.5 threshold -- lowering the threshold barely helps, since the score
+distribution is bimodal (most clips score near-0 or near-1, not
+in-between). Spot-checked the low scorers by ear: they're genuinely bad/
+garbled synthetic TTS renditions, not clear "hey sunny" audio the model
+should have caught -- so the real synthetic-positive recall is likely
+much higher than the raw 45% suggests. The real test is a live human
+voice, which is what matters anyway.
 """
 
 from __future__ import annotations
@@ -30,6 +38,7 @@ import re
 import subprocess
 import sys
 import threading
+from pathlib import Path
 
 import numpy as np
 from openwakeword.model import Model
@@ -63,7 +72,8 @@ def _resolve_alsa_device() -> str:
     raise RuntimeError(f"No ALSA capture device matching {MIC_NAME_HINT!r} found in `arecord -l`")
 
 
-WAKE_WORD_MODEL = "hey_jarvis"  # placeholder -- see module docstring
+WAKE_WORD_MODEL_PATH = Path(__file__).parent / "models" / "hey_sunny.onnx"
+WAKE_WORD_MODEL = "hey_sunny"  # openWakeWord keys scores by the model filename stem
 SAMPLE_RATE = 16000
 FRAME_SAMPLES = 1280  # 80ms @ 16kHz -- openWakeWord's recommended chunk size
 DETECTION_THRESHOLD = 0.5
@@ -125,7 +135,7 @@ def listen(on_wake) -> None:
     # across 2 of the Pi's 4 cores is faster than 1, while still leaving 2 cores
     # free (unlike ncpu=4/"auto", which measured *slower* at ~58ms -- likely
     # thread-contention overhead on this many-core-but-slow-per-core ARM chip).
-    model = Model(wakeword_models=[WAKE_WORD_MODEL], inference_framework="onnx", ncpu=2)
+    model = Model(wakeword_models=[str(WAKE_WORD_MODEL_PATH)], inference_framework="onnx", ncpu=2)
     audio_queue: queue.Queue[np.ndarray] = queue.Queue()
     stop_event = threading.Event()
 
