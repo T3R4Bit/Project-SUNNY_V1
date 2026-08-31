@@ -45,6 +45,7 @@ from sunny_code.components import (
     build_info, category_store, class_deadlines, pdf_text, service_registry, storm_mode, token_tracker, tts,
     usage_chart, voice_session,
 )
+from sunny_code.components.console import get_tailscale_ip
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.crash_check import check_previous_crash
@@ -402,6 +403,28 @@ def create_discord_bot(
             )
             return
         await interaction.response.send_message(f"Build {build_info.get_build_version()}", ephemeral=True)
+
+    @tree.command(name="ip", description="Show Sunny's current Tailscale IP and a console link")
+    async def ip_command(interaction: discord.Interaction):
+        if interaction.channel_id != chat_channel_id:
+            await interaction.response.send_message(
+                "Use /ip in the chat channel.", ephemeral=True
+            )
+            return
+        await interaction.response.defer(thinking=True, ephemeral=True)
+        # get_tailscale_ip() shells out to the `tailscale` CLI (up to a 2s
+        # timeout) -- run off the event loop so a slow/hung call doesn't
+        # stall the bot's message handling, same reasoning as /speak and
+        # /usage below.
+        tailscale_ip = await asyncio.to_thread(get_tailscale_ip)
+        if tailscale_ip is None:
+            await interaction.followup.send(
+                "Couldn't get a Tailscale IP — is `tailscaled` running on the host?", ephemeral=True
+            )
+            return
+        await interaction.followup.send(
+            f"Tailscale IP: `{tailscale_ip}`\nConsole: http://{tailscale_ip}:5000/console", ephemeral=True
+        )
 
     @tree.command(name="services", description="Show on/off + autostart status for every background service")
     async def services_command(interaction: discord.Interaction):
