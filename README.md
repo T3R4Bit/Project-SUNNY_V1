@@ -14,7 +14,7 @@ A dedicated hardware companion device (Raspberry Pi, animated face, local wake w
 
 **Alarms & Reminders** — Time-based, natural phrasing ("set an alarm for 7am", "remind me to call mom at 5pm"), ping Discord when due.
 
-**Discord Bot** — The primary live interface: task dashboard (live-updating embed), health/usage dashboard, server administration (create/delete channels & roles), plus real slash commands (`/speak`, `/classsetup`, `/category`, `/service`/`/services`, `/vacation`, `/usage`, `/version`).
+**Discord Bot** — The primary live interface: task dashboard (live-updating embed), health/usage dashboard, server administration (create/delete channels & roles), plus real slash commands (`/speak`, `/classsetup`, `/category`, `/service`/`/services`, `/vacation`, `/usage`, `/version`, `/ip`).
 
 **Persistent Live Voice** — Sunny stays connected to a configured voice channel and has a real spoken conversation ("Hey Sunny" still wakes it for each request — no open-mic listening) — free, fully local STT/TTS (Vosk + Piper), streaming replies (starts speaking the first sentence while Claude is still writing), barge-in support, session-scoped conversation memory for genuine follow-ups. Toggle on/off with `/service voice_join`, no per-use join command. Runs in an isolated process so a native audio-library crash can't take down the rest of the bot — reconnects automatically after one.
 
@@ -24,7 +24,7 @@ A dedicated hardware companion device (Raspberry Pi, animated face, local wake w
 
 **Weather & Storm Mode** — Real API data normally; "storm mode" switches to a real web-searched LLM update on a set interval/duration instead, for actively-developing weather.
 
-**Project Wizard** — Say "new project," answer three quick questions, get a real multi-file project folder drafted under `sunny-vault/data/projects/` via one Claude call.
+**Project Wizard** — Say "new project," answer three quick questions, get a real project folder drafted under `sunny-vault/data/projects/` via one Claude call (a single overview+architecture doc as of 2026-08-26, down from the original multi-file scaffold).
 
 **Class Setup** — Paste a syllabus per class through a short wizard ("set up my classes" or `/classsetup`); Sunny extracts the class name, meeting times, due dates, and exams (semester start/end dates too — only a semester label like "Fall 2026" is asked for, never a date range), creates a real recurring Google Calendar event for meetings plus all-day events for deadlines, saves the syllabus and a generated summary into that class's own vault folder, and proactively pings a Discord channel 2 days before and the day of each deadline.
 
@@ -72,10 +72,10 @@ See `sunny-vault/docs/phases.md` for the full build timeline and `sunny-vault/do
 
 ## By the Numbers
 
-- **~14,300 lines of Python** across 70 components (`sunny_code/components/`)
-- **200+ commits** since the project started (2026-08-17) — roughly a week of active development
-- **8 Discord slash commands** (`/speak`, `/classsetup`, `/category`, `/service`, `/services`, `/vacation`, `/usage`, `/version`) on top of natural-language everywhere else
-- **27 architecture docs**, one per major component, cross-referenced (`sunny-vault/docs/architecture/`)
+- **~15,000 lines of Python** across 72 components (`sunny_code/components/`)
+- **230+ commits** since the project started (2026-08-17) — roughly two weeks of active development
+- **9 Discord slash commands** (`/speak`, `/classsetup`, `/category`, `/service`, `/services`, `/vacation`, `/usage`, `/version`, `/ip`) on top of natural-language everywhere else
+- **28 architecture docs**, one per major component, cross-referenced (`sunny-vault/docs/architecture/`)
 - **Under $1/month** in practice — see Estimated Costs below
 
 Ask "what version are you running" (any interface) or `/version` in Discord for the exact commit currently deployed.

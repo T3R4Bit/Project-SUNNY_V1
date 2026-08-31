@@ -35,9 +35,9 @@ Live system resources — `GET /api/stats` (psutil: CPU/RAM/disk/temp/network), 
 
 Real-time execution-trace viewer. Every `handle_message()` call — web chat, Discord, Pi companion — is recorded by `sunny_code/components/trace.py`:
 
-- **Columns**: timestamp, input, routing decision (which branch of `handle_message()` handled it, e.g. `tasks_engine`, `spotify_engine`, `briefing`), path taken (a more specific sub-label, e.g. `morning`, `qa`), result, errors.
-- **Color-coding**: a trace is success (green) unless `handle_message()` raised an exception, in which case it's failure (red) with the exception recorded as the error. A branch returning a normal "couldn't do that" reply is not treated as a failure — only real exceptions are.
-- **Click a row** to expand full detail: source (web/discord/pi), session id, duration, full input/result/error.
+- **Columns**: timestamp, input, routing decision (which branch of `handle_message()` handled it, e.g. `tasks_engine`, `spotify_engine`, `briefing`), path taken (a more specific sub-label, e.g. `morning`, `qa`), result, errors, plus (2026-08-28) a color-coded **confidence** badge (`exact`/`heuristic`/`fallback`) and the **function called**.
+- **Color-coding**: a trace is success (green) unless `handle_message()` raised an exception, in which case it's failure (red) with the exception recorded as the error. A branch returning a normal "couldn't do that" reply is not treated as a failure — only real exceptions are. Confidence gets its own separate color-coded badge.
+- **Click a row** to expand full detail: source (web/discord/pi), session id, duration, full input/result/error, confidence, and the function that produced the result.
 - **Storage**: JSON-lines at `<logs_dir>/traces.jsonl`, rotated the same way `logging_config.py` rotates `sunny.log` (10MB/10 backups).
 - **Live updates**: Server-Sent Events (`GET /api/traces/stream`) — one in-process pub/sub, works because the whole app is a single process (see `main.py`'s `SunnyCore.start()`). `GET /api/traces/recent` backfills the table on page load / SSE reconnect.
 - **Instrumentation**: routing branches call `trace.mark_route(route, path)` via a `contextvars.ContextVar` right before returning — doesn't change any branch's control flow, just tags which path fired. An untagged branch reports `"unclassified"` rather than breaking anything.

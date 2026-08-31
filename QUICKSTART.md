@@ -70,6 +70,7 @@ Real registered slash commands, no plain-text equivalent:
 /vacation         → Pause proactive morning/evening nudging
 /usage            → Chart of Claude API cost over the last N days
 /version          → Show the commit Sunny is currently running
+/ip               → Paste the Lenovo box's current Tailscale IP + console link
 ```
 
 ## Talk to Sunny in Discord Voice

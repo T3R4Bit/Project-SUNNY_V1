@@ -73,6 +73,10 @@ sunny-vault/data/state/tasks/
 sunny-vault/data/state/lists/
 sunny-vault/data/state/alarms-reminders.md
 sunny-vault/data/state/exam-review/
+# Pre-2026-08-27 path (see the sunny-vault restructure in CHANGELOG.md) —
+# gitignored defensively in case a stray local copy still exists/gets
+# recreated; the real, current path is sunny-vault/data/state/ above.
+sunny-vault/state/
 # Real class notes and their review state — same reasoning: personal
 # content, not project source, never pushed even though this repo is
 # private. See sunny-vault/docs/architecture/exam-prep.md.
@@ -93,15 +97,13 @@ dist/
 build/
 *.egg-info/
 
-# Node.js (avatar app)
-node_modules/
-# ...except the avatar app's built static bundle, which IS committed on
-# purpose — the Pi deploys it via `git pull` and never runs Node/Vite itself
-!sunny-companion/pi-client/avatar-app/dist/
-
 # Obsidian Vault temp
 .obsidian/
 Project-SUNNY/
 
 # Project-specific
 sunny.db
+
+# /graphify output (regenerable, not documentation)
+docs_list.txt
+graphify-out/

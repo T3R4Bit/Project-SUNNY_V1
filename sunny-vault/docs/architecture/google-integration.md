@@ -24,7 +24,9 @@ One "Connect Google Account" button on [[dashboard|the console]] that authorizes
 | Styled callback screens (connected/denied/error) | Built 2026-08-20 — was a bare unstyled `<p>` tag before, see How It Works |
 | Google Cloud OAuth client (Client ID/Secret) | Created and configured in `.env` |
 | HTTPS support (Google requires it for a non-localhost redirect URI) | Built — see HTTPS below |
-| Actual sign-in | In progress — the PKCE bug blocked every attempt until it was fixed; not yet confirmed successful end-to-end |
+| Actual sign-in | Confirmed working end-to-end (the PKCE bug below blocked every attempt until it was fixed) |
+| Connection-health check (`is_connected()` reflects real token state, not a stale "always valid" read) | Fixed 2026-08-31 — see Token Expiry Bug below |
+| Periodic disconnect detection + Discord alert | Built 2026-08-31 — piggybacks on the existing 6-hour usage-alert loop, see below |
 
 ## What This Covers
 
@@ -105,6 +107,12 @@ Fixed by self-hosting three static pages directly from Sunny: `sunny_code/compon
 - `POST /auth/google/disconnect` — deletes the local token file (does not revoke access on Google's side — revoke via [myaccount.google.com/permissions](https://myaccount.google.com/permissions) if you want that too).
 - `google_auth.get_credentials()` is the one function every other module calls — it loads the stored token, refreshes it if the access token expired, and returns `None` if there's no token or the refresh token was revoked. Every caller (`google_calendar`, `google_gmail`) treats `None` exactly like "not connected," and any live API error is caught and also returns `None` — nothing here can crash a briefing.
 
+### The token-expiry bug (fixed 2026-08-31)
+
+`get_credentials()` rebuilt the `Credentials` object from the stored token file but never restored the saved `expiry` field onto it — an unset expiry reads as "not expired," so `creds.valid` was always `True` regardless of the token's real state. Practical effect: once a Testing-mode refresh token actually died (see the 7-day expiry note above), Sunny never proactively refreshed it and `is_connected()` kept reporting `True` anyway — Calendar/Gmail silently broke with no signal anywhere. Confirmed live: the Lenovo server's stored token had already gone bad while `is_connected()` still said connected. Fixed by restoring `expiry` when rebuilding `Credentials`.
+
+Alongside the fix, `discord_bot.py`'s existing 6-hour usage-alert loop (`check_usage_alerts()`, see [[usage-tracking]]) now also calls `google_auth.is_connected()` and posts a "Google account is disconnected" alert to Discord when it's false — previously the connection state was only ever checked live, on-demand, at call time, with nothing proactively surfacing a disconnect.
+
 ### The PKCE bug (fixed 2026-08-20)
 
 Every real sign-in attempt failed with `invalid_grant: Missing code verifier` until this was found. Root cause: `build_authorization_url()` and `handle_callback()` each built their own `google_auth_oauthlib.Flow` object — but `Flow.authorization_url()` is the only place that auto-generates a PKCE `code_verifier`, and it only lives on that specific Flow instance, discarded the moment the function returns. `handle_callback()` runs in an entirely separate HTTP request (the user goes to Google and back in between) with a fresh Flow that never had a verifier at all, so `fetch_token()` sent none — hence "**Missing**," not "mismatched."
@@ -126,7 +134,7 @@ Fixed by capturing `flow.code_verifier` alongside the existing `_pending_state` 
 - `sunny_code/components/google_gmail.py` — `get_summary()`
 - `sunny_code/components/data_sources.py` — `is_configured("calendar"|"email")` now checks `google_auth.is_connected()`
 - `sunny_code/components/briefing.py` — pulls real Calendar/Gmail data when connected, falls back to the standard "not connected" note otherwise
-- `sunny_code/components/console_stats.py` — GOOGLE status card on `/console`
+- `sunny_code/components/console.py` — GOOGLE status card on `/console`'s OAuth Links tab (replaces the old `console_stats.py`, removed 2026-08-27)
 - `sunny_code/components/legal_pages.py` — serves `legal/home.html`, `legal/privacy.html`, `legal/terms.html` for the consent screen's branding links
 - `sunny_code/main.py` — `start()`'s dual-server (HTTP + HTTPS) launch, `TLS_CERTFILE`/`TLS_KEYFILE`/`TLS_PORT` in `sunny_code/config.py`
 

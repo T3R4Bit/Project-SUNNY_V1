@@ -18,7 +18,7 @@ Claude is the one clearly-paid API in this app (OpenWeatherMap/Google Calendar/G
 | Hard-cap circuit breaker | Built — see [[llm-integration]] |
 | `GET /api/dashboard/spend/today` / `/spend/month` | Built |
 | `/usage [days]` Discord chart command | Built — `usage_chart.py` |
-| Persistent hourly-updated usage dashboard in Discord | Built (2026-08-23) |
+| Persistent usage dashboard in Discord (append-only, every 6h) | Built (2026-08-23, cadence changed 2026-08-27) |
 | Daily spend/expiry alert ping | Built (2026-08-23) |
 | Real Anthropic-reported usage/rate-limit data (not just self-tracked cost) | Built (2026-08-24) |
 
@@ -34,7 +34,7 @@ Claude is the one clearly-paid API in this app (OpenWeatherMap/Google Calendar/G
 
 Both live in `discord_bot.py`, posting to `discord_usage_channel_id` — a dedicated channel if one's configured, otherwise falling back to `discord_health_channel_id` (the weekly health check's channel — see [[health-check]]), then `chat_channel_id`:
 
-- **`refresh_usage_dashboard()`** — an hourly loop (`usage_refresh_loop`, runs immediately then every hour) posts the chart as an embed with `**$X.XX** today · **$Y.YY** this month (cap $Z/day, $W/month)`. Unlike the task dashboard's edit-in-place pattern, this is **delete-and-resend** — Discord's embed image cache can hold a stale thumbnail through an attachment-replacing edit, so a fresh message guarantees a fresh chart image every time. Recognizes its own prior pinned message across restarts via a footer marker (`USAGE_MARKER`), same technique as the task dashboard's zero-width-space marker.
+- **`refresh_usage_dashboard()`** — a loop (`usage_refresh_loop`, runs immediately then every 6 hours as of 2026-08-27, slowed from hourly) posts the chart as a **brand-new** embed each time with `**$X.XX** today · **$Y.YY** this month (cap $Z/day, $W/month)`. As of 2026-08-27 this is append-only — no delete, no edit, no pinned-message tracking (the earlier delete-and-resend-via-footer-marker approach was dropped, so the channel accumulates one post per refresh instead of always showing exactly one current message).
 - **`check_usage_alerts()`** — pings the same channel once per calendar day (tracked by date, not a one-shot flag, so a new day's crossing still alerts even if yesterday's already did) when spend crosses 70% of the daily/monthly self-imposed cap, or a tracked API key is expiring within a week — the same expiry check the weekly health report does, surfaced immediately here instead of waiting for Sunday.
 
 ## Real Anthropic Rate-Limit Data (2026-08-24)
@@ -73,7 +73,7 @@ Re-added 2026-08-25 by request — `discord_usage_channel_id` is back, sitting a
 - [x] Hard spend caps enforced in-app (daily + monthly)
 - [x] Dashboard API endpoints (today/month)
 - [x] `/usage [days]` chart command
-- [x] Persistent hourly-updated dashboard, delete-and-resend to dodge Discord's image cache
+- [x] Persistent dashboard, append-only, refreshed every 6 hours (2026-08-27, slowed from hourly delete-and-resend)
 - [x] Daily 70%-of-cap / key-expiring-soon alert, deduped per calendar day
 - [x] Consolidated into `#health` alongside the weekly health check (2026-08-23), then given back its own optional channel — `DISCORD_USAGE_CHANNEL_ID` (2026-08-25), falling back to `#health` then chat if unset
 - [x] Real Anthropic-reported usage/rate-limit data from API response headers (not just self-tracked cost) — `GET /api/dashboard/usage/live`, `/usage`'s extra line, and a cross-interface "what's my usage" intent

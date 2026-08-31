@@ -3,12 +3,41 @@ id: sunny-phases
 type: planning
 status: active
 created: 2026-08-18
+updated: 2026-08-31
 tags: [phases, timeline, deliverables, planning]
 ---
 
 # Build Phases & Deliverables
 
 Complete breakdown of Project SUNNY's build timeline with dependencies, deliverables, and current status.
+
+**2026-08-31 revision**: Phases 0-2 below are accurate and were left mostly as-is (verified against real code this session, see [[CHANGELOG.md]]'s 2026-08-31 entry). Phases 3-5 as originally written describe a build path (ESP32 Clock, then Twilio phone) that stopped receiving any work after Discord voice shipped instead and the Sunny Companion (Raspberry Pi) hardware effort started — see the "Path to Usable" section immediately below for the real current priority order, and the superseded-notices inline in Phase 3/4 for what to read instead.
+
+---
+
+## Path to Usable — Priority Order (2026-08-31)
+
+The core software (Phase 0-2) is genuinely done and reliable — two weeks of real daily use, ~230 commits, no open correctness bugs found in this pass. What's actually between here and "usable" isn't more features; it's closing out threads already started. Ordered by leverage, cheapest/highest-impact first:
+
+1. **Documentation accuracy** — done this session. The last full doc-vs-code audit was commit `01bd949` (2026-08-25); ~30 commits since then had drifted out of every doc that touched them (console tabs/columns, usage-dashboard cadence, Discord command list, project-wizard output shape, the Google OAuth reconnect fix, stale file references, project stat counts). Fixed directly — see [[CHANGELOG.md]].
+
+2. **Repo hygiene** — done this session: `.gitignore` now covers `docs_list.txt`/`graphify-out/` (untracked `/graphify` output that had no ignore rule) and the pre-restructure `sunny-vault/state/` path (a stray, no-longer-written-to directory left over from the 2026-08-27 vault restructure — real code now only reads/writes `sunny-vault/data/state/`); removed a dead `.gitignore` carve-out for the scrapped `avatar-app/`. **Still open**: decide whether to actually delete the orphaned local `sunny-vault/state/` directory's contents (a few kB of stale alarms/sensor-cursor state) once you're confident nothing needs it — nothing in code reads it anymore, so this is pure cleanup, not a functional fix.
+
+3. **Cross-platform dev support — pick one, then document it.** This machine (Windows) has a real, working Python venv and every `requirements.txt` package installs clean — but `run.sh` itself is unrunnable as-is: it's bash-only and hardcodes `venv/bin/activate` (Linux venv layout), so even Git Bash can't get past `./run.sh`. Separately, the two `run.sh test all` scripts crash immediately on Windows with `UnicodeEncodeError` from box-drawing banner characters hitting the default `cp1252` console codepage — fixed by setting `PYTHONUTF8=1`, but nothing sets or documents that today. Two ways to close this out:
+   - **(a) Scope dev+prod to WSL2/Linux only** (recommended — production is Linux-only anyway, and this avoids maintaining a second code path) — say so explicitly in QUICKSTART.md/README.md ("Windows: use WSL2, see SETUP_LINUX.md") instead of leaving Windows users to discover the failure themselves.
+   - **(b) Add real Windows support** — an OS-detecting branch in `run.sh` (or a parallel `run.ps1`) for the venv activate path, `PYTHONUTF8=1` set before running any Python, and documented Windows guidance for `libopus0` (needed for Discord voice output — currently only an `apt install` line in SETUP_LINUX.md, no Windows equivalent).
+
+4. **Wire the orphaned test scripts into `run.sh test all`.** Today it only runs `test_briefing_complete.py` and `test_tasks_complete.py`. `test_routing_fixes.py` — the newest suite, covering the 2026-08-28 routing-hardening pass — isn't wired in anywhere and is only discoverable by reading `run.sh` itself. Decide the fate of the two interactive scripts (`test_briefing_interactive.py`, `test_tasks_interactive.py` — keep as manual-only CLI tools, fine as-is) but get `test_routing_fixes.py` into the automated run.
+
+5. **Close out the "scheduled briefing" open item, one way or the other.** Phase 2 below still lists "Scheduling (7am morning, 9pm evening)" as not done. In two weeks of real use, trigger-phrase briefings ("good morning") plus the 5-minute alarm-lookahead prewarm (see [[BACKLOG.md]]'s morning-prep item) have made this a non-issue in practice — nothing currently needs Sunny to speak up unprompted at a fixed clock time. Recommend explicitly closing this as "superseded by trigger-phrase + prewarm" rather than building a real cron-style auto-fire that nothing is asking for — but if the original intent (an actual alarm-clock-style spoken briefing with no phrase needed) still matters, this is the item to actually build.
+
+6. **Give the proactive-architecture foundation its first real caller.** `sensors.py`, `rules_engine.py`, `context_engine.py`, `vault_permissions.py`, and `suggestion_tracker.py` (see [[architecture/proactive-architecture]]) are fully built, tested, and running on a live 30-minute loop — with zero real callers. This is the clearest "shipped but not yet usable" gap in the whole codebase. Smallest concrete next step: wire `vault_permissions.request_vault_write()` into the weekly knowledge health check's existing broken-link/orphaned-note findings, so a >95%-confidence fix (e.g. an obviously broken wikilink with one unambiguous match) can auto-apply instead of only being reported — closes the loop on a real Layer-5 caller with no new data source needed.
+
+7. **Sunny Companion hardware is the real "next phase."** Tracked directly in `sunny-companion/BUILD_PLAN.md` — not duplicated here, to avoid the two drifting apart (see that file's own note). Current real state: Phase 5's wake-word engine is fully validated on real Pi 3B hardware with a real trained "hey sunny" model (not the "hey_jarvis" placeholder some docs still described until this session); Phase 4's face renderer is a working dev-machine prototype, not yet validated for frame timing on real Pi hardware — the single biggest remaining unknown. Phases 2, 4.5, 6 (dashboard half), 7, and 8 are the real remaining work between here and a physical desk unit that actually talks back.
+
+8. **Reconcile `DESIGN.md`'s original vision with what actually shipped.** `DESIGN.md` still describes an ESP32-S3 "Clock" as the hardware brain, plus Notion sync, WhatsApp, and near-term phone/Twilio integration. None of that reflects the real build: the hardware path became the Raspberry Pi Sunny Companion (this doc predates that pivot and was never updated after it — unlike [[system-state.md]], which already carries an explicit "this describes the old plan, here's what's real" banner), Notion was dropped entirely (no Notion integration exists anywhere in code), and phone/Twilio (next item) has had zero work since. Recommend adding a similar status banner to `DESIGN.md` rather than rewriting it wholesale — it's still a useful record of original reasoning (LFP battery chemistry, PKCE-style security notes, etc.), it just needs to stop reading as the current plan.
+
+9. **Decide, explicitly, whether Phase 5 (Telephony/Twilio) is still wanted.** Zero code and zero commits toward it in ~230 commits of otherwise very active development, while Discord voice — not in the original plan at all — shipped a full persistent, barge-in-capable, streaming voice conversation instead and now covers most of what "callable voice interface" originally meant. Either keep Twilio on the roadmap as a genuinely distinct capability (a real "call from anywhere, no Discord app needed" phone interface), or fold it into [[BACKLOG.md]] as speculative/low-priority so this file stops implying it's the immediate next milestone after hardware phases finish.
 
 ---
 
@@ -121,6 +150,8 @@ Briefing templates + Q&A engine fully working end-to-end, tasks real, honest gap
 
 ## Phase 3: Voice Out / Clock Hardware
 
+> **Superseded 2026-08-31**: this phase's ESP32-S3 Clock hardware path never received any work — Discord voice (Piper TTS, not the planned Sonic API) shipped instead and covers the "voice out" half today, and the physical-device half became the Raspberry Pi **Sunny Companion**, tracked in `sunny-companion/BUILD_PLAN.md`. Kept below as a historical record of the original hardware design (LiFePO4 sizing, ESP32 choice, etc.) — see item 8 of "Path to Usable" above. Not an active plan.
+
 **Timeline**: Week 5-6
 **Dependencies**: Phase 0-2 complete (briefing ready to output)
 **Deliverable**: Working bedside clock with voice output, battery backup, alarm
@@ -173,6 +204,8 @@ Tailscale: Clock accessible from Lenovo via mesh
 
 ## Phase 4: Voice In / Wake Word Detection
 
+> **Superseded 2026-08-31**: the Whisper-API/ESP32 path below never received any work. Wake-word detection is real and live today via two separate, unrelated paths that both shipped instead: Discord voice's Vosk-based fuzzy match (see [[architecture/voice-join]]), and — the closer match to this phase's original intent — the Sunny Companion Pi's openWakeWord engine, now running a real trained "hey sunny" model, verified end-to-end on real Pi 3B hardware (`sunny-companion/BUILD_PLAN.md` Phase 5). Kept below as a historical record. Not an active plan.
+
 **Timeline**: Week 7-8
 **Dependencies**: Phase 3 complete (Clock hardware ready)
 **Deliverable**: Wake word detection, STT, intent routing
@@ -222,6 +255,8 @@ Latency: <5s from wake word to response
 ---
 
 ## Phase 5: Telephony / Phone Calls
+
+> **Status check 2026-08-31**: zero code and zero commits toward this in ~230 commits of otherwise active development — see item 9 of "Path to Usable" above. Not superseded (Discord voice doesn't cover "call from anywhere with no app installed"), but genuinely stalled — worth an explicit decision on priority rather than leaving it implied as "next after hardware phases."
 
 **Timeline**: Week 8-9
 **Dependencies**: Phase 4 complete (voice I/O working)
@@ -374,13 +409,13 @@ Full breakdown: [[architecture/llm-readiness]].
 |-----------|--------|--------|
 | Phase 0: Foundations | This week | Mostly complete — only minor OS config remaining (unattended-upgrades reboot window, skip Snaps at install) |
 | Phase 1: Networking | Week 2 | Mostly complete — phone verification + ACLs remaining |
-| Phase 2: Briefing | Week 3-4 | Templates/Q&A + Calendar/Gmail/Weather live and confirmed end-to-end — commute/health/news remaining |
-| Phase 3: Clock Hardware | Week 5-6 | Upcoming |
-| Phase 4: Wake Word | Week 7-8 | Upcoming |
-| Phase 5: Phone | Week 8-9 | Upcoming |
-| **MVP**: All 0-5 complete | End Sept 2026 | Target |
+| Phase 2: Briefing | Week 3-4 | Templates/Q&A + Calendar/Gmail/Weather live and confirmed end-to-end — commute/health/news remaining, scheduling question open (see "Path to Usable" item 5) |
+| ~~Phase 3: Clock Hardware~~ | ~~Week 5-6~~ | **Superseded** — see Phase 3's note; real work is `sunny-companion/BUILD_PLAN.md` |
+| ~~Phase 4: Wake Word~~ | ~~Week 7-8~~ | **Superseded** — live today via Sunny Companion's openWakeWord + Discord's Vosk fuzzy-match, see Phase 4's note |
+| Phase 5: Phone | Week 8-9 | Stalled, zero work started — priority decision open (see "Path to Usable" item 9) |
+| **Sunny Companion (desk unit)** | — | **The real current hardware milestone** — see `sunny-companion/BUILD_PLAN.md`: wake-word engine done and Pi-validated; face renderer prototyped, not yet Pi-validated; device client wiring, dashboard, enclosure remain |
 | Phase 6: Power Control | Q4 2026 | Optional |
-| Phase 7: Custom PCB | Q4 2026+ | Nice-to-have |
+| Phase 7: Custom PCB | Q4 2026+ | Nice-to-have, and moot unless Phase 3's ESP32 path is ever revived over the Pi path |
 
 ---
 

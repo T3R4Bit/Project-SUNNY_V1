@@ -8,6 +8,8 @@ tags: [design, architecture, principles, specifications]
 
 # Project SUNNY — Design Document
 
+> **This is the original design doc — large parts of it describe a plan that changed.** The hardware brain here is an ESP32-S3 "Clock"; what actually got built is a Raspberry Pi device (`sunny-companion/`), and that pivot was never backported into this file. Notion sync, WhatsApp, and phone/Twilio integration described below are all still unbuilt (Notion doesn't exist in code at all). Discord voice — not mentioned here — shipped instead and now covers most of what the Clock's "voice out"/"voice in" sections describe. For what's actually real today, see `README.md`, [[phases]] (especially its 2026-08-31 "Path to Usable" section), and `sunny-companion/BUILD_PLAN.md`. This doc still holds useful original reasoning (LFP battery chemistry, PKCE-era security notes, cost breakdowns) — read it as history and rationale, not as the current plan. See [[system-state.md]] for the same treatment applied to Sunny's runtime-state design.
+
 ## Smart Unified Network Navigating Yond
 
 Sunny is a self-hosted voice assistant that lives on a bedside device (the Clock), wakes me up, briefs me, answers the phone, and can power on my desktop remotely. Deterministic where possible, LLM only where judgement is genuinely needed.
