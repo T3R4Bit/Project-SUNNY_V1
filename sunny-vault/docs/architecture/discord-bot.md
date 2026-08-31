@@ -113,7 +113,7 @@ Create each channel in Discord first (by hand, or once the bot's connected: `cre
 The bot still only ever *reads commands* from the chat channel (`DISCORD_CHAT_CHANNEL_ID`) — this is about where it *posts things*, not a second command channel. See the Channel Reference table above for what each optional channel carries. What "left unset" actually does, per channel:
 
 - `DISCORD_TASKS_CHANNEL_ID` unset → the pinned dashboard posts in the chat channel instead (the pre-split behavior)
-- `DISCORD_BRIEFINGS_CHANNEL_ID` unset → not cross-posted; the briefing still replies in the chat channel as normal (this is the one channel that doesn't fall back to re-posting elsewhere — it just doesn't duplicate)
+- `DISCORD_BRIEFINGS_CHANNEL_ID` unset → not cross-posted; the briefing still replies in the chat channel as normal, as an embed either way (this is the one channel that doesn't fall back to re-posting elsewhere — it just doesn't duplicate)
 - `DISCORD_WARNINGS_CHANNEL_ID` unset → falls back to the chat channel (its behavior before this existed)
 - `DISCORD_TASK_UPDATES_CHANNEL_ID` unset → not posted anywhere extra; the pinned dashboard still updates as normal either way
 - `DISCORD_HEALTH_CHANNEL_ID` unset → the weekly health report falls back to the chat channel — see [[health-check]]
@@ -122,7 +122,7 @@ The bot still only ever *reads commands* from the chat channel (`DISCORD_CHAT_CH
 
 **How it's wired**: `TaskEngine.on_change` (previously a bare no-arg "something changed, refresh yourself" signal used only for the pinned dashboard) now optionally receives the result message too. `discord_bot.py` combines both effects into one callback — refresh the dashboard *and*, if configured, log the message to `#task-updates`. Nothing about `TaskEngine` itself became Discord-aware; it just started passing along information it already had.
 
-**Briefing cross-posting** works by checking `sunny_code.components.assistant.is_briefing_trigger(text)` — a tiny public helper added specifically so `discord_bot.py` doesn't have to duplicate the "morning"/"evening" trigger phrases that already live in `assistant.py`.
+**Briefing cross-posting** works by checking `sunny_code.components.assistant.is_briefing_trigger(text)` — a tiny public helper added specifically so `discord_bot.py` doesn't have to duplicate the "morning"/"evening" trigger phrases that already live in `assistant.py`. When it matches, the plain-text template from `BriefingTemplates` (see [[briefing-engine]]) is rendered as a Discord embed (`build_dashboard_embed`'s sibling, `build_briefing_embed`) instead of chunked plain text — same visual style as the `/usage` and weekly-health embeds — before being sent to both the chat channel and (if configured) `#briefings`.
 
 ### What's intentionally not built here
 

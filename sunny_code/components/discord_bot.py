@@ -201,6 +201,22 @@ def build_dashboard_embed(dashboard_data: dict, project_names: list) -> discord.
     return embed
 
 
+def build_briefing_embed(text: str) -> discord.Embed:
+    """Renders a morning/evening briefing (see BriefingTemplates in
+    briefing.py -- the same plain-text block the web console and voice
+    pipeline read as-is) as a Discord embed instead of a wall of plain
+    text, matching the visual language every other embed in this module
+    uses (build_dashboard_embed above, /usage, the weekly health report).
+    Title comes from the template's own "=== ... ===" banner line; the
+    rest becomes the embed body. Only called when
+    assistant.is_briefing_trigger() confirmed the response really is a
+    briefing -- see on_message below."""
+    title, _, body = text.strip("\n").partition("\n\n")
+    title = title.strip("= ").title() if title.startswith("===") else "Briefing"
+    color = discord.Color.gold() if "morning" in title.lower() else discord.Color.dark_blue()
+    return discord.Embed(title=title, description=body.strip()[:4096], color=color)
+
+
 def _find_role(guild: discord.Guild, name: str):
     name = name.lower()
     return discord.utils.find(lambda r: r.name.lower() == name, guild.roles)
@@ -1002,12 +1018,20 @@ def create_discord_bot(
             effective_text, tasks_engine, briefing_engine, list_engine, scheduled_engine,
             project_engine, spotify_engine, calendar_engine, session_id=session_id
         )
-        for chunk in _chunk_message(response):
-            await message.channel.send(chunk)
         # Dashboard refresh (if this was a mutating command) happens automatically
         # via tasks_engine.on_change — no need to check/trigger it here too.
 
-        if briefings_channel_id and is_briefing_trigger(message.content):
-            await _post_to(briefings_channel_id, response)
+        if is_briefing_trigger(message.content):
+            embed = build_briefing_embed(response)
+            await message.channel.send(embed=embed)
+            if briefings_channel_id:
+                try:
+                    briefings_channel = await client.fetch_channel(briefings_channel_id)
+                    await briefings_channel.send(embed=embed)
+                except (discord.NotFound, discord.Forbidden) as e:
+                    logger.warning(f"Cannot access Discord briefings channel {briefings_channel_id}: {e}")
+        else:
+            for chunk in _chunk_message(response):
+                await message.channel.send(chunk)
 
     return client
