@@ -23,6 +23,7 @@ Account" again.
 import json
 import logging
 import secrets
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -186,6 +187,9 @@ def get_credentials() -> Optional[Credentials]:
     if not raw or not raw.get("refresh_token"):
         return None
 
+    expiry_raw = raw.get("expiry")
+    expiry = datetime.fromisoformat(expiry_raw) if expiry_raw else None
+
     creds = Credentials(
         token=raw.get("token"),
         refresh_token=raw.get("refresh_token"),
@@ -193,6 +197,7 @@ def get_credentials() -> Optional[Credentials]:
         client_id=raw.get("client_id"),
         client_secret=raw.get("client_secret"),
         scopes=raw.get("scopes"),
+        expiry=expiry,
     )
 
     if not creds.valid:

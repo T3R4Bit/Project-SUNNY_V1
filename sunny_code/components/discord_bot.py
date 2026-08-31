@@ -48,6 +48,7 @@ from sunny_code.components import (
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.crash_check import check_previous_crash
+from sunny_code.components import google_auth
 from sunny_code.components.key_status import expiring_within, missing_api_keys, startup_summary
 from sunny_code.components.lists_engine import ListEngine
 from sunny_code.components.project_engine import ProjectEngine
@@ -640,6 +641,19 @@ def create_discord_bot(
             )
         for label, raw in expiring_within(7):
             alerts.append(f"**{label}** expires soon: {raw}")
+
+        # Google's Testing-mode refresh tokens expire after 7 days (see
+        # google-integration.md) -- without this check that death is silent:
+        # get_credentials() just starts returning None and Calendar/Gmail
+        # quietly say "not connected" everywhere, with nothing pointing back
+        # at "go reconnect on /console". is_connected() actually attempts a
+        # refresh, so this doubles as the periodic liveness check
+        # is_client_configured()-only startup_summary() can't provide.
+        if google_auth.is_client_configured() and not google_auth.is_connected():
+            alerts.append(
+                "**Google account** is disconnected (Calendar/Gmail) — "
+                "visit /console and click \"Connect Google Account\" to reconnect."
+            )
 
         if not alerts:
             return
