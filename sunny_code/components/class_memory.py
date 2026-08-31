@@ -23,7 +23,7 @@ import logging
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 
 from sunny_code.components import vault_io
 from sunny_code.config import get_settings
@@ -37,6 +37,17 @@ SYLLABUS_FILENAME = "syllabus.md"
 CLASS_INFO_FILENAME = "class-info.md"
 
 _UNSAFE_PATH_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+# Reads back the "## Meets\n- Mon/Wed 16:10-17:30 @ ..." lines
+# save_to_class_folder() below writes -- the day abbreviations are always
+# the same first-three-letters scheme class_setup_engine.py's recap()
+# generates (`d[:3] for d in mt["days"]`), and every weekday's first three
+# letters are distinct, so this round-trips exactly with no ambiguity.
+_MEETS_LINE_RE = re.compile(r"^-\s+([A-Za-z/]+)\s+\d{1,2}:\d{2}")
+_ABBREV_TO_WEEKDAY = {
+    name[:3].capitalize(): name
+    for name in ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+}
 
 
 def _classes_dir() -> Path:
@@ -101,6 +112,46 @@ def save_to_class_folder(
         lines.append("")
     vault_io.atomic_write_text(class_dir / CLASS_INFO_FILENAME, "\n".join(lines))
     logger.info(f"Class vault copy saved: {class_name} ({semester}) -> {class_dir}")
+
+
+def get_class_meeting_days() -> Set[str]:
+    """Every weekday (lowercase full name, e.g. "monday") that any class
+    currently meets on, read back from each class's own class-info.md
+    "## Meets" section (see save_to_class_folder above) -- the only place
+    meeting days persist today; save_class()'s own frontmatter never
+    stored them structurally, and this avoids depending on a live Google
+    Calendar connection just to answer "do I have class today." Used by
+    briefing.py to pick a class-day weather location. Scans every
+    sunny-vault/KSU/<semester>/<class>/ folder, not just the current
+    semester -- fine for now with a single active semester; not worth
+    tracking "current" separately until a second one exists."""
+    days: Set[str] = set()
+    root = get_settings().project_root / "sunny-vault" / "KSU"
+    if not root.exists():
+        return days
+    for path in root.glob("*/*/" + CLASS_INFO_FILENAME):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as e:
+            logger.warning(f"Skipping unreadable class-info file {path}: {e}")
+            continue
+        in_meets_section = False
+        for line in text.splitlines():
+            if line.strip() == "## Meets":
+                in_meets_section = True
+                continue
+            if not in_meets_section:
+                continue
+            if line.startswith("## "):
+                break
+            match = _MEETS_LINE_RE.match(line.strip())
+            if not match:
+                continue
+            for abbrev in match.group(1).split("/"):
+                weekday = _ABBREV_TO_WEEKDAY.get(abbrev)
+                if weekday:
+                    days.add(weekday)
+    return days
 
 
 def save_class(class_name: str, semester: str, summary: str, key_dates: List[Dict]) -> None:

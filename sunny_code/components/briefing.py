@@ -20,7 +20,9 @@ from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.data_sources import is_configured, missing_requirement
 from sunny_code.components.llm_client import ask_claude, ask_claude_stream
 from sunny_code.components.request_log import log_unfulfilled
-from sunny_code.components import conversation_memory, docs_search, google_calendar, google_gmail, health_check, weather
+from sunny_code.components import (
+    class_memory, conversation_memory, docs_search, google_calendar, google_gmail, health_check, weather,
+)
 
 OnChunk = Callable[[str], Awaitable[None]]
 OnSearchStart = Callable[[], Awaitable[None]]
@@ -37,6 +39,21 @@ _TOPIC_LABELS = {
     "motorsports": "MOTORSPORTS UPDATE",
     "news": "TODAY'S HEADLINES",
 }
+
+# On a day with class, weather is for campus, not wherever the console's
+# LOCATION card happens to be set to (home, most likely) -- see
+# class_memory.get_class_meeting_days().
+_CLASS_DAY_WEATHER_LOCATION = "Kennesaw,GA,US"
+
+
+def _class_day_location(weekday_date) -> Optional[str]:
+    """_CLASS_DAY_WEATHER_LOCATION if `weekday_date` (a date) falls on a
+    day any class meets, else None (meaning: use the usual GPS/console
+    location)."""
+    weekday_name = weekday_date.strftime("%A").lower()
+    if weekday_name in class_memory.get_class_meeting_days():
+        return _CLASS_DAY_WEATHER_LOCATION
+    return None
 
 
 class BriefingTemplates:
@@ -124,16 +141,20 @@ class BriefingTemplates:
         return "\n ".join(lines)
 
     @staticmethod
-    async def _weather_text(tomorrow: bool = False, unconfigured: Optional[List[str]] = None) -> str:
+    async def _weather_text(
+        tomorrow: bool = False, unconfigured: Optional[List[str]] = None, location: Optional[str] = None,
+    ) -> str:
         """Real conditions via OpenWeatherMap if connected, else the
-        standard 'not connected' note. See _calendar_text's docstring for
-        why this runs via to_thread (weather.py uses the sync `requests`
-        library, same blocking-call concern)."""
+        standard 'not connected' note. `location` overrides the usual
+        GPS/console location (see _class_day_location above). See
+        _calendar_text's docstring for why this runs via to_thread
+        (weather.py uses the sync `requests` library, same blocking-call
+        concern)."""
         if not is_configured("weather"):
             if unconfigured is not None:
                 unconfigured.append("weather")
             return BriefingTemplates._note("weather")
-        data = await asyncio.to_thread(weather.get_tomorrow if tomorrow else weather.get_current)
+        data = await asyncio.to_thread(weather.get_tomorrow if tomorrow else weather.get_current, location)
         if data is None:
             return "Weather temporarily unavailable — check logs"
         line = f"{data['temp']}°F, {data['condition']}"
@@ -163,7 +184,7 @@ class BriefingTemplates:
         # them: each one's own append happens synchronously before its
         # first await, never interleaved with another's.
         weather_note, calendar_note, email_note = await asyncio.gather(
-            BriefingTemplates._weather_text(False, unconfigured),
+            BriefingTemplates._weather_text(False, unconfigured, _class_day_location(now.date())),
             BriefingTemplates._calendar_text(0, unconfigured),
             BriefingTemplates._email_text(unconfigured),
         )
@@ -251,10 +272,18 @@ Have a productive day!
                 return n
             return ""
 
+        # tomorrow_day_offset (not "tomorrow" the boolean) is the actual
+        # calendar date this section previews either way -- see the
+        # is_late_night comment above -- so it's what decides the
+        # class-day weather location too.
+        forecast_date = now.date() + timedelta(days=tomorrow_day_offset)
+
         # Concurrent, not sequential -- see morning_briefing's comment.
         calendar_note, weather_note = await asyncio.gather(
             BriefingTemplates._calendar_text(tomorrow_day_offset, unconfigured),  # tomorrow preview
-            BriefingTemplates._weather_text(not is_late_night, unconfigured),  # tomorrow's forecast
+            BriefingTemplates._weather_text(  # tomorrow's forecast
+                not is_late_night, unconfigured, _class_day_location(forecast_date),
+            ),
         )
         health_note = note("health")
 

@@ -23,11 +23,16 @@ _BASE_URL = "https://api.openweathermap.org/data/2.5"
 _TIMEOUT = 5
 
 
-def _params() -> Optional[dict]:
+def _params(location_override: Optional[str] = None) -> Optional[dict]:
     settings = get_settings()
     if not looks_configured(settings.openweathermap_api_key):
         return None
-    location_params = location_store.get_weather_query_params()
+    # An explicit override (e.g. briefing.py's class-day Kennesaw lookup)
+    # bypasses location_store's GPS-vs-static decision entirely -- it's a
+    # one-off "check this specific place" query, not "where is Sunny right
+    # now," so neither a stale GPS fix nor the console's saved location
+    # should quietly win instead.
+    location_params = {"q": location_override} if location_override else location_store.get_weather_query_params()
     if not location_params:
         return None
     return {
@@ -64,9 +69,11 @@ def location_resolves(location: str) -> bool:
     return resp.ok
 
 
-def get_current() -> Optional[Dict]:
-    """Today's conditions, or None if weather isn't usable right now."""
-    params = _params()
+def get_current(location: Optional[str] = None) -> Optional[Dict]:
+    """Today's conditions for `location` (an OpenWeatherMap "City,State,Country"
+    string), or the usual GPS/console location if omitted. None if weather
+    isn't usable right now."""
+    params = _params(location)
     if params is None:
         return None
     try:
@@ -93,9 +100,10 @@ def get_current() -> Optional[Dict]:
         return None
 
 
-def get_tomorrow() -> Optional[Dict]:
-    """Forecast for roughly midday tomorrow, or None if unavailable."""
-    params = _params()
+def get_tomorrow(location: Optional[str] = None) -> Optional[Dict]:
+    """Forecast for roughly midday tomorrow at `location` (see get_current),
+    or the usual GPS/console location if omitted. None if unavailable."""
+    params = _params(location)
     if params is None:
         return None
     try:
