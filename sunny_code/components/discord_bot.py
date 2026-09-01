@@ -43,7 +43,7 @@ from discord.ext import tasks
 
 from sunny_code.components import (
     build_info, category_store, class_deadlines, pdf_text, service_registry, storm_mode, token_tracker, tts,
-    usage_chart, voice_session, weather,
+    usage_chart, voice_session,
 )
 from sunny_code.components.console import get_tailscale_ip
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
@@ -99,11 +99,6 @@ CLASS_REMINDERS_CHECK_INTERVAL_SECONDS = 3 * 60 * 60 # class_deadlines.check_and
 # scheduled_check_loop's 30s granularity here
 SPEAK_MAX_CHARS = 1000 # practical cap on synthesis time/file size, well under
 # Discord's own 6000-char slash-command string option limit
-MARIETTA_WEATHER_CHECK_INTERVAL_SECONDS = 5 * 60 # fine enough to land in the
-# 7pm-Monday minute without polling as tight as scheduled_check_loop -- this
-# only ever fires once a week, unlike alarms/reminders
-MARIETTA_WEATHER_HOUR = 19 # 7pm
-MARIETTA_WEATHER_LOCATION = "Marietta,GA,US"
 
 
 def _chunk_message(text: str, limit: int = MAX_MESSAGE_LENGTH):
@@ -332,7 +327,6 @@ def create_discord_bot(
         "posted_key_status": False,
         "commands_synced": False,
         "posted_crash_notice": False,
-        "marietta_weather_date": None,
     }
 
     @tree.command(name="speak", description="Speak this text out loud (Piper TTS, posted as an audio attachment)")
@@ -464,7 +458,7 @@ def create_discord_bot(
         interaction: discord.Interaction,
         name: Literal[
             "dashboard_refresh", "scheduled_check", "usage_refresh", "health_check", "morning_prep",
-            "voice_join", "rules_engine", "class_reminders", "marietta_weather",
+            "voice_join", "rules_engine", "class_reminders",
         ],
         action: Literal["enable", "disable", "autostart_on", "autostart_off"],
     ):
@@ -872,33 +866,6 @@ def create_discord_bot(
 
         await class_deadlines.check_and_notify(post)
 
-    @tasks.loop(seconds=MARIETTA_WEATHER_CHECK_INTERVAL_SECONDS)
-    async def marietta_weather_loop():
-        """Posts Marietta's current weather to #reminders (or chat, if
-        unconfigured) once, every Monday at MARIETTA_WEATHER_HOUR -- a
-        fixed weekly appointment, not part of the on-demand morning/evening
-        briefing (see briefing.py's class-day Kennesaw location for that
-        one), since those only ever fire when someone actually asks.
-        state["marietta_weather_date"] gates on the date, not a one-shot
-        flag, so it still fires again the following Monday; same pattern
-        as check_usage_alerts' daily gate."""
-        if not service_registry.is_enabled("marietta_weather") or service_registry.is_vacation_mode():
-            return
-        now = datetime.now()
-        if now.weekday() != 0 or now.hour != MARIETTA_WEATHER_HOUR:
-            return
-        today = now.date().isoformat()
-        if state["marietta_weather_date"] == today:
-            return
-        state["marietta_weather_date"] = today
-
-        data = await asyncio.to_thread(weather.get_current, MARIETTA_WEATHER_LOCATION)
-        if data is None:
-            logger.warning("marietta_weather_loop: weather unavailable, skipping this week's post")
-            return
-        text = f"Marietta weather (7pm): {data['temp']}°F, {data['condition']}"
-        await _post_to(reminders_channel_id, text, fallback_channel_id=chat_channel_id)
-
     @client.event
     async def on_ready():
         logger.info(
@@ -925,8 +892,6 @@ def create_discord_bot(
             voice_presence_loop.start() # runs immediately, then every 30s
         if not class_reminders_loop.is_running() and service_registry.is_autostart("class_reminders"):
             class_reminders_loop.start() # runs immediately, then every few hours
-        if not marietta_weather_loop.is_running() and service_registry.is_autostart("marietta_weather"):
-            marietta_weather_loop.start() # runs immediately, then every 5 minutes (only acts at 7pm Monday)
 
         # Guild-scoped sync (instant) rather than global (~1hr to propagate) —
         # this bot is single-server by design already (see discord-bot.md).

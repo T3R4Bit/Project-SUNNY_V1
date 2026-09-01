@@ -40,20 +40,31 @@ _TOPIC_LABELS = {
     "news": "TODAY'S HEADLINES",
 }
 
-# On a day with class, weather is for campus, not wherever the console's
-# LOCATION card happens to be set to (home, most likely) -- see
-# class_memory.get_class_meeting_days().
-_CLASS_DAY_WEATHER_LOCATION = "Kennesaw,GA,US"
+# Extra weather locations layered on top of the usual GPS/console "Home"
+# location -- see _weather_locations_for below. Kennesaw is campus, shown
+# on any day a class meets (class_memory.get_class_meeting_days(), read
+# from the "## Meets" lines class-setup writes -- no live Calendar
+# connection needed). Marietta is a fixed Monday appointment -- originally
+# a standalone 7pm Discord ping, moved into the morning briefing instead
+# so it's just another WEATHER line, not a separate proactive post.
+_KENNESAW_WEATHER_LOCATION = "Kennesaw,GA,US"
+_MARIETTA_WEATHER_LOCATION = "Marietta,GA,US"
 
 
-def _class_day_location(weekday_date) -> Optional[str]:
-    """_CLASS_DAY_WEATHER_LOCATION if `weekday_date` (a date) falls on a
-    day any class meets, else None (meaning: use the usual GPS/console
-    location)."""
-    weekday_name = weekday_date.strftime("%A").lower()
+def _weather_locations_for(target_date) -> List[Tuple[str, Optional[str]]]:
+    """[(label, location_override), ...] to show in the WEATHER section for
+    target_date. Always starts with ("Home", None) -- None means "use the
+    usual GPS/console location," so a day with nothing else special about
+    it renders exactly as before this existed (a single unlabeled line).
+    Kennesaw is appended on a class day, Marietta on a Monday -- both can
+    apply at once (Monday is itself usually a class day here)."""
+    locations: List[Tuple[str, Optional[str]]] = [("Home", None)]
+    weekday_name = target_date.strftime("%A").lower()
     if weekday_name in class_memory.get_class_meeting_days():
-        return _CLASS_DAY_WEATHER_LOCATION
-    return None
+        locations.append(("Kennesaw", _KENNESAW_WEATHER_LOCATION))
+    if target_date.weekday() == 0:  # Monday
+        locations.append(("Marietta", _MARIETTA_WEATHER_LOCATION))
+    return locations
 
 
 class BriefingTemplates:
@@ -146,7 +157,7 @@ class BriefingTemplates:
     ) -> str:
         """Real conditions via OpenWeatherMap if connected, else the
         standard 'not connected' note. `location` overrides the usual
-        GPS/console location (see _class_day_location above). See
+        GPS/console location (see _weather_locations_for above). See
         _calendar_text's docstring for why this runs via to_thread
         (weather.py uses the sync `requests` library, same blocking-call
         concern)."""
@@ -161,6 +172,31 @@ class BriefingTemplates:
         if data.get("rain_chance") is not None:
             line += f", {data['rain_chance']}% chance of rain"
         return line
+
+    @staticmethod
+    async def _weather_lines(
+        target_date, tomorrow: bool = False, unconfigured: Optional[List[str]] = None,
+    ) -> str:
+        """WEATHER section body for target_date -- a single unlabeled line
+        (unchanged behavior) on an ordinary day, or one labeled line per
+        entry from _weather_locations_for on a day with an extra location.
+        The "weather not configured" case is checked once here rather
+        than inside every per-location _weather_text call, so a genuinely
+        unconfigured setup logs to unconfigured/request_log exactly once
+        per briefing, not once per location shown."""
+        if not is_configured("weather"):
+            if unconfigured is not None:
+                unconfigured.append("weather")
+            return BriefingTemplates._note("weather")
+
+        locations = _weather_locations_for(target_date)
+        if len(locations) == 1:
+            return await BriefingTemplates._weather_text(tomorrow)
+
+        texts = await asyncio.gather(
+            *[BriefingTemplates._weather_text(tomorrow, None, override) for _, override in locations]
+        )
+        return "\n   ".join(f"{label}: {text}" for (label, _), text in zip(locations, texts))
 
     @staticmethod
     async def morning_briefing(tasks_db: TaskDB) -> str:
@@ -184,7 +220,7 @@ class BriefingTemplates:
         # them: each one's own append happens synchronously before its
         # first await, never interleaved with another's.
         weather_note, calendar_note, email_note = await asyncio.gather(
-            BriefingTemplates._weather_text(False, unconfigured, _class_day_location(now.date())),
+            BriefingTemplates._weather_lines(now.date(), False, unconfigured),
             BriefingTemplates._calendar_text(0, unconfigured),
             BriefingTemplates._email_text(unconfigured),
         )
@@ -281,9 +317,7 @@ Have a productive day!
         # Concurrent, not sequential -- see morning_briefing's comment.
         calendar_note, weather_note = await asyncio.gather(
             BriefingTemplates._calendar_text(tomorrow_day_offset, unconfigured),  # tomorrow preview
-            BriefingTemplates._weather_text(  # tomorrow's forecast
-                not is_late_night, unconfigured, _class_day_location(forecast_date),
-            ),
+            BriefingTemplates._weather_lines(forecast_date, not is_late_night, unconfigured),  # tomorrow's forecast
         )
         health_note = note("health")
 

@@ -42,7 +42,6 @@ SERVICES = (
     "voice_join",
     "rules_engine",
     "class_reminders",
-    "marietta_weather",
 )
 
 _DEFAULTS = {name: {"enabled": True, "autostart": True} for name in SERVICES}
