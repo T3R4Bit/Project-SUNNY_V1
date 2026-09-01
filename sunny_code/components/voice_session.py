@@ -125,26 +125,44 @@ async def start(
             msg = await asyncio.wait_for(asyncio.to_thread(from_worker.get), timeout=JOIN_TIMEOUT)
         except asyncio.TimeoutError:
             process.terminate()
+            _close_queues(to_worker, from_worker)
             return "Joining timed out — will retry automatically."
 
         if msg.get("type") != "joined":
             process.terminate()
             reason = msg.get("reason", "unknown error")
+            _close_queues(to_worker, from_worker)
             return f"Couldn't join that voice channel: {reason}"
 
         _worker = process
         _to_worker = to_worker
-        asyncio.create_task(
+        relay_task = asyncio.create_task(
             _relay_from_worker(
                 process, from_worker, to_worker, tasks_engine, briefing_engine, list_engine,
                 scheduled_engine, project_engine, spotify_engine, calendar_engine
             )
         )
-        asyncio.create_task(_watch_worker(process, notify_fn))
+        asyncio.create_task(_watch_worker(process, from_worker, to_worker, relay_task, notify_fn))
 
         return f'Joined {msg.get("channel_name", channel.name)} — say "Hey Sunny" to start.'
     finally:
         _connecting = False
+
+
+def _close_queues(*queues: "multiprocessing.Queue") -> None:
+    """Releases the pipe fds and semaphore locks backing each queue.
+    Without this, every start() call (successful or not) leaks a
+    semaphore + pipe pair that outlives the queue's Python references --
+    over enough reconnect attempts (voice_presence_loop retries every
+    30s) this exhausts the process's open-file limit and takes down
+    unrelated background tasks with OSError: Too many open files
+    (see incident 2026-09-01)."""
+    for q in queues:
+        try:
+            q.close()
+            q.join_thread()
+        except Exception as e:
+            logger.error(f"voice_session: failed to close queue: {e}")
 
 
 async def _relay_from_worker(
@@ -248,7 +266,10 @@ async def _relay_from_worker(
             logger.error(f"voice_session: failed to relay response to worker: {e}")
 
 
-async def _watch_worker(process, notify_fn: Optional[Callable[[str], Awaitable[None]]]) -> None:
+async def _watch_worker(
+    process, from_worker, to_worker, relay_task: "asyncio.Task",
+    notify_fn: Optional[Callable[[str], Awaitable[None]]],
+) -> None:
     """Waits for the worker process to actually exit and, if that wasn't
     because stop() intentionally tore it down, treats it as a crash: logs
     it and reports it via notify_fn right away. This is the sole caller
@@ -257,7 +278,15 @@ async def _watch_worker(process, notify_fn: Optional[Callable[[str], Awaitable[N
     places never race to reap the same process. Always clears session
     state either way, so the voice-presence loop's next tick can
     reconnect immediately whether this was an intentional stop() or a
-    crash."""
+    crash.
+
+    Also the sole closer of this session's queues, once relay_task (the
+    only other thing touching them) has had its own chance to notice the
+    process is gone and stop reading -- closing out from under a live
+    read risks tripping up the read instead of just ending it cleanly.
+    Skipping this close is what leaked a semaphore + pipe pair per
+    session and eventually exhausted the process's open-file limit (see
+    incident 2026-09-01)."""
     global _worker, _to_worker, _stopping
 
     await asyncio.to_thread(process.join)
@@ -267,6 +296,12 @@ async def _watch_worker(process, notify_fn: Optional[Callable[[str], Awaitable[N
         _worker = None
         _to_worker = None
     _stopping = False
+
+    try:
+        await relay_task
+    except Exception:
+        pass
+    _close_queues(to_worker, from_worker)
 
     if was_intentional:
         return
