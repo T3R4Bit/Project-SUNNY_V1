@@ -148,7 +148,7 @@ def _load_raw() -> Optional[dict]:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        logger.error(f"Spotify token file unreadable: {e}")
+        logger.error(f"Spotify token file unreadable: {e}", exc_info=True)
         return None
 
 

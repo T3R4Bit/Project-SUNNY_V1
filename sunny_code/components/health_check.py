@@ -276,7 +276,7 @@ def _append_report(report: str) -> None:
         with open(path, "a", encoding="utf-8") as f:
             f.write(report + "\n\n---\n\n")
     except OSError as e:
-        logger.error(f"Failed to write health check log: {e}")
+        logger.error(f"Failed to write health check log: {e}", exc_info=True)
 
 
 def _marker_path() -> Path:
@@ -329,7 +329,7 @@ async def run_weekly_health_check() -> str:
         try:
             await _post_fn(report)
         except Exception as e:
-            logger.error(f"Failed to post health check report: {e}")
+            logger.error(f"Failed to post health check report: {e}", exc_info=True)
 
     return report
 

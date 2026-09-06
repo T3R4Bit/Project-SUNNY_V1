@@ -47,7 +47,7 @@ def _append_log(line: str) -> None:
         with open(path, "a", encoding="utf-8") as f:
             f.write(f"**{datetime.now(timezone.utc).isoformat()}** {line}\n")
     except OSError as e:
-        logger.error(f"rules_engine: failed to write log: {e}")
+        logger.error(f"rules_engine: failed to write log: {e}", exc_info=True)
 
 
 def _describe_and_log(prefix: str, items: List[str]) -> str:

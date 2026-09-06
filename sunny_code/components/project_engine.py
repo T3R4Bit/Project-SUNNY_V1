@@ -110,7 +110,7 @@ class ProjectEngine:
         try:
             files = _parse_file_plan(raw)
         except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
-            logger.error(f"project_engine: malformed scaffold response: {e}")
+            logger.error(f"project_engine: malformed scaffold response: {e}", exc_info=True)
             return False, "Claude's project plan came back malformed — try again."
 
         slug = _unique_project_slug(name)
@@ -126,7 +126,7 @@ class ProjectEngine:
                 safe_name = Path(filename).name
                 vault_io.atomic_write_text(project_dir / safe_name, file_entry["content"])
         except OSError as e:
-            logger.error(f"project_engine: failed writing project files: {e}")
+            logger.error(f"project_engine: failed writing project files: {e}", exc_info=True)
             return False, f'Started writing "{name}" but hit a disk error partway through: {e}'
 
         logger.info(f"Project scaffolded: {name!r} -> {project_dir} ({len(files)} files)")

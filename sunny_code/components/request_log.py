@@ -21,4 +21,4 @@ def log_unfulfilled(category: str, detail: str) -> None:
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(entry)
     except OSError as e:
-        logger.error(f"Failed to write to requests log: {e}")
+        logger.error(f"Failed to write to requests log: {e}", exc_info=True)

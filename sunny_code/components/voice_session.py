@@ -162,7 +162,7 @@ def _close_queues(*queues: "multiprocessing.Queue") -> None:
             q.close()
             q.join_thread()
         except Exception as e:
-            logger.error(f"voice_session: failed to close queue: {e}")
+            logger.error(f"voice_session: failed to close queue: {e}", exc_info=True)
 
 
 async def _relay_from_worker(
@@ -183,7 +183,7 @@ async def _relay_from_worker(
         except queue_module.Empty:
             continue
         except Exception as e:
-            logger.error(f"voice_session: reading from worker failed, ending relay: {e}")
+            logger.error(f"voice_session: reading from worker failed, ending relay: {e}", exc_info=True)
             return
 
         msg_type = msg.get("type")
@@ -215,7 +215,7 @@ async def _relay_from_worker(
             try:
                 to_worker.put({"type": "speak_chunk", "text": sentence, "generation": generation})
             except Exception as e:
-                logger.error(f"voice_session: failed to relay chunk to worker: {e}")
+                logger.error(f"voice_session: failed to relay chunk to worker: {e}", exc_info=True)
 
         async def on_search_start() -> None:
             # Fires the instant Claude starts a web search (see
@@ -227,7 +227,7 @@ async def _relay_from_worker(
             try:
                 to_worker.put({"type": "searching", "generation": generation})
             except Exception as e:
-                logger.error(f"voice_session: failed to relay search cue to worker: {e}")
+                logger.error(f"voice_session: failed to relay search cue to worker: {e}", exc_info=True)
 
         try:
             response = await handle_message(
@@ -244,7 +244,7 @@ async def _relay_from_worker(
                 on_search_start=on_search_start,
             )
         except Exception as e:
-            logger.error(f"voice_session: assistant router failed: {e}")
+            logger.error(f"voice_session: assistant router failed: {e}", exc_info=True)
             continue
 
         if streamed_any:
@@ -255,7 +255,7 @@ async def _relay_from_worker(
             try:
                 to_worker.put({"type": "speak_chunk_done"})
             except Exception as e:
-                logger.error(f"voice_session: failed to signal stream end to worker: {e}")
+                logger.error(f"voice_session: failed to signal stream end to worker: {e}", exc_info=True)
             continue
 
         if not response:
@@ -263,7 +263,7 @@ async def _relay_from_worker(
         try:
             to_worker.put({"type": "speak", "text": response, "generation": generation})
         except Exception as e:
-            logger.error(f"voice_session: failed to relay response to worker: {e}")
+            logger.error(f"voice_session: failed to relay response to worker: {e}", exc_info=True)
 
 
 async def _watch_worker(
@@ -314,7 +314,7 @@ async def _watch_worker(
                 f"Voice session ended unexpectedly (worker crashed, exit code {exitcode}) — reconnecting automatically."
             )
         except Exception as e:
-            logger.error(f"voice_session: failed to send crash notice: {e}")
+            logger.error(f"voice_session: failed to send crash notice: {e}", exc_info=True)
 
 
 async def stop() -> str:
@@ -333,7 +333,7 @@ async def stop() -> str:
         if to_worker is not None:
             to_worker.put({"type": "leave"})
     except Exception as e:
-        logger.error(f"voice_session: failed to send leave command: {e}")
+        logger.error(f"voice_session: failed to send leave command: {e}", exc_info=True)
 
     elapsed = 0.0
     step = 0.25

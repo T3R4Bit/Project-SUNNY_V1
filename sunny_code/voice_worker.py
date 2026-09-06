@@ -555,7 +555,7 @@ def run_worker(to_worker, from_worker, token: str, guild_id: int, channel_id: in
     try:
         asyncio.run(_async_main(to_worker, from_worker, token, guild_id, channel_id))
     except Exception as e:
-        logger.error(f"voice_worker: fatal error: {e}")
+        logger.error(f"voice_worker: fatal error: {e}", exc_info=True)
         try:
             from_worker.put({"type": "join_failed", "reason": str(e)})
         except Exception:
@@ -607,7 +607,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
                 voice_client.stop()
             voice_client.play(discord.PCMAudio(io.BytesIO(_get_chime_pcm())))
         except Exception as e:
-            logger.error(f"voice_worker: chime playback failed: {e}")
+            logger.error(f"voice_worker: chime playback failed: {e}", exc_info=True)
         logger.info("voice_worker: wake chime play() call returned")
 
     async def _play_thinking_cue_after_delay():
@@ -625,7 +625,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
                 voice_client.stop()
             voice_client.play(discord.PCMAudio(io.BytesIO(_get_thinking_pcm())))
         except Exception as e:
-            logger.error(f"voice_worker: thinking-cue playback failed: {e}")
+            logger.error(f"voice_worker: thinking-cue playback failed: {e}", exc_info=True)
 
     async def play_searching_cue(generation: int):
         """Fired via the "searching" IPC message the instant Claude starts
@@ -650,7 +650,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
                 voice_client.stop()
             voice_client.play(discord.PCMAudio(io.BytesIO(_get_searching_pcm())))
         except Exception as e:
-            logger.error(f"voice_worker: searching-cue playback failed: {e}")
+            logger.error(f"voice_worker: searching-cue playback failed: {e}", exc_info=True)
 
     async def handle_utterance(state, text, already_chimed=False):
         nonlocal pending_thinking_task
@@ -722,7 +722,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
             pcm = await asyncio.to_thread(tts.synthesize_discord_pcm, text, message_type)
         except Exception as e:
             faulthandler.cancel_dump_traceback_later()
-            logger.error(f"voice_worker: {error_context} TTS synthesis failed: {e}")
+            logger.error(f"voice_worker: {error_context} TTS synthesis failed: {e}", exc_info=True)
             return
         faulthandler.cancel_dump_traceback_later()
         if generation != speech_generation:
@@ -792,7 +792,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
                 voice_client.play(discord.PCMAudio(io.BytesIO(pcm)))
                 logger.info("voice_worker: speech_player play() call returned, waiting for it to finish")
             except Exception as e:
-                logger.error(f"voice_worker: queued playback failed: {e}")
+                logger.error(f"voice_worker: queued playback failed: {e}", exc_info=True)
                 continue
             # Diagnostic for a real, unexplained hang seen live
             # (2026-08-21): dump every thread's real stack if this wait
@@ -860,7 +860,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
             already_chimed = state["chimed"]
             state["chimed"] = False  # reset for the next utterance
         except Exception as e:
-            logger.error(f"voice_worker: STT feed failed for {user}: {e}")
+            logger.error(f"voice_worker: STT feed failed for {user}: {e}", exc_info=True)
             return
         asyncio.run_coroutine_threadsafe(handle_utterance(state, text, already_chimed), loop)
 
@@ -892,7 +892,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
                     with state["lock"]:
                         text = stt.finalize(state["rec"])
                 except Exception as e:
-                    logger.error(f"voice_worker: forced finalize failed: {e}")
+                    logger.error(f"voice_worker: forced finalize failed: {e}", exc_info=True)
                     continue
                 if text:
                     already_chimed = state["chimed"]
@@ -948,7 +948,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         try:
             new_client = await channel.connect(cls=voice_recv.VoiceRecvClient)
         except Exception as e:
-            logger.error(f"voice_worker: failed to connect to {channel}: {e}")
+            logger.error(f"voice_worker: failed to connect to {channel}: {e}", exc_info=True)
             from_worker.put({"type": "join_failed", "reason": "couldn't join — check permissions or try again"})
             stop_event.set()
             return
@@ -956,7 +956,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         try:
             new_client.listen(voice_recv.BasicSink(on_audio))
         except Exception as e:
-            logger.error(f"voice_worker: connected but failed to start listening: {e}")
+            logger.error(f"voice_worker: connected but failed to start listening: {e}", exc_info=True)
             try:
                 await new_client.disconnect()
             except Exception:
@@ -974,7 +974,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         try:
             await warm_task  # make sure the model's actually ready before returning
         except Exception as e:
-            logger.error(f"voice_worker: Vosk pre-warm failed (will retry lazily): {e}")
+            logger.error(f"voice_worker: Vosk pre-warm failed (will retry lazily): {e}", exc_info=True)
 
         from_worker.put({"type": "joined", "channel_name": channel.name})
 
@@ -1004,7 +1004,7 @@ async def _async_main(to_worker, from_worker, token: str, guild_id: int, channel
         try:
             await voice_client.disconnect()
         except Exception as e:
-            logger.error(f"voice_worker: error disconnecting: {e}")
+            logger.error(f"voice_worker: error disconnecting: {e}", exc_info=True)
     try:
         await client.close()
     except Exception:

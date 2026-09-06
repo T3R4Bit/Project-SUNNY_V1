@@ -71,7 +71,7 @@ class ScheduledEngine:
             try:
                 await self.on_change()
             except Exception as e:
-                logger.error(f"on_change callback failed: {e}")
+                logger.error(f"on_change callback failed: {e}", exc_info=True)
 
         return True, success, message
 

@@ -100,7 +100,7 @@ class SpotifyEngine:
         except ConnectionError:
             return False, NOT_CONNECTED_MESSAGE
         except Exception as e:
-            logger.error(f"Spotify transport command failed: {e}")
+            logger.error(f"Spotify transport command failed: {e}", exc_info=True)
             return False, "Couldn't reach Spotify — try again in a moment."
 
         error = self._error_message(resp)
@@ -117,7 +117,7 @@ class SpotifyEngine:
         except ConnectionError:
             return False, NOT_CONNECTED_MESSAGE
         except Exception as e:
-            logger.error(f"Spotify search failed: {e}")
+            logger.error(f"Spotify search failed: {e}", exc_info=True)
             return False, "Couldn't reach Spotify — try again in a moment."
 
         if track_uri is None:
@@ -128,7 +128,7 @@ class SpotifyEngine:
         except ConnectionError:
             return False, NOT_CONNECTED_MESSAGE
         except Exception as e:
-            logger.error(f"Spotify play failed: {e}")
+            logger.error(f"Spotify play failed: {e}", exc_info=True)
             return False, "Couldn't reach Spotify — try again in a moment."
 
         error = self._error_message(resp)
@@ -177,7 +177,7 @@ class SpotifyEngine:
             except ConnectionError:
                 return False, NOT_CONNECTED_MESSAGE
             except Exception as e:
-                logger.error(f"Spotify volume lookup failed: {e}")
+                logger.error(f"Spotify volume lookup failed: {e}", exc_info=True)
                 return False, "Couldn't reach Spotify — try again in a moment."
 
             if current.status_code == 204 or current.status_code == 404:
@@ -196,7 +196,7 @@ class SpotifyEngine:
         except ConnectionError:
             return False, NOT_CONNECTED_MESSAGE
         except Exception as e:
-            logger.error(f"Spotify set-volume failed: {e}")
+            logger.error(f"Spotify set-volume failed: {e}", exc_info=True)
             return False, "Couldn't reach Spotify — try again in a moment."
 
         error = self._error_message(resp)
@@ -210,7 +210,7 @@ class SpotifyEngine:
         except ConnectionError:
             return False, NOT_CONNECTED_MESSAGE
         except Exception as e:
-            logger.error(f"Spotify now-playing check failed: {e}")
+            logger.error(f"Spotify now-playing check failed: {e}", exc_info=True)
             return False, "Couldn't reach Spotify — try again in a moment."
 
         if resp.status_code == 204 or not resp.content:

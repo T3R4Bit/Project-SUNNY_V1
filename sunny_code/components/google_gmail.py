@@ -75,7 +75,7 @@ def get_summary() -> Optional[Dict]:
                     {"from": _header(headers, "From"), "subject": _header(headers, "Subject")}
                 )
     except HttpError as e:
-        logger.error(f"Gmail API error: {e}")
+        logger.error(f"Gmail API error: {e}", exc_info=True)
         return None
     except Exception as e:
         logger.error(f"Unexpected error calling Gmail: {e}", exc_info=True)

@@ -189,10 +189,10 @@ async def ask_claude(
             log_llm_call(purpose, model_id, prompt, status="api_error", detail=f"HTTP {e.status_code}: {e.message}")
             return None
         except anthropic.APIConnectionError as e:
-            # type(e).__name__ only, never str(e) — a connection error's
+            # type(e).__name__ only, never str(e)/exc_info — a connection error's
             # message can embed the full request URL, which includes the
             # API key (same caution as weather.py's equivalent handler).
-            logger.error(f"ask_claude: connection error: {e}")
+            logger.error(f"ask_claude: connection error: {type(e).__name__}")
             log_llm_call(purpose, model_id, prompt, status="connection_error", detail=type(e).__name__)
             return None
 
@@ -326,7 +326,9 @@ async def ask_claude_stream(
             log_llm_call(purpose, model_id, prompt, status="api_error", detail=f"HTTP {e.status_code}: {e.message}")
             return
         except anthropic.APIConnectionError as e:
-            logger.error(f"ask_claude: connection error: {e}")
+            # type(e).__name__ only, never str(e)/exc_info — see ask_claude's
+            # equivalent handler above.
+            logger.error(f"ask_claude: connection error: {type(e).__name__}")
             log_llm_call(purpose, model_id, prompt, status="connection_error", detail=type(e).__name__)
             return
 
@@ -405,4 +407,4 @@ def log_llm_call(
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(entry)
     except OSError as e:
-        logger.error(f"Failed to write to LLM usage log: {e}")
+        logger.error(f"Failed to write to LLM usage log: {e}", exc_info=True)

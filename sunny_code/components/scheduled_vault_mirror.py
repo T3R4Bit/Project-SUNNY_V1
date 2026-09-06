@@ -79,6 +79,6 @@ def create_scheduled_vault_mirror(scheduled_db: ScheduledDB, vault_root: Path) -
         try:
             write_scheduled_mirror(scheduled_db, vault_root)
         except Exception as e:
-            logger.error(f"Failed to update alarms-reminders vault mirror: {e}")
+            logger.error(f"Failed to update alarms-reminders vault mirror: {e}", exc_info=True)
 
     return on_change

@@ -96,7 +96,7 @@ def get_current(location: Optional[str] = None) -> Optional[Dict]:
             "humidity": data["main"]["humidity"],
         }
     except (KeyError, IndexError, TypeError, ValueError) as e:
-        logger.error(f"Unexpected OpenWeatherMap response shape: {e}")
+        logger.error(f"Unexpected OpenWeatherMap response shape: {e}", exc_info=True)
         return None
 
 
@@ -119,7 +119,7 @@ def get_tomorrow(location: Optional[str] = None) -> Optional[Dict]:
     try:
         data = resp.json()
     except ValueError as e:
-        logger.error(f"Unexpected OpenWeatherMap forecast response: {e}")
+        logger.error(f"Unexpected OpenWeatherMap forecast response: {e}", exc_info=True)
         return None
 
     tomorrow = (datetime.now() + timedelta(days=1)).date()
@@ -142,5 +142,5 @@ def get_tomorrow(location: Optional[str] = None) -> Optional[Dict]:
             "rain_chance": round(best.get("pop", 0) * 100),
         }
     except (KeyError, IndexError, TypeError) as e:
-        logger.error(f"Unexpected OpenWeatherMap forecast shape: {type(e).__name__}: {e}")
+        logger.error(f"Unexpected OpenWeatherMap forecast shape: {type(e).__name__}: {e}", exc_info=True)
         return None

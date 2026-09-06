@@ -43,7 +43,7 @@ def _append(line: str) -> None:
         with open(path, "a", encoding="utf-8") as f:
             f.write(line + "\n")
     except OSError as e:
-        logger.error(f"suggestion_tracker: failed to write log: {e}")
+        logger.error(f"suggestion_tracker: failed to write log: {e}", exc_info=True)
 
 
 def record_suggestion(kind: str, content: str) -> str:

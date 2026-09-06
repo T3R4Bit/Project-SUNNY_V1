@@ -110,7 +110,7 @@ def get_events_range(time_min: datetime, time_max: datetime) -> Optional[List[Di
     try:
         calendar_ids = _list_calendar_ids(service)
     except HttpError as e:
-        logger.error(f"Google Calendar API error listing calendars: {e}")
+        logger.error(f"Google Calendar API error listing calendars: {e}", exc_info=True)
         return None
     except Exception as e:
         logger.error(f"Unexpected error listing calendars: {e}", exc_info=True)
@@ -164,7 +164,7 @@ def create_event(title: str, start: datetime, duration_minutes: int = 60, calend
     try:
         return service.events().insert(calendarId=calendar_id, body=body).execute()
     except HttpError as e:
-        logger.error(f"Google Calendar API error creating event: {e}")
+        logger.error(f"Google Calendar API error creating event: {e}", exc_info=True)
         return None
     except Exception as e:
         logger.error(f"Unexpected error creating event: {e}", exc_info=True)
@@ -202,7 +202,7 @@ def create_recurring_event(
     try:
         byday = ",".join(_RRULE_DAY_CODES[d.strip().lower()] for d in days)
     except KeyError as e:
-        logger.error(f"create_recurring_event: unrecognized weekday {e}")
+        logger.error(f"create_recurring_event: unrecognized weekday {e}", exc_info=True)
         return None
 
     start_local = start.astimezone()
@@ -225,7 +225,7 @@ def create_recurring_event(
     try:
         return service.events().insert(calendarId=calendar_id, body=body).execute()
     except HttpError as e:
-        logger.error(f"Google Calendar API error creating recurring event: {e}")
+        logger.error(f"Google Calendar API error creating recurring event: {e}", exc_info=True)
         return None
     except Exception as e:
         logger.error(f"Unexpected error creating recurring event: {e}", exc_info=True)
@@ -251,7 +251,7 @@ def create_all_day_event(title: str, day: date, calendar_id: str = "primary") ->
     try:
         return service.events().insert(calendarId=calendar_id, body=body).execute()
     except HttpError as e:
-        logger.error(f"Google Calendar API error creating all-day event: {e}")
+        logger.error(f"Google Calendar API error creating all-day event: {e}", exc_info=True)
         return None
     except Exception as e:
         logger.error(f"Unexpected error creating all-day event: {e}", exc_info=True)
@@ -277,7 +277,7 @@ def find_event_by_title(title: str, days_ahead: int = 14) -> Optional[Dict]:
     try:
         calendar_ids = _list_calendar_ids(service)
     except HttpError as e:
-        logger.error(f"Google Calendar API error listing calendars: {e}")
+        logger.error(f"Google Calendar API error listing calendars: {e}", exc_info=True)
         return None
     except Exception as e:
         logger.error(f"Unexpected error listing calendars: {e}", exc_info=True)
@@ -328,7 +328,7 @@ def delete_event(calendar_id: str, event_id: str) -> bool:
         service.events().delete(calendarId=calendar_id, eventId=event_id).execute()
         return True
     except HttpError as e:
-        logger.error(f"Google Calendar API error deleting event: {e}")
+        logger.error(f"Google Calendar API error deleting event: {e}", exc_info=True)
         return False
     except Exception as e:
         logger.error(f"Unexpected error deleting event: {e}", exc_info=True)

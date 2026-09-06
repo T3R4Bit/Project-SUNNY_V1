@@ -61,11 +61,11 @@ class TaskEngine:
                 try:
                     await self.on_change(message)
                 except Exception as e:
-                    logger.error(f"on_change callback failed: {e}")
+                    logger.error(f"on_change callback failed: {e}", exc_info=True)
             return result
 
         except Exception as e:
-            logger.error(f"Command execution error: {e}")
+            logger.error(f"Command execution error: {e}", exc_info=True)
             log_unfulfilled("task_command", f'"{command}" — {e}')
             return False, f"Error: {str(e)}"
 
@@ -151,7 +151,7 @@ Category: {data.get('tag', 'General')}"""
             try:
                 await self.on_change(message)
             except Exception as e:
-                logger.error(f"on_change callback failed: {e}")
+                logger.error(f"on_change callback failed: {e}", exc_info=True)
         return success, message
 
     async def _execute_update(self, data: Dict) -> Tuple[bool, str]:

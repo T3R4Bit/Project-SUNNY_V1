@@ -43,7 +43,7 @@ def get_location() -> Optional[str]:
             if looks_configured(saved):
                 return saved
         except (OSError, ValueError) as e:
-            logger.error(f"location.json unreadable: {e}")
+            logger.error(f"location.json unreadable: {e}", exc_info=True)
 
     settings = get_settings()
     if looks_configured(settings.weather_location):
@@ -79,7 +79,7 @@ def get_coordinates(max_age_minutes: int = 30) -> Optional[Tuple[float, float]]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        logger.error(f"location_gps.json unreadable: {e}")
+        logger.error(f"location_gps.json unreadable: {e}", exc_info=True)
         return None
 
     age_seconds = _time.time() - data.get("received_at", 0)

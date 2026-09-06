@@ -42,7 +42,7 @@ def _load_json(path: Path) -> Dict:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        logger.error(f"sensors: {path} unreadable: {e}")
+        logger.error(f"sensors: {path} unreadable: {e}", exc_info=True)
         return {}
 
 

@@ -42,7 +42,7 @@ def get_categories() -> List[str]:
         if isinstance(categories, list) and categories:
             return categories
     except (OSError, ValueError) as e:
-        logger.error(f"categories.json unreadable: {e}")
+        logger.error(f"categories.json unreadable: {e}", exc_info=True)
 
     return list(_SEED_CATEGORIES)
 

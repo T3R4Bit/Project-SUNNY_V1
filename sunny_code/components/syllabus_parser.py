@@ -90,5 +90,5 @@ async def parse_syllabus(semester_name: str, syllabus_text: str) -> Optional[Dic
         cleaned = _JSON_FENCE_RE.sub("", raw.strip()).strip()
         return _validate(json.loads(cleaned))
     except (json.JSONDecodeError, KeyError, ValueError, TypeError) as e:
-        logger.error(f"syllabus_parser: malformed response: {e}")
+        logger.error(f"syllabus_parser: malformed response: {e}", exc_info=True)
         return None

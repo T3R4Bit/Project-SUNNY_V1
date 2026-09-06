@@ -72,7 +72,7 @@ def _load() -> Dict[str, Dict[str, bool]]:
             merged["_vacation_mode"] = vacation
             return merged
     except (OSError, ValueError) as e:
-        logger.error(f"service_registry.json unreadable: {e}")
+        logger.error(f"service_registry.json unreadable: {e}", exc_info=True)
 
     return {k: dict(v) for k, v in _DEFAULTS.items()}
 

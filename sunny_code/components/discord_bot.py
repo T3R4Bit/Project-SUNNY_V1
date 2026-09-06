@@ -356,7 +356,7 @@ def create_discord_bot(
         try:
             wav_bytes = await asyncio.to_thread(tts.synthesize_wav_bytes, text, message_type)
         except Exception as e:
-            logger.error(f"/speak synthesis failed: {e}")
+            logger.error(f"/speak synthesis failed: {e}", exc_info=True)
             await interaction.followup.send("Couldn't synthesize that — check the logs.", ephemeral=True)
             return
         await interaction.followup.send(
@@ -498,7 +498,7 @@ def create_discord_bot(
         try:
             png_bytes = await asyncio.to_thread(usage_chart.render_usage_chart_png, days)
         except Exception as e:
-            logger.error(f"/usage chart render failed: {e}")
+            logger.error(f"/usage chart render failed: {e}", exc_info=True)
             await interaction.followup.send("Couldn't render the usage chart — check the logs.", ephemeral=True)
             return
         content = None
@@ -625,7 +625,7 @@ def create_discord_bot(
         try:
             png_bytes = await asyncio.to_thread(usage_chart.render_usage_chart_png, 30)
         except Exception as e:
-            logger.error(f"usage dashboard: chart render failed: {e}")
+            logger.error(f"usage dashboard: chart render failed: {e}", exc_info=True)
             return
 
         settings = get_settings()
@@ -908,7 +908,7 @@ def create_discord_bot(
                 synced = await tree.sync(guild=guild)
                 logger.info(f"Synced {len(synced)} slash command(s) to guild {guild.id}")
             except discord.HTTPException as e:
-                logger.error(f"Slash command sync failed: {e}")
+                logger.error(f"Slash command sync failed: {e}", exc_info=True)
 
         # Post what's still missing an API key once per run, so it's visible —
         # in #warnings if configured, else the chat channel like before that

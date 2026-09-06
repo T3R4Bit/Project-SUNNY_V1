@@ -101,7 +101,7 @@ def _log(operation: str, level: int, confidence: float, description: str, decisi
         with open(path, "a", encoding="utf-8") as f:
             f.write(line)
     except OSError as e:
-        logger.error(f"vault_permissions: failed to write edit log: {e}")
+        logger.error(f"vault_permissions: failed to write edit log: {e}", exc_info=True)
 
 
 def request_vault_write(operation: str, confidence: float, description: str) -> Decision:
