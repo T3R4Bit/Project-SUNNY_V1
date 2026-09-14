@@ -234,9 +234,12 @@ class SunnyCore:
             return {"status": "healthy"}
 
         @app.get("/")
+        @app.get("/console")
         async def root():
             """Sunny's own web console was retired 2026-09-13 -- the
-            project-dashboard app now owns this host's web UI."""
+            project-dashboard app now owns this host's web UI. /console
+            redirects too, not just /, since that was the URL people
+            actually had bookmarked/documented."""
             return RedirectResponse(url=self.settings.dashboard_url)
 
         # Dashboard endpoints
