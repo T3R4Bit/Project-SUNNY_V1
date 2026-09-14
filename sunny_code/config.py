@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # Sunny on the same host -- Sunny's own web console (console.py) was
     # retired 2026-09-13 in favor of it. Used only to point users at it from
     # Discord/log messages; Sunny itself never calls into it.
-    dashboard_url: str = "http://100.117.41.53:8088"
+    dashboard_url: str = "https://sunshine-m700.wahoo-sidewinder.ts.net"
 
     # APIs
     claude_api_key: str = ""
