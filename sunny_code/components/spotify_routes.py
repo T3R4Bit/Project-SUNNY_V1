@@ -1,6 +1,6 @@
 """Routes for the Spotify Sign-In flow: /auth/spotify/login, /callback, /status, /disconnect.
 
-Same shape as google_routes.py — kept separate from dashboard/console routes
+Same shape as google_routes.py — kept separate from the dashboard API routes
 since this is the one place that talks to Spotify's OAuth endpoints directly.
 """
 
@@ -11,6 +11,7 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from sunny_code.components import spotify_auth
+from sunny_code.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +118,7 @@ def create_spotify_auth_router() -> APIRouter:
 
     @router.get("/callback")
     async def callback(code: str = None, state: str = None, error: str = None):
+        dashboard_url = get_settings().dashboard_url
         if error:
             logger.warning(f"Spotify sign-in cancelled/denied: {error}")
             return HTMLResponse(
@@ -124,7 +126,7 @@ def create_spotify_auth_router() -> APIRouter:
                     "<div class='badge err'></div>"
                     "<h1>Sign-in didn't complete</h1>"
                     f"<p>Spotify reported: <span class='email'>{html.escape(error)}</span></p>"
-                    "<a class='btn' href='/console'>Back to console</a>"
+                    f"<a class='btn' href='{dashboard_url}'>Back to dashboard</a>"
                 )
             )
         if not code or not state:
@@ -133,7 +135,8 @@ def create_spotify_auth_router() -> APIRouter:
                     "<div class='badge err'></div>"
                     "<h1>Incomplete callback</h1>"
                     "<p>Spotify's redirect was missing the expected <code>code</code>/<code>state</code> "
-                    "parameters — the link may be stale. Start sign-in again from the console.</p>"
+                    "parameters — the link may be stale. Start sign-in again from the dashboard.</p>"
+                    f"<a class='btn' href='{dashboard_url}'>Back to dashboard</a>"
                 ),
                 status_code=400,
             )
@@ -159,7 +162,7 @@ def create_spotify_auth_router() -> APIRouter:
                 "<h1>Connected</h1>"
                 f"<p>Signed in as <span class='email'>{html.escape(username)}</span> — say \"play [song]\", "
                 "\"pause\", or \"skip\" to Sunny to control playback.</p>"
-                "<a class='btn' href='/console'>Back to console</a> "
+                f"<a class='btn' href='{dashboard_url}'>Back to dashboard</a> "
                 "<a class='btn secondary' href='/legal/privacy'>What Sunny reads</a>"
             )
         )

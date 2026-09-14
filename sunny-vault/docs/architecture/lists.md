@@ -17,7 +17,7 @@ A separate subsystem from [[../TASK_SYSTEM.md|Tasks]] — same "no LLM, plain pa
 | Vault storage (`sunny-vault/data/state/lists/`) | Built (`sunny_code/components/lists_db.py`) — markdown, not SQLite, see [[vault-storage]] |
 | Command parser | Built (`sunny_code/components/lists_parser.py`) |
 | List engine | Built (`sunny_code/components/lists_engine.py`) |
-| Routed into web chatbot + Discord bot | Built (both go through `assistant.handle_message`) |
+| Routed into terminal chat + Discord bot | Built (both go through `assistant.handle_message`) |
 | Dedicated REST API | Not built — only reachable through chat/Discord today |
 | Obsidian staging integration | Not built |
 

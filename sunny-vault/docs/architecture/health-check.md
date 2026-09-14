@@ -26,7 +26,7 @@ A once-a-week, LLM-written report on how Sunny's been doing: recurring errors, r
 3. **Write it up** — `ask_claude(purpose="weekly_health_check", model="haiku", prompt=<summary>)`. The system prompt auto-loads from `sunny-vault/docs/instructions/weekly-health-check.md` (see [[llm-instructions]]) — Haiku, matching this project's default tier and "keep usage low."
 4. **Record** — the report (or, if Claude's unreachable, the raw summary with a note saying so) gets appended to `sunny-vault/log/health-checks.md`, and `sunny-vault/data/state/health-check.md` flips to `status: unacknowledged`.
 5. **Notify** — posted to its own Discord channel (`DISCORD_HEALTH_CHANNEL_ID`, falling back to the chat channel if unset) if the bot is configured and connected (`client.post_to_health`, no-ops otherwise); always logged locally regardless. The next "morning"/"evening" briefing gets one extra line (`health_check.pending_notice()`) — a nudge only, never the report content itself, matching the "tells me to check it, not what it is" requirement.
-6. **Acknowledge** — saying "health check" or "health report" (web console, terminal, or Discord) returns `health_check.latest_report()` and flips the marker back to acknowledged, so the briefing nudge stops appearing.
+6. **Acknowledge** — saying "health check" or "health report" (terminal chat or Discord) returns `health_check.latest_report()` and flips the marker back to acknowledged, so the briefing nudge stops appearing.
 
 The marker persists across days on purpose, not a same-day-only check: morning briefings in this app are manual-trigger-only, so if "morning" doesn't get said on the Sunday the check ran, a same-day check would silently lose the reminder forever.
 

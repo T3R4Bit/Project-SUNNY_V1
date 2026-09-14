@@ -1,5 +1,5 @@
 """Live weather reads via OpenWeatherMap — needs both OPENWEATHERMAP_API_KEY
-(in .env) and a location (set via /console's LOCATION card, see
+(in .env) and a location (set via POST /api/weather/location, see
 sunny_code.components.location_store — not just .env's WEATHER_LOCATION,
 which is only the initial fallback).
 
@@ -30,7 +30,7 @@ def _params(location_override: Optional[str] = None) -> Optional[dict]:
     # An explicit override (e.g. briefing.py's class-day Kennesaw lookup)
     # bypasses location_store's GPS-vs-static decision entirely -- it's a
     # one-off "check this specific place" query, not "where is Sunny right
-    # now," so neither a stale GPS fix nor the console's saved location
+    # now," so neither a stale GPS fix nor the saved static location
     # should quietly win instead.
     location_params = {"q": location_override} if location_override else location_store.get_weather_query_params()
     if not location_params:
@@ -46,7 +46,7 @@ def location_resolves(location: str) -> bool:
     """True if OpenWeatherMap can actually geocode this exact string right
     now, else False (including on any network/API failure — treated as
     "couldn't verify" rather than silently accepted). Used by
-    weather_routes.py to validate a new /console LOCATION card entry
+    weather_routes.py to validate a new /api/weather/location entry
     *before* saving it, rather than accepting anything non-blank and
     finding out days later from an OpenWeatherMap 404 buried in the log —
     confirmed live, 2026-08-21: a location saved as "Milton GA" (missing
@@ -71,7 +71,7 @@ def location_resolves(location: str) -> bool:
 
 def get_current(location: Optional[str] = None) -> Optional[Dict]:
     """Today's conditions for `location` (an OpenWeatherMap "City,State,Country"
-    string), or the usual GPS/console location if omitted. None if weather
+    string), or the usual GPS/saved location if omitted. None if weather
     isn't usable right now."""
     params = _params(location)
     if params is None:
@@ -102,7 +102,7 @@ def get_current(location: Optional[str] = None) -> Optional[Dict]:
 
 def get_tomorrow(location: Optional[str] = None) -> Optional[Dict]:
     """Forecast for roughly midday tomorrow at `location` (see get_current),
-    or the usual GPS/console location if omitted. None if unavailable."""
+    or the usual GPS/saved location if omitted. None if unavailable."""
     params = _params(location)
     if params is None:
         return None

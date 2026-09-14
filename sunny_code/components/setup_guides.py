@@ -94,7 +94,7 @@ Needs two things — a key alone can't tell OpenWeatherMap where you are:
 1. Go to openweathermap.org/api and create a free account.
 2. Under "My API keys", copy your default key (or generate a new one).
 3. Add to .env: OPENWEATHERMAP_API_KEY=<your key> — then restart Sunny.
-4. Set your location on /console (LOCATION card) — saves instantly, no
+4. Set your location via POST /api/weather/location — saves instantly, no
    restart needed, and can be changed anytime. Format: City,State,Country
    (e.g. Detroit,MI,US). See sunny-vault/docs/architecture/location.md.
 
@@ -124,7 +124,8 @@ Status: {status}
    GOOGLE_CLIENT_ID=...
    GOOGLE_CLIENT_SECRET=...
    GOOGLE_OAUTH_REDIRECT_URI=http://<your-tailscale-ip>:5000/auth/google/callback
-6. Restart Sunny, open /console, click "Connect Google Account" in the GOOGLE card.
+6. Restart Sunny, then connect from {get_settings().dashboard_url} or by
+   visiting /auth/google/login directly.
 
 Covers Calendar + Gmail (read-only) only — not Drive, Contacts, sending mail,
 or Maps/traffic. Full details: sunny-vault/docs/architecture/google-integration.md"""
@@ -155,8 +156,8 @@ volume) doesn't work on a Free account.
    SPOTIFY_CLIENT_ID=...
    SPOTIFY_CLIENT_SECRET=...
    SPOTIFY_OAUTH_REDIRECT_URI=https://<your-tailscale-hostname>.<tailnet>.ts.net:5443/auth/spotify/callback
-4. Restart Sunny, open /console, click "Connect Spotify Account" in the
-   SPOTIFY card.
+4. Restart Sunny, then connect from {get_settings().dashboard_url} or by
+   visiting /auth/spotify/login directly.
 
 Once connected: "play <song>", "pause", "resume", "skip", "previous song",
 "volume up/down" or "set volume to 50", "what's playing". Commands act on

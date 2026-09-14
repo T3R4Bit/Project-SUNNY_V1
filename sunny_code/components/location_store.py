@@ -1,9 +1,9 @@
 """Where Sunny thinks "here" is, for weather lookups.
 
-Set through the console (/console's LOCATION card), not .env — a location is
-runtime state, not a secret, and this way changing it takes effect on the
-very next weather call, no restart. `WEATHER_LOCATION` in .env still works
-as the initial value if nothing's been saved through the UI yet, so an
+Set via POST /api/weather/location (see weather_routes.py), not .env — a
+location is runtime state, not a secret, and this way changing it takes
+effect on the very next weather call, no restart. `WEATHER_LOCATION` in .env
+still works as the initial value if nothing's been saved that way yet, so an
 existing setup keeps working untouched.
 
 A second, independent location source lives alongside the static one: a GPS
@@ -55,7 +55,7 @@ def set_location(value: str) -> None:
     """Save a new static location. Takes effect immediately — nothing else to restart."""
     value = value.strip()
     _path().write_text(json.dumps({"location": value}, indent=2), encoding="utf-8")
-    logger.info(f"Location set to {value!r} via console")
+    logger.info(f"Location set to {value!r} via /api/weather/location")
 
 
 def record_gps_fix(lat: float, lon: float, tst: Optional[int] = None) -> None:

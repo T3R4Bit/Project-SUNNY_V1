@@ -42,7 +42,7 @@ The core software (Phase 0-2) is genuinely done and reliable — two weeks of re
 ## Phase 0: Foundations (MOSTLY COMPLETE)
 
 **Timeline**: This week
-**Current Status**: Ubuntu Server 26.04 LTS installed and running on the Lenovo (sunshine-m700) under a systemd unit (`Restart=always`, autostart on boot — see `SETUP_LINUX.md`). Core app — briefing engine, task system, [[architecture/lists.md|lists]], [[architecture/alarms-reminders.md|alarms/reminders]], the combined console (chat + system status, one page at `/console`), Discord bot (connected to a live server, split into a chat channel and a read-only dashboard channel — see [[architecture/discord-bot]]) — all built and working over Tailscale, now also over HTTPS (`TLS_CERTFILE`/`TLS_KEYFILE`, port 5443) for endpoints that need it, like the Google OAuth callback.
+**Current Status**: Ubuntu Server 26.04 LTS installed and running on the Lenovo (sunshine-m700) under a systemd unit (`Restart=always`, autostart on boot — see `SETUP_LINUX.md`). Core app — briefing engine, task system, [[architecture/lists.md|lists]], [[architecture/alarms-reminders.md|alarms/reminders]], terminal chat (`chat.py`) and Discord bot (connected to a live server, split into a chat channel and a read-only dashboard channel — see [[architecture/discord-bot]]) — all built and working over Tailscale, now also over HTTPS (`TLS_CERTFILE`/`TLS_KEYFILE`, port 5443) for endpoints that need it, like the Google OAuth callback. Sunny's own web console was retired 2026-09-13; the standalone `project-dashboard` app now owns the web UI — see [[architecture/dashboard]].
 **Deliverable**: Sunny process running locally, basic logging, systemd autostart
 
 ### Setup Tasks

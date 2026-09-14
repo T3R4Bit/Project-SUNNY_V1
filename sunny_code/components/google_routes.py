@@ -1,6 +1,6 @@
 """Routes for the Google Sign-In flow: /auth/google/login, /callback, /status, /disconnect.
 
-Kept separate from dashboard/console routes since this is the one place that
+Kept separate from the dashboard API routes since this is the one place that
 talks to Google's OAuth endpoints directly, not Sunny's own data.
 """
 
@@ -12,6 +12,7 @@ from fastapi import APIRouter
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from sunny_code.components import google_auth
+from sunny_code.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,7 @@ def create_google_auth_router() -> APIRouter:
 
     @router.get("/callback")
     async def callback(code: str = None, state: str = None, error: str = None):
+        dashboard_url = get_settings().dashboard_url
         if error:
             logger.warning(f"Google sign-in cancelled/denied: {error}")
             return HTMLResponse(
@@ -125,7 +127,7 @@ def create_google_auth_router() -> APIRouter:
                     "<div class='badge err'></div>"
                     "<h1>Sign-in didn't complete</h1>"
                     f"<p>Google reported: <span class='email'>{html.escape(error)}</span></p>"
-                    "<a class='btn' href='/console'>Back to console</a>"
+                    f"<a class='btn' href='{dashboard_url}'>Back to dashboard</a>"
                 )
             )
         if not code or not state:
@@ -134,8 +136,8 @@ def create_google_auth_router() -> APIRouter:
                     "<div class='badge err'></div>"
                     "<h1>Incomplete callback</h1>"
                     "<p>Google's redirect was missing the expected <code>code</code>/<code>state</code> "
-                    "parameters — the link may be stale. Start sign-in again from the console.</p>"
-                    "<a class='btn' href='/console'>Back to console</a>"
+                    "parameters — the link may be stale. Start sign-in again from the dashboard.</p>"
+                    f"<a class='btn' href='{dashboard_url}'>Back to dashboard</a>"
                 ),
                 status_code=400,
             )
@@ -165,7 +167,7 @@ def create_google_auth_router() -> APIRouter:
                 "<h1>Connected</h1>"
                 f"<p>Signed in as <span class='email'>{html.escape(email)}</span> — Calendar and Gmail "
                 "(read-only) are now included in briefings.</p>"
-                "<a class='btn' href='/console'>Back to console</a> "
+                f"<a class='btn' href='{dashboard_url}'>Back to dashboard</a> "
                 "<a class='btn secondary' href='/legal/privacy'>What Sunny reads</a>"
             )
         )

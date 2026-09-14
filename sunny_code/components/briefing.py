@@ -40,7 +40,7 @@ _TOPIC_LABELS = {
     "news": "TODAY'S HEADLINES",
 }
 
-# Extra weather locations layered on top of the usual GPS/console "Home"
+# Extra weather locations layered on top of the usual GPS/saved "Home"
 # location -- see _weather_locations_for below. Kennesaw is campus, shown
 # on any day a class meets (class_memory.get_class_meeting_days(), read
 # from the "## Meets" lines class-setup writes -- no live Calendar
@@ -54,7 +54,7 @@ _MARIETTA_WEATHER_LOCATION = "Marietta,GA,US"
 def _weather_locations_for(target_date) -> List[Tuple[str, Optional[str]]]:
     """[(label, location_override), ...] to show in the WEATHER section for
     target_date. Always starts with ("Home", None) -- None means "use the
-    usual GPS/console location," so a day with nothing else special about
+    usual GPS/saved location," so a day with nothing else special about
     it renders exactly as before this existed (a single unlabeled line).
     Kennesaw is appended on a class day, Marietta on a Monday -- both can
     apply at once (Monday is itself usually a class day here)."""
@@ -121,7 +121,7 @@ class BriefingTemplates:
         'not connected' note. The actual API call is a real network
         request through Google's (sync-only) client library — run off
         the event loop via to_thread so it never blocks anything else
-        the app is doing (Discord, the web console, the voice conversation
+        the app is doing (Discord, terminal chat, the voice conversation
         pipeline) for however long that call takes."""
         if not is_configured("calendar"):
             if unconfigured is not None:
@@ -157,7 +157,7 @@ class BriefingTemplates:
     ) -> str:
         """Real conditions via OpenWeatherMap if connected, else the
         standard 'not connected' note. `location` overrides the usual
-        GPS/console location (see _weather_locations_for above). See
+        GPS/saved location (see _weather_locations_for above). See
         _calendar_text's docstring for why this runs via to_thread
         (weather.py uses the sync `requests` library, same blocking-call
         concern)."""

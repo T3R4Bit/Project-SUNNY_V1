@@ -1,9 +1,9 @@
 """Registry of which briefing data sources are backed by a real API vs. not yet connected.
 
 Weather needs both an env-configured API key AND a location — the location
-comes from sunny_code.components.location_store (set via /console, falls
-back to .env's WEATHER_LOCATION), not straight from settings, since it's
-meant to be changeable without a restart. Calendar/email check whether
+comes from sunny_code.components.location_store (set via POST
+/api/weather/location, falls back to .env's WEATHER_LOCATION), not straight
+from settings, since it's meant to be changeable without a restart. Calendar/email check whether
 Google Sign-In is connected (sunny_code.components.google_auth) — see
 sunny-vault/docs/architecture/google-integration.md for what that does and
 doesn't cover. Commute/health/news/motorsports have no integration built yet
@@ -55,7 +55,7 @@ def missing_requirement(source: str) -> str:
         if not looks_configured(settings.openweathermap_api_key):
             missing.append("OPENWEATHERMAP_API_KEY in .env")
         if not location_store.get_location() and location_store.get_coordinates() is None:
-            missing.append("a location — open /console and enter it in the LOCATION card, or connect GPS reporting (see \"setup gps\")")
+            missing.append("a location — set one via the weather API (POST /api/weather/location), or connect GPS reporting (see \"setup gps\")")
         return f"needs {' and '.join(missing)}"
     if requirement:
         return f"needs {requirement} in .env"

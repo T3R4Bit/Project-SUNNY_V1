@@ -8,7 +8,7 @@ Discord-only by design: this is a proactive, repeats-over-time posting
 loop, not a request/response answer, so it's triggered directly in
 discord_bot.py (same reasoning server-admin commands are handled there
 instead of through the interface-agnostic assistant.handle_message()) --
-there's no "periodic channel" concept on the web console, voice, or the
+there's no "periodic channel" concept on terminal chat, voice, or the
 Pi companion to post updates into.
 
 Module-level state, not a class -- one active storm mode at a time,

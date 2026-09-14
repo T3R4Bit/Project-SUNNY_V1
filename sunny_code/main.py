@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from discord.ext import tasks
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 from uvicorn import Server, Config
 
 from sunny_code.config import get_settings, looks_configured
@@ -26,7 +27,6 @@ from sunny_code.components.scheduled_db import ScheduledDB
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.scheduled_vault_mirror import create_scheduled_vault_mirror, write_scheduled_mirror
 from sunny_code.components.pi_companion import create_pi_companion_router
-from sunny_code.components.console import create_console_router
 from sunny_code.components.discord_bot import create_discord_bot
 from sunny_code.components.google_routes import create_google_auth_router
 from sunny_code.components.spotify_engine import SpotifyEngine
@@ -233,6 +233,12 @@ class SunnyCore:
         async def health():
             return {"status": "healthy"}
 
+        @app.get("/")
+        async def root():
+            """Sunny's own web console was retired 2026-09-13 -- the
+            project-dashboard app now owns this host's web UI."""
+            return RedirectResponse(url=self.settings.dashboard_url)
+
         # Dashboard endpoints
         dashboard_app = create_dashboard_app()
         app.include_router(dashboard_app.router, prefix="/api")
@@ -273,13 +279,6 @@ class SunnyCore:
         )
         app.include_router(pi_companion_router)
 
-        # Web console — chat, stats, logs, OAuth links (see console.py)
-        console_router = create_console_router(
-            self.tasks_engine, self.briefing_engine, self.list_engine, self.scheduled_engine, self.project_engine,
-            self.spotify_engine, self.calendar_engine,
-        )
-        app.include_router(console_router)
-
         # Google Sign-In (OAuth) — /auth/google/login, /callback, /status, /disconnect
         google_router = create_google_auth_router()
         app.include_router(google_router)
@@ -288,7 +287,7 @@ class SunnyCore:
         spotify_router = create_spotify_auth_router()
         app.include_router(spotify_router)
 
-        # Weather location — /api/weather/location (read/write for the console's LOCATION card)
+        # Weather location — /api/weather/location (read/write; no web UI since the console's retirement)
         weather_router = create_weather_router()
         app.include_router(weather_router)
 

@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 def create_tasks_router(tasks_engine: TaskEngine) -> APIRouter:
     """Create task management API routes.
 
-    Takes a shared TaskEngine (same instance the web chatbot and Discord bot use)
+    Takes a shared TaskEngine (same instance terminal chat and the Discord bot use)
     so a mutation through this REST API triggers the same on_change effects
     (e.g. an instant Discord dashboard refresh) as any other interface.
     """

@@ -69,7 +69,7 @@ def create_pi_companion_router(
 ) -> APIRouter:
     """Create the /ws/pi router. Takes the same shared engine instances as
     create_chatbot_router() so a change made from the device stays in sync
-    with Discord/console state instead of forking a second copy of them.
+    with Discord/terminal-chat state instead of forking a second copy of them.
 
     post_to_warnings mirrors main.py's health-check wiring (getattr(self.
     discord_bot, "post_to_health", None)) -- None whenever Discord isn't

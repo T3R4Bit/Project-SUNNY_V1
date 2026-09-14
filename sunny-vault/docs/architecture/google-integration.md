@@ -8,7 +8,7 @@ tags: [feature, google, oauth, calendar, gmail]
 
 # Google Sign-In (OAuth 2.0)
 
-One "Connect Google Account" button on [[dashboard|the console]] that authorizes Sunny to read/write your Calendar and read your Gmail. Code is complete; going live needs a Google Cloud OAuth client (one-time setup, external to this repo) and then a one-time sign-in.
+One "Connect Google Account" button (on project-dashboard's `/sunny` page — see [[dashboard]]) that authorizes Sunny to read/write your Calendar and read your Gmail. Code is complete; going live needs a Google Cloud OAuth client (one-time setup, external to this repo) and then a one-time sign-in.
 
 **2026-08-24: the Calendar scope widened from `calendar.readonly` to the full `calendar` scope**, so Sunny can create/delete events, not just read them (see "What This Covers" below). Anyone already connected under the old scope needs to reconnect — Google doesn't retroactively expand a token's scope, and `build_authorization_url()`'s `prompt="consent"` already forces a fresh consent screen on every sign-in, so this is just "click Connect Google Account again," no special re-auth flow needed.
 
@@ -18,9 +18,10 @@ One "Connect Google Account" button on [[dashboard|the console]] that authorizes
 |-------|--------|
 | OAuth flow (login/callback/token storage/refresh) | Built and fixed — `sunny_code/components/google_auth.py`, `google_routes.py`. A real PKCE bug (`invalid_grant: Missing code verifier`) was found and fixed 2026-08-20 — see How It Works |
 | Calendar read | Built — `sunny_code/components/google_calendar.py`, wired into [[briefing-engine]] |
-| Calendar write (create/delete events) | Built 2026-08-24 — `google_calendar.create_event`/`find_event_by_title`/`delete_event`, natural-language layer in `calendar_parser.py` + `calendar_engine.py`, wired into `assistant.py` alongside every other command engine (tasks/lists/alarms/Spotify) — works from any interface (Discord, console, voice, Pi companion) |
+| Calendar write (create/delete events) | Built 2026-08-24 — `google_calendar.create_event`/`find_event_by_title`/`delete_event`, natural-language layer in `calendar_parser.py` + `calendar_engine.py`, wired into `assistant.py` alongside every other command engine (tasks/lists/alarms/Spotify) — works from any interface (Discord, terminal chat, voice, Pi companion) |
 | Gmail read | Built — `sunny_code/components/google_gmail.py`, wired into [[briefing-engine]] |
-| Console "Connect Google Account" card | Built — `/console` |
+| Structured Calendar/Gmail read API for external dashboards | Built 2026-09 — `sunny_code/components/dashboard_data_routes.py`, `/api/calendar/today` + `/api/gmail/flagged`, consumed by project-dashboard's `/sunny` page |
+| "Connect Google Account" UI | Was a `/console` OAuth Links card, removed 2026-09-13 with the console. Now: project-dashboard's `/sunny` page links directly to `/auth/google/login` on Sunny |
 | Styled callback screens (connected/denied/error) | Built 2026-08-20 — was a bare unstyled `<p>` tag before, see How It Works |
 | Google Cloud OAuth client (Client ID/Secret) | Created and configured in `.env` |
 | HTTPS support (Google requires it for a non-localhost redirect URI) | Built — see HTTPS below |
@@ -33,7 +34,7 @@ One "Connect Google Account" button on [[dashboard|the console]] that authorizes
 - `calendar` — full read/write access to every calendar on the account (not just the primary one for reads — see `google_calendar.get_events()`; writes default to `primary`, see `create_event()`)
 - `gmail.readonly` — read message headers only, never bodies (unread count, "important"-flagged count, subject lines of the most recent unread)
 
-Plus `openid` + `userinfo.email` just to show which account is connected on the console.
+Plus `openid` + `userinfo.email` just to show which account is connected.
 
 Calendar write is deliberately narrower than "do anything to the calendar": `calendar_engine.py` only exposes create and delete by natural language (e.g. "add dentist appointment to my calendar at 3pm tomorrow", "cancel dentist appointment from my calendar") — no reschedule/move, no recurring events, no attendees/invites. Delete resolves a title to an event via `find_event_by_title()` (case-insensitive substring match across every calendar, soonest upcoming match wins if more than one matches) — there's no confirmation step before deleting, so a substring that matches an unintended event is a real risk worth knowing about.
 
@@ -71,7 +72,7 @@ Scopes are requested narrowly on purpose — a wider ask both increases what a l
    GOOGLE_CLIENT_SECRET=...
    GOOGLE_OAUTH_REDIRECT_URI=https://<tailscale-hostname>:5443/auth/google/callback
    ```
-6. Restart Sunny, open `/console`, and click **Connect Google Account** under the GOOGLE card. Approve the consent screen. The card should flip to `CONNECTED` with your email shown.
+6. Restart Sunny, then connect from project-dashboard's `/sunny` page (or visit `/auth/google/login` directly). Approve the consent screen. `GET /auth/google/status` should then report `connected: true` with your email.
 
 ### Testing vs. Production — what actually happened here
 
@@ -103,7 +104,7 @@ Fixed by self-hosting three static pages directly from Sunny: `sunny_code/compon
 
 - `GET /auth/google/login` — redirects to Google's consent screen (only reachable if `GOOGLE_CLIENT_ID`/`SECRET` are set). Renders a styled "not set up yet" page instead of a bare string if they're missing.
 - `GET /auth/google/callback` — Google redirects back here with a `code`; it's exchanged for tokens, the account email is fetched, and both are written to `google_token.json` (project root, gitignored, `chmod 600`). Every outcome (connected, denied, missing params, exchange failure) renders a real styled page — same visual identity as the self-hosted legal pages (see Legal Pages below) — not the bare `<p>` tag this used to be.
-- `GET /auth/google/status` — JSON status the console card polls: `client_configured`, `connected`, `email`, `scopes`.
+- `GET /auth/google/status` — JSON status project-dashboard's `/sunny` page polls: `client_configured`, `connected`, `email`, `scopes`.
 - `POST /auth/google/disconnect` — deletes the local token file (does not revoke access on Google's side — revoke via [myaccount.google.com/permissions](https://myaccount.google.com/permissions) if you want that too).
 - `google_auth.get_credentials()` is the one function every other module calls — it loads the stored token, refreshes it if the access token expired, and returns `None` if there's no token or the refresh token was revoked. Every caller (`google_calendar`, `google_gmail`) treats `None` exactly like "not connected," and any live API error is caught and also returns `None` — nothing here can crash a briefing.
 
@@ -134,7 +135,7 @@ Fixed by capturing `flow.code_verifier` alongside the existing `_pending_state` 
 - `sunny_code/components/google_gmail.py` — `get_summary()`
 - `sunny_code/components/data_sources.py` — `is_configured("calendar"|"email")` now checks `google_auth.is_connected()`
 - `sunny_code/components/briefing.py` — pulls real Calendar/Gmail data when connected, falls back to the standard "not connected" note otherwise
-- `sunny_code/components/console.py` — GOOGLE status card on `/console`'s OAuth Links tab (replaces the old `console_stats.py`, removed 2026-08-27)
+- `sunny_code/components/dashboard_data_routes.py` — `/api/calendar/today`, `/api/gmail/flagged`, the structured read API project-dashboard's `/sunny` page consumes
 - `sunny_code/components/legal_pages.py` — serves `legal/home.html`, `legal/privacy.html`, `legal/terms.html` for the consent screen's branding links
 - `sunny_code/main.py` — `start()`'s dual-server (HTTP + HTTPS) launch, `TLS_CERTFILE`/`TLS_KEYFILE`/`TLS_PORT` in `sunny_code/config.py`
 

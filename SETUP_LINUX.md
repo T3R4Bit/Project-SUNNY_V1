@@ -27,7 +27,7 @@ Done! The launcher will:
 - Create a virtual environment automatically if one doesn't exist (you never create or activate it yourself)
 - Install Python dependencies
 - Start the web server
-- Serve the console at `http://127.0.0.1:5000/console` (`http://127.0.0.1:5000` redirects there)
+- Serve Sunny's HTTP API on `http://127.0.0.1:5000` (`/` redirects to the standalone `project-dashboard` web UI — Sunny's own console was retired)
 
 ## Installation Steps
 
@@ -98,12 +98,6 @@ Every run after the first reuses the existing `venv/` and just reinstalls/update
 # Access: http://127.0.0.1:5000
 ```
 
-### Start Without Auto-Reload
-```bash
-./run.sh chatbot
-# Access: http://127.0.0.1:5000
-```
-
 ### Interactive CLIs
 ```bash
 # Briefing system
@@ -135,13 +129,14 @@ exit # Exit dev mode
 
 ## Features Available
 
-### Console — Chat + System Status
-- One page at `/console` (`/` and the old `/chatbot` both redirect there)
-- Chat panel: talk to the briefing engine and task system, plus `setup` for
-  step-by-step instructions on connecting any API (weather, Google, Discord)
-- Sidebar: live CPU/RAM/disk/network/temperature (auto-refreshes every 2s) and
-  Google sign-in status
-- Access from phone over Tailscale, no installation needed on phone
+### Web UI
+- Sunny's own console was retired 2026-09-13 — the standalone `project-dashboard`
+  app (running alongside Sunny on the same host) now owns the web UI. `/` on
+  Sunny redirects there. See that app's own README for what it shows.
+- Talk to Sunny via Discord text/voice or `python chat.py` (terminal) — there is
+  no browser-based chat anymore. Both route through the same `handle_message()`
+  as before, including `setup` for step-by-step instructions on connecting any
+  API (weather, Google, Discord).
 
 ### Briefing System
 - Morning briefing (9 sections)
@@ -170,10 +165,10 @@ exit # Exit dev mode
 - Nothing "sounds" without hardware; the only real delivery today is a Discord ping when due — see `sunny-vault/docs/architecture/alarms-reminders.md`
 
 ### Discord Bot (Optional)
-- Same task/list/alarm/reminder commands as the console chat, typed as plain messages in one dedicated chat channel
+- Same task/list/alarm/reminder commands as terminal chat (`python chat.py`), typed as plain messages in one dedicated chat channel
 - Pinned task dashboard in its own separate, read-only channel (falls back to the chat channel if not configured), auto-refreshes every 5 minutes and on every task change
 - Separate 30-second loop posts a ping ("Alarm: ..."/"Reminder: ...") whenever an alarm or reminder comes due, in the chat channel
-- Not running unless `DISCORD_BOT_TOKEN` and `DISCORD_CHAT_CHANNEL_ID` are set in `.env` — the console works either way
+- Not running unless `DISCORD_BOT_TOKEN` and `DISCORD_CHAT_CHANNEL_ID` are set in `.env` — terminal chat works either way
 - Setup steps: `sunny-vault/docs/architecture/discord-bot.md`
 
 ### API Endpoints
@@ -339,12 +334,11 @@ Project-SUNNY/
 │ ├── scheduled_engine.py
 │ ├── scheduled_parser.py # Natural language parsing for alarms/reminders
 │ ├── time_parse.py # Deterministic time/recurrence parsing (no library)
-│ ├── device.py # Maps a session_id to source: web | discord | api
-│ ├── assistant.py # Shared message routing (console chat + Discord bot)
+│ ├── device.py # Maps a session_id to source: discord | pi | api
+│ ├── assistant.py # Shared message routing (terminal chat + Discord bot)
 │ ├── discord_bot.py # Discord bot — tasks/lists/alarms, pinned dashboard, due-item pings
-│ ├── dashboard.py # Dashboard JSON API
-│ ├── console_stats.py # /console — chat + system status (/, /chatbot redirect here)
-│ └── chatbot_ui.py # Chat message API + old-URL redirects
+│ ├── dashboard.py # Dashboard JSON API (/api/dashboard/*)
+│ └── dashboard_data_routes.py # Structured Calendar/Gmail API for external dashboards
 ├── test_*.py # Test files
 ├── sunny-vault/ # Documentation + Obsidian vault
 │ ├── log/requests.md # What Sunny couldn't fulfill with real data (auto-generated)
@@ -359,12 +353,11 @@ Project-SUNNY/
 ## Next Steps
 
 1. Run `./run.sh` to start
-2. Open `http://127.0.0.1:5000` in browser
-3. Type "morning" to see briefing
-4. Type "show my tasks" to see task list
-5. Check `/console` for live system stats
-6. Deploy to Lenovo brain for 24/7 access
-7. Access from phone over Tailscale
+2. Run `python chat.py` (or use Discord) and type "morning" to see briefing
+3. Type "show my tasks" to see task list
+4. Deploy `project-dashboard` alongside Sunny for a web UI (see its own README)
+5. Deploy to Lenovo brain for 24/7 access
+6. Access from phone over Tailscale
 
 ## Support
 

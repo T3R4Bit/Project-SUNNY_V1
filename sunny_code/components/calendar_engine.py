@@ -63,7 +63,7 @@ class CalendarEngine:
 
         result = google_calendar.create_event(data["title"], start, duration_minutes=DEFAULT_EVENT_DURATION_MINUTES)
         if result is None:
-            return False, "Couldn't reach Google Calendar — is it connected? Check /console."
+            return False, "Couldn't reach Google Calendar — is it connected? Check the dashboard."
 
         when = start.strftime("%A, %B %d at %I:%M %p").replace(" 0", " ")
         return True, f'Added "{data["title"]}" to your calendar for {when} ({DEFAULT_EVENT_DURATION_MINUTES} min).'
@@ -75,6 +75,6 @@ class CalendarEngine:
 
         ok = google_calendar.delete_event(match["calendar_id"], match["event_id"])
         if not ok:
-            return False, "Couldn't reach Google Calendar to delete that — try again or check /console."
+            return False, "Couldn't reach Google Calendar to delete that — try again or check the dashboard."
 
         return True, f'Removed "{match["title"]}" from your calendar.'

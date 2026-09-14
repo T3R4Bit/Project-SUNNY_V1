@@ -405,8 +405,8 @@ def _looks_like_a_command(stripped: str, lowered: str) -> bool:
 
 def _describe_usage() -> str:
     """Plain-text, TTS-safe answer to "what's my usage" -- same numbers the
-    /console dashboard and Discord's /usage chart show, just as one spoken-
-    friendly line instead of an image (which no voice interface, including
+    /api/dashboard/spend/* endpoints and Discord's /usage chart show, just as
+    one spoken-friendly line instead of an image (which no voice interface, including
     the Pi companion, can render). Answers the open "wire a what's-my-usage
     intent" item from sunny-companion/BUILD_PLAN.md's Phase 6 -- this is
     that intent, and it works from every interface since it's routed here,
@@ -964,9 +964,9 @@ async def handle_message(
     behavior change; only reaches anything when routing falls all the
     way through to the LLM Q&A fallback.
 
-    This is the single shared entry point for the web chatbot, Discord bot,
-    and Pi companion, so it's also where every message gets recorded for the
-    web console's Logs tab (see trace.py) -- one wrapper here covers all
+    This is the single shared entry point for the Discord bot, Pi companion,
+    and terminal chat (chat.py), so it's also where every message gets
+    recorded to the trace log (see trace.py) -- one wrapper here covers all
     three interfaces instead of instrumenting each caller separately."""
     source = device_from_session(session_id)
     start = time.monotonic()

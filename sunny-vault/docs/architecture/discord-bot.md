@@ -8,7 +8,7 @@ tags: [discord, bot, tasks, lists, alarms, reminders, server-admin, component]
 
 # Discord Bot — Commands + Multi-Channel Output + Server Admin
 
-The intended **primary** interface for Tasks (see [[../TASK_SYSTEM.md]]), [[lists.md|Lists]], and [[alarms-reminders.md|Alarms/Reminders]] — one bot, all three subsystems. Reads commands as plain messages from **one chat channel**, replies in-channel, keeps a pinned task dashboard up to date in its **own separate, read-only channel**, and posts a ping whenever an alarm/reminder comes due. The console chat (`/console`) is the fallback whenever the bot is offline. It can also administer the server itself — create/delete channels and roles, assign roles to members — since that's a Discord-only capability with nowhere else to live. Beyond the chat and dashboard channels, it can optionally *post* specific things (briefings, warnings, task changes) to further separate channels you designate — see Multi-Channel Output Routing below.
+The intended **primary** interface for Tasks (see [[../TASK_SYSTEM.md]]), [[lists.md|Lists]], and [[alarms-reminders.md|Alarms/Reminders]] — one bot, all three subsystems. Reads commands as plain messages from **one chat channel**, replies in-channel, keeps a pinned task dashboard up to date in its **own separate, read-only channel**, and posts a ping whenever an alarm/reminder comes due. Terminal chat (`python chat.py`) is the fallback whenever the bot is offline — since the web console's retirement 2026-09-13 (see [[dashboard]]) this requires a shell on the host, not just a Tailscale-connected browser like the old `/console` did. It can also administer the server itself — create/delete channels and roles, assign roles to members — since that's a Discord-only capability with nowhere else to live. Beyond the chat and dashboard channels, it can optionally *post* specific things (briefings, warnings, task changes) to further separate channels you designate — see Multi-Channel Output Routing below.
 
 ## Status
 
@@ -16,7 +16,7 @@ Built and connected — `sunny_code/components/discord_bot.py`, `sunny_code/comp
 
 ## How It Works
 
-- Uses the exact same routing as the console chat (`sunny_code.components.assistant.handle_message`) — natural phrasing, no `!` prefix needed, `help` works, everything behaves identically to `/console`, and covers all three subsystems (Tasks/Lists/Alarms-Reminders) through one message handler.
+- Uses the exact same routing as terminal chat (`sunny_code.components.assistant.handle_message`) — natural phrasing, no `!` prefix needed, `help` works, everything behaves identically to `chat.py`, and covers all three subsystems (Tasks/Lists/Alarms-Reminders) through one message handler.
 - **Scoped to one chat channel.** Messages anywhere else in the server are ignored entirely — including server-admin commands. The dashboard channel (see Channel Reference below) is a pure display surface — the bot never reads anything posted there.
 - Every message in the chat channel gets a reply. Task-mutating commands (add/update/delete) also trigger an immediate dashboard refresh in the dashboard channel; everything else just replies.
 - Long responses (>1900 characters) are split into multiple messages at line boundaries — Discord's hard limit is 2000.
@@ -25,7 +25,7 @@ Built and connected — `sunny_code/components/discord_bot.py`, `sunny_code/comp
 
 ## Usage
 
-Everything below is typed as a plain message in the **chat channel** (not the dashboard channel, which is read-only) — no `!` prefix, no slash commands. Same phrasing as `/console` and `chat.py`, since all three go through the identical `handle_message()` router. Full command reference for each subsystem lives in its own doc ([[../TASK_SYSTEM.md]], [[lists.md]], [[alarms-reminders.md]]) — this is the condensed version.
+Everything below is typed as a plain message in the **chat channel** (not the dashboard channel, which is read-only) — no `!` prefix, no slash commands. Same phrasing as `chat.py`, since both go through the identical `handle_message()` router. Full command reference for each subsystem lives in its own doc ([[../TASK_SYSTEM.md]], [[lists.md]], [[alarms-reminders.md]]) — this is the condensed version.
 
 ### Tasks
 ```text
@@ -55,7 +55,7 @@ cancel my 7am alarm
 ### Briefing, Setup, Help
 
 - **Briefing** — "morning" or "evening" generates a full briefing on demand (also cross-posts to `#briefings` if configured, see Multi-Channel Output Routing below).
-- **Setup status** — "setup" for the full connection overview, or "setup \<name\>" (e.g. "setup weather", "setup claude") for step-by-step instructions on one integration — same live-status output as typing it into `/console`.
+- **Setup status** — "setup" for the full connection overview, or "setup \<name\>" (e.g. "setup weather", "setup claude") for step-by-step instructions on one integration — same live-status output as typing it into `chat.py`.
 - **Help** — "help" (or blank/"commands"/"what can you do") prints the full command list.
 - **Server admin** (channels/roles) — see the dedicated section below; these are Discord-only and use different verbs (`create a channel called ...`) from everything above.
 - **Voice** — `/speak <text>` posts back a playable audio attachment (one-shot, Piper TTS, see [[tts-piper]]). Live conversation (Vosk STT + Piper TTS, see [[voice-join]]) is no longer a per-use command — Sunny stays persistently connected to `DISCORD_VOICE_CHANNEL_ID` when configured, toggled via `/service voice_join enable|disable`, not `/join`/`/leave`.
@@ -80,7 +80,7 @@ Discord-only, and checked *before* the shared `handle_message()` router — same
 
 Any other Discord API failure (missing permission, role-hierarchy limit, role/channel already gone) becomes a plain-text reply — same fail-quietly contract as the rest of the app, never a crash.
 
-**Why this can't be an interface-agnostic command like tasks/lists**: creating/deleting a channel or role requires a live `discord.Guild` object — there's no equivalent concept on `/console` or in `chat.py`. So unlike everything else the bot does, these commands are handled entirely inside `discord_bot.py` and never touch `sunny_code.components.assistant`.
+**Why this can't be an interface-agnostic command like tasks/lists**: creating/deleting a channel or role requires a live `discord.Guild` object — there's no equivalent concept in `chat.py`. So unlike everything else the bot does, these commands are handled entirely inside `discord_bot.py` and never touch `sunny_code.components.assistant`.
 
 **Permissions required**: the bot's role needs **Manage Channels** and **Manage Roles** in the server (see Setup below) — without them every command here returns a friendly "I don't have permission" instead of failing silently. For role commands specifically, Discord also requires the bot's own role to sit *above* any role it's creating/deleting/assigning in the server's role list — newly created roles land at the bottom by default so this is rarely an issue for new roles, but can bite if you're trying to manage a role positioned above the bot.
 
@@ -101,7 +101,7 @@ Six further optional, output-only channels:
 |---|---|---|---|
 | `DISCORD_BRIEFINGS_CHANNEL_ID` | `#briefings` | No | A copy of the morning/evening briefing, whenever one's generated by typing "morning"/"evening" in the chat channel |
 | `DISCORD_WARNINGS_CHANNEL_ID` | `#warnings` | No | The startup missing-API-key summary. Today this is its only real user — nothing else posts here yet (see [[llm-integration]]'s Error Handling section for a planned future user: Claude API failures aren't routed to Discord yet, only logged) |
-| `DISCORD_TASK_UPDATES_CHANNEL_ID` | `#task-updates` | No | A log line for every successful task add/update/delete, from *any* interface — web console, terminal chat, or this bot |
+| `DISCORD_TASK_UPDATES_CHANNEL_ID` | `#task-updates` | No | A log line for every successful task add/update/delete, from *any* interface — terminal chat, the Pi companion, or this bot |
 | `DISCORD_HEALTH_CHANNEL_ID` | `#health` | No | The weekly Sunday-4am system health report — see [[health-check]] |
 | `DISCORD_USAGE_CHANNEL_ID` | `#usage` | No | The persistent hourly usage dashboard + daily spend-cap alerts — falls back to `#health`, then chat, if unset. See [[usage-tracking]] |
 | `DISCORD_REMINDERS_CHANNEL_ID` | `#reminders` | No | Class-deadline pings (2 days before and the day of) from "set up my classes" — see [[class-setup]] |

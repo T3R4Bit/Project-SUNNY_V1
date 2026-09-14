@@ -1,5 +1,8 @@
-"""Routes backing the console's LOCATION card — read/write the location
-weather uses. See sunny_code.components.location_store.
+"""Read/write the location weather uses. See sunny_code.components.location_store.
+
+No web UI drives this today -- Sunny's own console (which had a LOCATION
+card) was retired 2026-09-13; set it directly (POST /api/weather/location)
+or via GPS reporting (location_routes.py) instead.
 """
 
 import asyncio

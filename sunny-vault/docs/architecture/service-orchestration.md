@@ -46,7 +46,7 @@ Per-service on/off and autostart-on-boot control for Sunny's background loops, p
 
 A single global flag, not per-service — it doesn't map to one loop. While on: `scheduled_check_loop` skips the morning-prep lookahead block entirely (no `prewarm_morning_briefing()`, no proactive alarm-triggered nudging). It does **not** suppress an explicit "good morning"/"good night" request — those still work normally; vacation mode only stops the *proactive* daily-cycle waiting, matching the original ask ("so my local clock is not waiting every day for goodnight/morning").
 
-Toggle from any interface: "vacation mode on"/"off" (natural language, routed through `assistant.py`, works on console/Discord text/voice/Pi companion alike) or `/vacation on|off` in Discord.
+Toggle from any interface: "vacation mode on"/"off" (natural language, routed through `assistant.py`, works on terminal chat/Discord text/voice/Pi companion alike) or `/vacation on|off` in Discord.
 
 ## Discord Commands
 

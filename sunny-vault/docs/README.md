@@ -4,7 +4,7 @@ A self-hosted voice assistant for personal productivity and automation.
 
 ## Overview
 
-Sunny is an always-on personal assistant that runs on a Lenovo mini PC today, reachable via Discord (text and live voice) and a web console. Phone calls and home-device control are still planned, not built — see Core Features below. Real task/calendar/weather data drives fixed templates wherever a fact is a fact; Claude is only called for genuine judgment, all while prioritizing privacy and minimizing token usage.
+Sunny is an always-on personal assistant that runs on a Lenovo mini PC today, reachable via Discord (text and live voice) and terminal chat, with a standalone `project-dashboard` app providing a web UI alongside it. Phone calls and home-device control are still planned, not built — see Core Features below. Real task/calendar/weather data drives fixed templates wherever a fact is a fact; Claude is only called for genuine judgment, all while prioritizing privacy and minimizing token usage.
 
 ## Core Features
 
@@ -46,13 +46,13 @@ Beyond the hardware Clock, phone integration, and remote power control, everythi
 ```bash
 chmod +x run.sh
 ./run.sh
-# Open: http://127.0.0.1:5000 (redirects to /console)
+# Open: http://127.0.0.1:5000 (redirects to the project-dashboard web UI, if deployed)
 ```
 
 See [[./QUICKSTART.md]] for full quick-start guide.
 
 ### Current Status
-Phase 0 (Foundations) mostly complete — briefing engine (real task data, honest "not connected" for everything else), task system and lists (Obsidian vault, markdown), alarms/reminders (SQLite, unaffected by the vault-storage move), console-chat/Discord-driven, the combined console at `/console` (`/` and the old `/chatbot` redirect there) with chat, live system stats, and Google sign-in status, Discord bot connected and live, all working. `run.sh` manages Python dependencies automatically (no manual venv setup). Systemd autostart is done (`Restart=always`, see `SETUP_LINUX.md`).
+Phase 0 (Foundations) mostly complete — briefing engine (real task data, honest "not connected" for everything else), task system and lists (Obsidian vault, markdown), alarms/reminders (SQLite, unaffected by the vault-storage move), terminal-chat/Discord-driven, Discord bot connected and live, all working. Sunny's own web console was retired 2026-09-13 — the standalone `project-dashboard` app now owns the web UI (see [[./architecture/dashboard]]). `run.sh` manages Python dependencies automatically (no manual venv setup). Systemd autostart is done (`Restart=always`, see `SETUP_LINUX.md`).
 
 ### Documentation
 - [[./QUICKSTART.md]] — Get started in 30 seconds

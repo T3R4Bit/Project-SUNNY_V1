@@ -2,7 +2,7 @@
 
 ## A Self-Hosted Personal Assistant
 
-Sunny is an always-on personal assistant that runs on a Lenovo mini PC, reachable over Tailscale from a Discord bot, a web console, live voice conversation, or terminal chat — all routed through the same shared logic, so behavior is identical everywhere. Real tasks/lists/calendar data, deterministic templates for facts, Claude only for judgment and genuinely open-ended questions.
+Sunny is an always-on personal assistant that runs on a Lenovo mini PC, reachable over Tailscale from a Discord bot, live voice conversation, or terminal chat — all routed through the same shared logic, so behavior is identical everywhere. A standalone `project-dashboard` app provides a web UI alongside it. Real tasks/lists/calendar data, deterministic templates for facts, Claude only for judgment and genuinely open-ended questions.
 
 A dedicated hardware companion device (Raspberry Pi, animated face, local wake word) is in active prototyping — see `sunny-companion/BUILD_PLAN.md`. Everything below already runs today without it.
 
@@ -116,7 +116,7 @@ Tasks, lists, weather, and calendar/email (once each is connected) are real data
 ### Linux/macOS Quick Start
 ```bash
 chmod +x run.sh
-./run.sh # Starts the console at http://127.0.0.1:5000
+./run.sh # Starts Sunny's API on http://127.0.0.1:5000 (redirects to project-dashboard if deployed)
 ```
 
 `run.sh` creates and manages its own Python virtual environment automatically — there's nothing to set up by hand.

@@ -8,55 +8,6 @@ tags: [project, vision, overview]
 
 # About Project SUNNY
 
-```
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                                                                                    
-                                       # #
-                                       ## ### #
-                                      ## # ## # ###
-                                     ## # ### ## ## ##
-                                     # # ### ## ### ##
-                         ##### ## #### #### #
-                           ## ## # ## ####### ## ######
-                            ## ## ## ####### ############### ##
-                             # ###### #### ##
-                             ## ## ## ##
-                              ##### ## ##
-                               ## ####
-              ### ########## ## ####### ###
-                   ## ########################################### ###
-                     ## ######## # ################# # ######## ###
-                      ### ### #### # ######### ###### ####### ######
-                        ###### ## # ######### #### # ######## ####
-              ## ###### ## #### ######### ### # ######## ## ###
-                ### ## ########### ########### ## #######
-                   ###### ## # ###
-                          # ## ## ## ## #######
-                           ##### ###### ### #
-                          ## ## ## ##
-                       #### ### ### #
-                     ### #### ### ##
-                            ##### ###### ##### #
-                                 ## ##### ##### ## ###### #
-                                ## ############## #
-                               ## ####### ## # ### #
-                               #### ## ## #### #
-                               ## ## ## ###
-                                               ## #
-                                                ##
-                                                 #
-                                                                                                    
-```
 
 ## Vision
 
@@ -99,9 +50,9 @@ Project SUNNY is a self-hosted voice assistant for personal productivity and aut
 
 **Phase 0 (Foundations)** — Mostly complete (a couple of small OS-config items open — see [[./phases.md]])
 - Briefing system with real task/weather/calendar data where connected, honest gaps elsewhere, and a Claude-backed fallback for anything genuinely open-ended
-- Task/list/alarm/reminder management — natural language, no command prefix needed, driven identically from the console, Discord text, and Discord voice (see [[./TASK_SYSTEM.md]])
+- Task/list/alarm/reminder management — natural language, no command prefix needed, driven identically from terminal chat, Discord text, and Discord voice (see [[./TASK_SYSTEM.md]])
 - Discord bot live: text commands, `/speak` one-shot TTS, and persistent live voice conversation (no join command — `/service voice_join` toggles it)
-- One combined console at `/console` (`/` and the old `/chatbot` redirect there) — chat, live system stats, and Google sign-in status, accessible over Tailscale
+- Sunny's own web console was retired 2026-09-13 — the standalone `project-dashboard` app now owns this host's web UI (see [[architecture/dashboard]]); Sunny still exposes its HTTP API (health, spend, briefing text, structured Calendar/Gmail, OAuth) for it to consume
 
 **Phase 1-7** — In planning (hardware phases; voice I/O itself is already live via Discord)
 

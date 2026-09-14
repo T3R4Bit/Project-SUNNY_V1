@@ -24,7 +24,7 @@ Overview of Project SUNNY's major components and how they interact.
 
 ### Features
 - [[briefing-engine]] — Morning/evening briefings from calendar, weather, tasks; freeform Q&A with real web search when needed
-- [[../TASK_SYSTEM.md|task-system]] — Task management, real editable categories, archive-not-delete. Discord bot is the live primary interface; console chat is the fallback
+- [[../TASK_SYSTEM.md|task-system]] — Task management, real editable categories, archive-not-delete. Discord bot is the live primary interface; terminal chat is the fallback
 - [[lists]] — Named checkable lists (groceries, packing, etc.) — sibling to tasks, not part of them
 - [[alarms-reminders]] — Time-triggered alarms/reminders, ping Discord when due
 - [[project-system]] — "New project" wizard, drafts a real multi-file folder from one LLM call
@@ -102,7 +102,7 @@ See [[design-principles]] for core philosophy:
 
 See [[../phases.md]] for the authoritative, detailed phase breakdown and checklists — this section is just a summary and can drift, so treat phases.md as the source of truth.
 
-**Phase 0 (Foundations)**: Mostly complete — Ubuntu Server 26.04 LTS (headless) installed and running under a systemd unit (autostart, `Restart=always`), briefing engine + task system + chatbot UI + system console + Discord bot (connected and live) all built.
+**Phase 0 (Foundations)**: Mostly complete — Ubuntu Server 26.04 LTS (headless) installed and running under a systemd unit (autostart, `Restart=always`), briefing engine + task system + terminal chat + Discord bot (connected and live) all built. Sunny's own web console was retired 2026-09-13 — see [[dashboard]].
 
 **Phase 1 (Networking)**: Mostly complete — Lenovo, TrueNAS, phone, and workstation all joined to the Tailscale mesh, now also serving HTTPS (Tailscale-issued cert) alongside plain HTTP. Phone-specific verification and ACLs still outstanding.
 

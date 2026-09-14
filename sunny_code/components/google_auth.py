@@ -13,7 +13,7 @@ still-wider scope grant (sending email) would need on top of this.
 Widening the calendar scope from read-only to read+write means an existing
 google_token.json's refresh token was issued under the *old*, narrower
 scope — Google doesn't retroactively expand it. Anyone already connected
-needs to reconnect (re-run the sign-in flow from /console) once this
+needs to reconnect (re-run the sign-in flow at /auth/google/login) once this
 change is deployed; build_authorization_url()'s prompt="consent" already
 forces a fresh consent screen (and fresh token) on every sign-in, so this
 needs no special-cased re-auth code, just clicking "Connect Google

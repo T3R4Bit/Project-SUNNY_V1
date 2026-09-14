@@ -12,7 +12,7 @@ chmod +x run.sh
 ./run.sh
 ```
 
-**Done!** Server starts at `http://127.0.0.1:5000`, which redirects to the console at `http://127.0.0.1:5000/console`
+**Done!** Server starts at `http://127.0.0.1:5000` (redirects to the `project-dashboard` web UI — see its own README — since Sunny's own console was retired). Talk to Sunny via Discord or `python chat.py`.
 
 No manual Python setup needed — `run.sh` creates and manages its own virtual environment automatically on first run.
 
@@ -20,7 +20,6 @@ No manual Python setup needed — `run.sh` creates and manages its own virtual e
 
 ```bash
 ./run.sh # Start web server (default)
-./run.sh chatbot # Console, non-reload mode
 ./run.sh reload # Web server with auto-reload (local dev only)
 ./run.sh chat # Terminal chat — same router as everywhere else, no browser
 ./run.sh cli briefing # Interactive briefing CLI
@@ -29,7 +28,7 @@ No manual Python setup needed — `run.sh` creates and manages its own virtual e
 ./run.sh dev # Dev shell (auto-managed venv pre-activated)
 ```
 
-## Try in the Console
+## Try It (Discord, or `./run.sh chat`)
 
 ```
 help → What Sunny can do
@@ -70,7 +69,7 @@ Real registered slash commands, no plain-text equivalent:
 /vacation         → Pause proactive morning/evening nudging
 /usage            → Chart of Claude API cost over the last N days
 /version          → Show the commit Sunny is currently running
-/ip               → Paste the Lenovo box's current Tailscale IP + console link
+/ip               → Paste the Lenovo box's current Tailscale IP + dashboard link
 ```
 
 ## Talk to Sunny in Discord Voice
@@ -99,7 +98,7 @@ chat already uses.
 ## Access from Phone
 
 1. Phone on Tailscale mesh
-2. Open: `http://100.117.41.53:5000`
+2. Open: `http://100.117.41.53:5000` (redirects to the `project-dashboard` web UI)
    (or `http://sunshine-m700:5000`)
 
 ## Troubleshooting

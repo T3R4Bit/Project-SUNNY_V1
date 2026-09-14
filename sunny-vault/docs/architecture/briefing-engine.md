@@ -17,7 +17,7 @@ Daily morning and evening briefings delivered via voice. A fixed-format script w
 | Tasks | Real — queried live from the vault (markdown, not a database) |
 | Calendar | Live — OAuth sign-in confirmed working end-to-end (see [[google-integration]]) |
 | Email | Live — OAuth sign-in confirmed working end-to-end (see [[google-integration]]) |
-| Weather | Code complete — needs `OPENWEATHERMAP_API_KEY` in `.env` **and** a location set on `/console` (a key alone isn't enough — see [[location]]) |
+| Weather | Code complete — needs `OPENWEATHERMAP_API_KEY` in `.env` **and** a location set via `POST /api/weather/location` (a key alone isn't enough — see [[location]]) |
 | Commute, Health, News, Motorsports | Not connected — no integration built yet, and **not covered by Google sign-in** (see [[google-integration]] for why) |
 
 **The engine never fakes an answer for an unconnected source.** Instead of showing mock data as if it were real, each section/question says explicitly what's missing (e.g. "Not connected — needs OPENWEATHERMAP_API_KEY in .env"), and every time that happens it's logged to [[../../log/requests.md|sunny-vault/log/requests.md]] — see "Data Source Honesty & Request Logging" below. Calendar/email failures that happen *after* connecting (an expired grant, a live Google API error) get a distinct "temporarily unavailable — check logs" message instead, since that's a different problem than "nobody's built this yet."
@@ -99,7 +99,7 @@ Sleep well!
 | Tasks (open/due) | Obsidian vault, markdown (`sunny-vault/data/state/tasks/`) | Live today |
 | Calendar events | Google Calendar API (OAuth, read + create/delete) | Live, see [[google-integration]] |
 | Email (unread/important) | Gmail API (OAuth, read-only) | Live, see [[google-integration]] |
-| Weather | OpenWeatherMap (current + 5-day forecast) | Code complete — needs `OPENWEATHERMAP_API_KEY` + a location on `/console`, see [[location]] |
+| Weather | OpenWeatherMap (current + 5-day forecast) | Code complete — needs `OPENWEATHERMAP_API_KEY` + a location set via the API, see [[location]] |
 | Commute/traffic | Google Maps/traffic API — **separate API key, not part of Google sign-in** | Not connected |
 | Location | Tailscale or location API | Not connected |
 | Yesterday's incomplete | Obsidian vault or database | Not connected |
@@ -262,7 +262,7 @@ The [[dashboard]] shows:
 - [[llm-integration]] — Optional email triage
 - [[networking]] — API access
 - [[google-integration]] — Google sign-in, Calendar + Gmail API access
-- [[location]] — where weather looks, set on `/console`
+- [[location]] — where weather looks, set via `POST /api/weather/location`
 - Weather API — Forecast data
 - Traffic API — Commute data
 
@@ -273,7 +273,7 @@ The [[dashboard]] shows:
 - [x] Honest "not connected" messaging for unconfigured sources + logging to `sunny-vault/log/requests.md`
 - [x] Calendar API integration — Google Calendar via OAuth, sign-in confirmed working end-to-end (see [[google-integration]])
 - [x] Email header parsing — Gmail unread/important counts + subject lines via OAuth, same sign-in
-- [x] Weather API integration — OpenWeatherMap current + forecast, code complete (see `sunny_code/components/weather.py`), needs `OPENWEATHERMAP_API_KEY` in `.env` + a location set on `/console` to go live (see [[location]])
+- [x] Weather API integration — OpenWeatherMap current + forecast, code complete (see `sunny_code/components/weather.py`), needs `OPENWEATHERMAP_API_KEY` in `.env` + a location set via the API to go live (see [[location]])
 - [ ] Traffic API integration — separate from Google sign-in, needs its own Maps API key (see [[google-integration]])
 - [ ] Text-to-speech integration
 - [ ] Scheduler (7am, 9pm jobs)

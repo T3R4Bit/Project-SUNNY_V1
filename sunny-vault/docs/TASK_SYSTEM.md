@@ -8,7 +8,7 @@ tags: [feature, tasks, discord, vault]
 
 # Task Management System
 
-Task management with hardcoded logic (no LLM required). **Discord is the intended primary interface** — connected to a live server as of 2026-08-20 (see [[architecture/discord-bot.md]]). Commands are read from a `#chat` channel; the pinned dashboard lives in its own separate, read-only channel. The web chatbot is fully working today and remains the fallback for whenever the Discord bot is down.
+Task management with hardcoded logic (no LLM required). **Discord is the intended primary interface** — connected to a live server as of 2026-08-20 (see [[architecture/discord-bot.md]]). Commands are read from a `#chat` channel; the pinned dashboard lives in its own separate, read-only channel. Terminal chat (`python chat.py`) remains the fallback for whenever the Discord bot is down — the web console this used to describe was retired 2026-09-13, see [[architecture/dashboard]].
 
 Tasks are one of three sibling subsystems that share the same routing entry point, database-per-feature approach, and "no LLM, plain pattern matching" philosophy — see [[architecture/lists.md]] for named checkable lists (groceries, packing, etc.) and [[architecture/alarms-reminders.md]] for time-triggered alarms/reminders that ping Discord when due. They are **not** part of Tasks — a task is never "due at 7am" in the alarm sense. All three route through the same `sunny_code/components/assistant.py`.
 
@@ -22,7 +22,7 @@ Tasks have no priority field (removed 2026-08-24 — it was a plain 1-5 int with
 | Command parser (natural phrasing, no LLM) | Built (`sunny_code/components/tasks_parser.py`) |
 | Task engine (command execution, dashboard formatting) | Built (`sunny_code/components/tasks_engine.py`) |
 | REST API | Built (`sunny_code/components/tasks_api.py`) |
-| Console chat interface (`/console`) | Built — working fallback interface |
+| Terminal chat interface (`chat.py`) | Built — working fallback interface (was `/console` until it was retired 2026-09-13) |
 | **Discord bot** | Built and connected (`sunny_code/components/discord_bot.py`) — see [[architecture/discord-bot.md]] |
 | Device/source tracking (which interface created a record) | Built (`sunny_code/components/device.py`) — see Device Tracking below |
 | Lists (groceries, packing, etc.) | Built, separate subsystem — see [[architecture/lists.md]] |
@@ -33,7 +33,7 @@ Tasks have no priority field (removed 2026-08-24 — it was a plain 1-5 int with
 
 - **Categories**: A real, editable list (`sunny_code/components/category_store.py`) — "add category `<name>`"/"remove category `<name>`" from any interface, or `/category add`/`/category remove` in Discord specifically (2026-08-24: natural language added everywhere else, previously Discord-only). General/School/Motorsports ship as defaults; `General` can never be removed (permanent fallback). If a task's category isn't stated or clearly implied by phrasing, Sunny asks which one instead of silently defaulting.
 - **Storage**: Markdown in the Obsidian vault (`sunny-vault/data/state/tasks/`, one file per task) — see [[architecture/vault-storage]]. Finishing or deleting a task **archives** its file (`sunny-vault/data/archive/finished/` or `archive/deleted/`) rather than removing it — no task data is ever actually lost, and lifetime stats still count what finished.
-- **Interface today**: Console chat, Discord text, and Discord voice (Sunny's persistent voice presence — see [[architecture/voice-join]]) — all identical behavior through the same `handle_message()`
+- **Interface today**: Terminal chat, Discord text, and Discord voice (Sunny's persistent voice presence — see [[architecture/voice-join]]) — all identical behavior through the same `handle_message()`
 - **Logic**: Deterministic, no LLM calls
 
 ## Data Model
@@ -52,23 +52,21 @@ Task {
 }
 ```
 
-## How It Works Today (Console Chat)
+## How It Works Today (Terminal Chat)
 
-Open `/console` (or `/`, or the old `/chatbot`, both of which redirect there) and just talk to it naturally — "add buy milk to my tasks", "show my tasks", "mark a1b2c3d4 as done". No command prefix required. Type **"help"** (or "commands"/"info", or just hit enter with nothing typed) any time for a capability summary. The chat sends every message to one shared endpoint (`sunny_code/components/assistant.py`'s `handle_message()`, also used by the Discord bot — identical behavior on both interfaces):
-
-```
-POST /api/assistant/message?text=<message>
-```
+Run `python chat.py` and just talk to it naturally — "add buy milk to my tasks", "show my tasks", "mark a1b2c3d4 as done". No command prefix required. Type **"help"** (or "commands"/"info", or just hit enter with nothing typed) any time for a capability summary. Every message goes through one shared entry point (`sunny_code/components/assistant.py`'s `handle_message()`, also used by the Discord bot — identical behavior on both interfaces). There is no HTTP endpoint for this anymore — `POST /api/assistant/message` was removed with the web console 2026-09-13 (see [[architecture/dashboard]]); `chat.py` calls `handle_message()` directly in-process.
 
 **Routing order**: pending follow-up question (if any) → help trigger → [[architecture/lists.md|list command]] → [[architecture/alarms-reminders.md|alarm/reminder command]] → task command (natural phrasing or legacy `!task`) → morning/evening briefing → briefing Q&A fallback. Lists and alarms/reminders are checked *before* tasks on purpose: their trigger phrases require a specific keyword ("list"/"alarm"/"reminder"), while tasks' bare `delete <x>`/`mark <x> as done` patterns are deliberately broad and would otherwise swallow "delete my reminder to call Mom" or "remove milk from my list" before the more specific parser ever got a look.
 
 ## Device Tracking
 
-Every record created anywhere (a task, a list item, an alarm) gets tagged with `source: web | discord | api`, derived from the `session_id` passed into `handle_message()` (`sunny_code/components/device.py`'s `device_from_session()`):
+Every record created anywhere (a task, a list item, an alarm) gets tagged with `source: discord | terminal | pi | api`, derived from the `session_id` passed into `handle_message()` (`sunny_code/components/device.py`'s `device_from_session()`):
 
-- Web chatbot sessions: `web:<random-id-persisted-in-browser-localStorage>` → `source = "web"`
 - Discord messages: `discord:<channel_id>:<user_id>` → `source = "discord"`
+- Terminal chat (`chat.py`): `source = "terminal"`
+- Pi companion: `source = "pi"`
 - Anything else (direct REST API calls with no session): `source = "api"`
+- Records created before 2026-09-13 may still show `source = "web"` (the retired web console) — old data, not a live source anymore
 
 This exists so future features (e.g. "show me what I created from my phone today") have real data to query against — nothing currently filters or displays by `source` yet, it's just recorded on every task/list-item file and every row in `scheduled.db`.
 
@@ -88,7 +86,7 @@ GET /api/tasks/{task_id} Single task by ID
 
 ## Command Syntax
 
-Natural phrasing is the primary, documented way to talk to the task system — no `!` prefix needed. Same phrasing works whether it's typed into the web chatbot today or the Discord bot once that exists.
+Natural phrasing is the primary, documented way to talk to the task system — no `!` prefix needed. Same phrasing works identically in terminal chat and Discord.
 
 ### View Tasks
 ```
@@ -180,7 +178,7 @@ Since 2026-08-23, the dashboard is a real Discord **embed** (`discord_bot.py`'s 
 
 Refreshes automatically every 5 minutes, plus an on-demand reaction to update instantly. See [[architecture/discord-bot.md]] for setup, and [[../phases.md]] "Discord Activity Log" for the broader (not yet built) multi-channel activity-log idea this is scoped out of.
 
-The console chat stays available as the fallback interface for whenever the Discord bot is down or unreachable.
+Terminal chat (`python chat.py`) stays available as the fallback interface for whenever the Discord bot is down or unreachable.
 
 ## Project Wizard
 

@@ -89,13 +89,13 @@ def startup_summary() -> str:
     if google_auth.is_client_configured() and not google_auth.is_connected():
         lines.append(
             "Google OAuth client is configured but no account is signed in yet — "
-            "visit /console and click \"Connect Google Account\"."
+            "connect it from the dashboard, or visit /auth/google/login directly."
         )
 
     if spotify_auth.is_client_configured() and not spotify_auth.is_connected():
         lines.append(
             "Spotify OAuth client is configured but no account is signed in yet — "
-            "visit /console and click \"Connect Spotify Account\"."
+            "connect it from the dashboard, or visit /auth/spotify/login directly."
         )
 
     return "\n".join(lines)

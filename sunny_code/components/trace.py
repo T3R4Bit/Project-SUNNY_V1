@@ -1,11 +1,13 @@
-"""Real-time execution-trace log for the web console's Logs tab.
+"""Real-time execution-trace log.
 
-Every call to assistant.handle_message() (web chat, Discord, and the Pi
+Every call to assistant.handle_message() (Discord, terminal chat, and the Pi
 companion all funnel through that one entry point) records one trace here:
 what came in, which routing branch handled it, what went out, and whether it
-errored. Traces are both persisted (traces.jsonl, rotated the same way
-logging_config.py rotates sunny.log) and pushed live to any open Logs tab
-over SSE.
+errored. Traces are persisted to traces.jsonl (rotated the same way
+logging_config.py rotates sunny.log). subscribe()/unsubscribe() below still
+support pushing traces live over SSE to any caller that wants that -- the
+web console's Logs tab was the one consumer before it was retired
+2026-09-13, so nothing calls these two right now.
 
 mark_route() is a contextvars-based side channel: routing branches inside
 handle_message() call it right before returning, without changing any

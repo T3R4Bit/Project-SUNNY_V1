@@ -22,7 +22,7 @@ There is no single state file. Each kind of state lives wherever fits it best, f
 
 ## Categories — a small JSON file, not the vault
 
-`categories.json` at the project root (`category_store.py`) — the free-form task-category list (`General`/`School`/`Motorsports` by default), editable from any interface ("add category `<name>`"/"remove category `<name>`"/"my categories" in console, Discord text, or voice) as well as `/category` in Discord. Plain JSON, not frontmatter+markdown, since it's runtime config rather than vault content — same reasoning as `location_store.py`.
+`categories.json` at the project root (`category_store.py`) — the free-form task-category list (`General`/`School`/`Motorsports` by default), editable from any interface ("add category `<name>`"/"remove category `<name>`"/"my categories" in terminal chat, Discord text, or voice) as well as `/category` in Discord. Plain JSON, not frontmatter+markdown, since it's runtime config rather than vault content — same reasoning as `location_store.py`.
 
 ## Health Check — a marker file + an append-only log
 

@@ -19,7 +19,7 @@ A separate subsystem from [[../TASK_SYSTEM.md|Tasks]] and [[lists.md|Lists]] —
 | Time/recurrence parsing (no library) | Built (`sunny_code/components/time_parse.py`) |
 | Command parser | Built (`sunny_code/components/scheduled_parser.py`) |
 | Scheduled-item engine | Built (`sunny_code/components/scheduled_engine.py`) |
-| Routed into web chatbot + Discord bot | Built (both go through `assistant.handle_message`) |
+| Routed into terminal chat + Discord bot | Built (both go through `assistant.handle_message`) |
 | **Delivery when due** | Built, but **only fires if the Discord bot is connected** — see Delivery below |
 | Real "sounding" (speaker/hardware) | Not built — no clock/speaker device exists yet (Phase 3) |
 
@@ -31,7 +31,7 @@ There's no bedside clock hardware yet ([[clock]] is Phase 3, unbuilt). Nothing p
 2. Every 30 seconds, if the Discord bot is running, it checks for anything due and **posts a message in the chat channel** (not the read-only dashboard channel — these are conversational pings you might reply to) (`Alarm: <label>` or `Reminder: <label>`).
 3. If the Discord bot isn't connected (no token configured), alarms and reminders still get created and stored correctly — they just never announce themselves anywhere. Querying them ("what alarms are set") always works regardless of Discord.
 
-This is stated explicitly in the chatbot's `help` text so it's never a surprise. Don't remove that caveat when editing `assistant.py`'s `HELP_TEXT`.
+This is stated explicitly in the `help` text so it's never a surprise. Don't remove that caveat when editing `assistant.py`'s `HELP_TEXT`.
 
 ## How It Works
 

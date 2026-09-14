@@ -75,7 +75,7 @@ All routed directly through `assistant.py` as plain function calls (`exam_prep.p
 - [x] 3-state spaced-review tracking (new/weak/mastered), per-topic vault-markdown state
 - [x] `topics_needing_review()` — new-then-weak ordering
 - [x] `generate_study_review()` — real LLM-authored review from actual note content, bounded prompt size
-- [x] Natural-language triggers, all three commands, cross-interface (console/Discord/voice/Pi companion)
+- [x] Natural-language triggers, all three commands, cross-interface (terminal chat/Discord/voice/Pi companion)
 - [x] `sunny-vault/KSU/` and `state/exam-review/` gitignored — personal content, never pushed
 - [ ] A conversational way to record a review outcome (good/weak)
 - [ ] Month-out/week-out planning stages

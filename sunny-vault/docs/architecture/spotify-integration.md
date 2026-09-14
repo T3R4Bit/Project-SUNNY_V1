@@ -8,7 +8,7 @@ tags: [feature, spotify, oauth, voice, playback]
 
 # Spotify Voice Control (OAuth 2.0)
 
-Lets Sunny control Spotify playback the way Siri does — "play [song]", "pause", "skip", "what's playing" — spoken through the same voice pipeline (Discord's persistent voice presence, the Pi companion) or typed through the console/Discord chat. One "Connect Spotify Account" button on [[dashboard|the console]], same shape as [[google-integration|Google Sign-In]].
+Lets Sunny control Spotify playback the way Siri does — "play [song]", "pause", "skip", "what's playing" — spoken through the same voice pipeline (Discord's persistent voice presence, the Pi companion) or typed through terminal chat/Discord chat. One "Connect Spotify Account" button (on project-dashboard's `/sunny` page — see [[dashboard]]), same shape as [[google-integration|Google Sign-In]].
 
 ## What This Covers
 
@@ -38,14 +38,14 @@ Scopes: `user-modify-playback-state`, `user-read-playback-state`, `user-read-cur
    SPOTIFY_CLIENT_SECRET=...
    SPOTIFY_OAUTH_REDIRECT_URI=https://<your-tailscale-hostname>.<tailnet>.ts.net:5443/auth/spotify/callback
    ```
-4. Restart Sunny, open `/console`, and click **Connect Spotify Account** under the SPOTIFY card. Approve the consent screen. The card should flip to `CONNECTED` with your account name shown.
+4. Restart Sunny, then connect from project-dashboard's `/sunny` page (or visit `/auth/spotify/login` directly). Approve the consent screen. `GET /auth/spotify/status` should then report `connected: true` with your username.
 5. Open Spotify somewhere (phone, desktop, speaker) before trying a voice command — with nothing active, every command replies "Open Spotify on a device first."
 
 ## How It Works
 
 - `GET /auth/spotify/login` — redirects to Spotify's consent screen (only reachable if `SPOTIFY_CLIENT_ID`/`SECRET` are set).
 - `GET /auth/spotify/callback` — Spotify redirects back here with a `code`; it's exchanged for tokens (PKCE, no Google-auth-library equivalent — hand-rolled with `requests`), the account name is fetched via `/v1/me`, both written to `spotify_token.json` (project root, gitignored, `chmod 600`).
-- `GET /auth/spotify/status` — JSON status the console card polls: `client_configured`, `connected`, `username`, `scopes`.
+- `GET /auth/spotify/status` — JSON status project-dashboard's `/sunny` page polls: `client_configured`, `connected`, `username`, `scopes`.
 - `POST /auth/spotify/disconnect` — deletes the local token file (does not revoke access on Spotify's side).
 - `spotify_auth.get_credentials()` — loads the stored access token, refreshing via the refresh-token grant if expired (Spotify access tokens are short-lived, ~1hr; refresh tokens are long-lived and don't expire like Google's Testing-mode 7-day tokens do). Returns `None` if never connected or the refresh token was revoked; every caller (`spotify_engine`) treats that exactly like "not connected."
 - `spotify_engine.SpotifyEngine.try_execute()` — parses the command (`spotify_parser.SpotifyCommandParser`), calls the matching `/v1/me/player/*` endpoint, and translates Spotify's error responses (`404 NO_ACTIVE_DEVICE`, `403 PREMIUM_REQUIRED`) into plain spoken messages instead of raw API errors.
@@ -63,7 +63,7 @@ Scopes: `user-modify-playback-state`, `user-read-playback-state`, `user-read-cur
 - `sunny_code/components/spotify_engine.py` — `try_execute()`, the actual Web API playback calls
 - `sunny_code/components/spotify_parser.py` — regex command parser (`SpotifyCommandParser`)
 - `sunny_code/components/assistant.py` — routes matched Spotify commands before falling through to tasks/briefing
-- `sunny_code/components/console_stats.py` — SPOTIFY status card on `/console`
+- Previously a SPOTIFY status card on Sunny's own `/console` (removed 2026-09-13) — see [[dashboard]]
 - `sunny_code/main.py` — `SpotifyEngine` instantiation, router registration, threaded into every `handle_message()` caller
 
 ## Dependencies

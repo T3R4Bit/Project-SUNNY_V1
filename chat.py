@@ -1,11 +1,11 @@
 #!/usr/bin/env python
-"""Terminal chat — the same assistant as /console and Discord, no browser needed.
+"""Terminal chat — the same assistant as Discord, no browser needed.
 
 Every message routes through sunny_code.components.assistant.handle_message(),
-the one shared entry point the web console and the Discord bot already use —
-so behavior here is identical: tasks, lists, alarms/reminders, briefings,
-Q&A (weather/calendar/email/etc.), "setup <name>", and "help". No separate
-copy of any of that logic lives in this file.
+the one shared entry point the Discord bot already uses — so behavior here
+is identical: tasks, lists, alarms/reminders, briefings, Q&A (weather/
+calendar/email/etc.), "setup <name>", and "help". No separate copy of any
+of that logic lives in this file.
 
 Reads from stdin until EOF, so it also works non-interactively for testing:
     echo -e "help\nshow my tasks" | python chat.py
@@ -28,7 +28,7 @@ from sunny_code.config import get_settings
 _BANNER = """
 PROJECT SUNNY — Terminal Chat
 
-Same assistant as /console and Discord — tasks, lists, alarms/reminders,
+Same assistant as Discord — tasks, lists, alarms/reminders,
 briefings, and Q&A all work exactly the same here, no browser needed.
 
 Type "help" for the full command list, "exit" or Ctrl+D to quit.

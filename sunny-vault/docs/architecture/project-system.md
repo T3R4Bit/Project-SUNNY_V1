@@ -8,7 +8,7 @@ tags: [projects, wizard, llm, claude, component]
 
 # Project Wizard
 
-Say "new project" (or a close variant — see Trigger below) from any interface (console, Discord text, Discord voice), and Sunny walks a short, fully hardcoded wizard through name → description → sections → a real yes/no confirm, then hands off to exactly one LLM call that drafts a real multi-file project folder under `sunny-vault/data/projects/<slug>/`. See [[../TASK_SYSTEM.md]] — this sits alongside Tasks/Lists/Alarms-Reminders as another feature routed through the same `assistant.handle_message()`, not part of the task system itself.
+Say "new project" (or a close variant — see Trigger below) from any interface (terminal chat, Discord text, Discord voice), and Sunny walks a short, fully hardcoded wizard through name → description → sections → a real yes/no confirm, then hands off to exactly one LLM call that drafts a real multi-file project folder under `sunny-vault/data/projects/<slug>/`. See [[../TASK_SYSTEM.md]] — this sits alongside Tasks/Lists/Alarms-Reminders as another feature routed through the same `assistant.handle_message()`, not part of the task system itself.
 
 ## Status
 

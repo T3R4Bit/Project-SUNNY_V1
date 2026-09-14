@@ -4,21 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "b21d6611b4b4b6ae",
+        "id": "6dbe0bda0da14653",
         "type": "tabs",
         "children": [
           {
-            "id": "1d01bc107c8fadf5",
+            "id": "98a217e5208ecdf6",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/ABOUT.md",
+                "file": "docs/architecture/project-system.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "ABOUT"
+              "title": "project-system"
             }
           }
         ]
@@ -43,7 +43,7 @@
                 "sortOrder": "alphabetical",
                 "autoReveal": false,
                 "showSearch": true,
-                "searchQuery": ""
+                "searchQuery": "projec"
               },
               "icon": "lucide-folder-closed",
               "title": "Files"
@@ -189,8 +189,15 @@
       "omnisearch:Omnisearch": false
     }
   },
-  "active": "1d01bc107c8fadf5",
+  "active": "98a217e5208ecdf6",
   "lastOpenFiles": [
+    "docs/instructions/project-scaffold.md",
+    "docs/architecture/project-system.md",
+    "docs/BACKLOG.md",
+    "log/~syncthing~rules-engine.md.tmp",
+    "data/state/~syncthing~sensor-vault-cursor.json.tmp",
+    "KSU/fall 26/Math/Unit 1.md",
+    "docs/ABOUT.md",
     "docs/CHANGELOG.md.tmp.24004.b895b4e6bc9e",
     "docs/CHANGELOG.md.tmp.24004.0ad57b478ce5",
     "docs/BACKLOG.md.tmp.24004.4ec71e8ca547",
@@ -199,9 +206,6 @@
     "docs/architecture/Mind-Map.md.tmp.24004.576907a82371",
     "docs/architecture/Mind-Map.md.tmp.24004.a9cc75dd90c6",
     "docs/architecture/tts-piper.md.tmp.24004.cf3e7e106d00",
-    "docs/architecture/tts-piper.md.tmp.24004.b391fe356f58",
-    "docs/architecture/tts-piper.md.tmp.24004.6a4ae1741c37",
-    "docs/architecture/tts-piper.md.tmp.24004.4b5a1a13364e",
     "state/tasks/another-test-task-6.md",
     "state/tasks/test-task-6.md",
     "docs/architecture/personal-assistant-vision.md",
@@ -209,7 +213,6 @@
     "state/tasks/another-test-task-5.md",
     "state/tasks/test-task-5.md",
     "instructions/exam-prep-review.md",
-    "docs/BACKLOG.md",
     "docs/architecture/llm-integration.md",
     "state/tasks/another-test-task-4.md",
     "state/tasks/test-task-4.md",
@@ -221,11 +224,8 @@
     "state/tasks/test-task-2.md",
     "docs/architecture/service-orchestration.md",
     "docs/architecture/usage-tracking.md",
-    "docs/architecture/project-system.md",
     "state/alarms-reminders.md",
     "docs/architecture/spotify-integration.md",
-    "docs/CHANGELOG.md",
-    "state/tasks/another-test-task.md",
-    "state/tasks/test-task.md"
+    "docs/CHANGELOG.md"
   ]
 }

@@ -5,32 +5,19 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "data",
+        "KSU",
         "state",
-        "instructions",
-        "archive",
         "docs",
-        "inbox",
-        "log",
-        "staging"
+        "log"
       ]
-    },
-    "archive": {
-      "isPinned": false,
-      "isHidden": false,
-      "sortOrder": "custom",
-      "customOrder": [
-        "README.md"
-      ]
-    },
-    "archive/README.md": {
-      "isPinned": false,
-      "isHidden": false
     },
     "docs": {
       "isPinned": true,
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "instructions",
         "CHANGELOG.md",
         "BACKLOG.md",
         "ABOUT.md",
@@ -56,6 +43,8 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "class-setup.md",
+        "docs-search.md",
         "exam-prep.md",
         "proactive-architecture.md",
         "service-orchestration.md",
@@ -108,17 +97,13 @@
       "isPinned": false,
       "isHidden": false
     },
-    "inbox": {
-      "isPinned": false,
-      "isHidden": false,
-      "sortOrder": "custom",
-      "customOrder": []
-    },
     "log": {
       "isPinned": false,
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "health-checks.md",
+        "llm-usage.md",
         "rules-engine.md",
         "requests.md",
         "README.md"
@@ -127,12 +112,6 @@
     "log/README.md": {
       "isPinned": false,
       "isHidden": false
-    },
-    "staging": {
-      "isPinned": false,
-      "isHidden": false,
-      "sortOrder": "custom",
-      "customOrder": []
     },
     "docs/architecture/Mind-Map.md": {
       "isPinned": false,
@@ -198,27 +177,6 @@
       "isPinned": false,
       "isHidden": false
     },
-    "instructions": {
-      "isPinned": false,
-      "isHidden": false,
-      "sortOrder": "custom",
-      "customOrder": [
-        "exam-prep-review.md",
-        "storm-mode.md",
-        "project-scaffold.md",
-        "general-chat.md",
-        "weekly-health-check.md",
-        "README.md"
-      ]
-    },
-    "instructions/README.md": {
-      "isPinned": false,
-      "isHidden": false
-    },
-    "instructions/weekly-health-check.md": {
-      "isPinned": false,
-      "isHidden": false
-    },
     "docs/architecture/llm-instructions.md": {
       "isPinned": false,
       "isHidden": false
@@ -235,14 +193,6 @@
       "isPinned": false,
       "isHidden": false
     },
-    "instructions/general-chat.md": {
-      "isPinned": false,
-      "isHidden": false
-    },
-    "instructions/project-scaffold.md": {
-      "isPinned": false,
-      "isHidden": false
-    },
     "docs/CHANGELOG.md": {
       "isPinned": false,
       "isHidden": false
@@ -256,6 +206,7 @@
       "isHidden": false,
       "sortOrder": "custom",
       "customOrder": [
+        "sensor-calendar-cursor.json",
         "sensor-vault-cursor.json",
         "alarms-reminders.md",
         "lists",
@@ -279,10 +230,6 @@
       "isHidden": false
     },
     "docs/architecture/personal-assistant-vision.md": {
-      "isPinned": false,
-      "isHidden": false
-    },
-    "instructions/storm-mode.md": {
       "isPinned": false,
       "isHidden": false
     },
@@ -310,11 +257,266 @@
       "isPinned": false,
       "isHidden": false
     },
-    "instructions/exam-prep-review.md": {
+    "docs/architecture/exam-prep.md": {
       "isPinned": false,
       "isHidden": false
     },
-    "docs/architecture/exam-prep.md": {
+    "data": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "archive",
+        "inbox",
+        "staging",
+        "state"
+      ]
+    },
+    "data/archive": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "README.md"
+      ]
+    },
+    "data/archive/README.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "data/inbox": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": []
+    },
+    "data/staging": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": []
+    },
+    "data/state": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "lists",
+        "alarms-reminders.md",
+        "sensor-calendar-cursor.json",
+        "sensor-vault-cursor.json",
+        "tasks"
+      ]
+    },
+    "data/state/lists": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": []
+    },
+    "data/state/alarms-reminders.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "data/state/sensor-calendar-cursor.json": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "data/state/sensor-vault-cursor.json": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "data/state/tasks": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "another-test-task-2.md",
+        "another-test-task.md",
+        "test-task-2.md",
+        "test-task.md"
+      ]
+    },
+    "docs/architecture/class-setup.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/architecture/docs-search.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/instructions": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "exam-prep-review.md",
+        "general-chat.md",
+        "project-scaffold.md",
+        "README.md",
+        "storm-mode.md",
+        "syllabus-parse.md",
+        "weekly-health-check.md"
+      ]
+    },
+    "docs/instructions/exam-prep-review.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/instructions/general-chat.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/instructions/project-scaffold.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/instructions/README.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/instructions/storm-mode.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/instructions/syllabus-parse.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "docs/instructions/weekly-health-check.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "KSU": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "fall 26"
+      ]
+    },
+    "KSU/fall 26": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "English Composition",
+        "Introduction to Business",
+        "Math",
+        "Sci, Society & Environment"
+      ]
+    },
+    "KSU/fall 26/English Composition": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "class-info.md",
+        "syllabus.md"
+      ]
+    },
+    "KSU/fall 26/English Composition/class-info.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "KSU/fall 26/English Composition/syllabus.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "KSU/fall 26/Introduction to Business": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "class-info.md",
+        "syllabus.md"
+      ]
+    },
+    "KSU/fall 26/Introduction to Business/class-info.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "KSU/fall 26/Introduction to Business/syllabus.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "KSU/fall 26/Math": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "Unit 1.md",
+        "class-info.md",
+        "syllabus.md"
+      ]
+    },
+    "KSU/fall 26/Math/class-info.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "KSU/fall 26/Math/syllabus.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "KSU/fall 26/Sci, Society & Environment": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "class-info.md",
+        "Notes",
+        "syllabus.md"
+      ]
+    },
+    "KSU/fall 26/Sci, Society & Environment/class-info.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "KSU/fall 26/Sci, Society & Environment/Notes": {
+      "isPinned": false,
+      "isHidden": false,
+      "sortOrder": "custom",
+      "customOrder": [
+        "Unit 1.md"
+      ]
+    },
+    "KSU/fall 26/Sci, Society & Environment/Notes/Unit 1.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "KSU/fall 26/Sci, Society & Environment/syllabus.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "log/health-checks.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "log/llm-usage.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "state/sensor-calendar-cursor.json": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "KSU/fall 26/Math/Unit 1.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "data/state/tasks/another-test-task-2.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "data/state/tasks/another-test-task.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "data/state/tasks/test-task-2.md": {
+      "isPinned": false,
+      "isHidden": false
+    },
+    "data/state/tasks/test-task.md": {
       "isPinned": false,
       "isHidden": false
     }

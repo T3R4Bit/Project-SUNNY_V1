@@ -1,9 +1,9 @@
 """Discord bot — task/list/alarm/reminder commands, server administration
 (channels/roles), and a live-updating task dashboard.
 
-Task/list/alarm/briefing commands use the exact same routing as the web
-console and terminal chat (sunny_code.components.assistant.handle_message),
-so behavior is identical across interfaces. Server-admin commands
+Task/list/alarm/briefing commands use the exact same routing as terminal
+chat (sunny_code.components.assistant.handle_message), so behavior is
+identical across interfaces. Server-admin commands
 (create/delete channels and roles) are Discord-only and checked separately
 (see sunny_code.components.server_admin_parser) — they need a live
 discord.Guild, which only exists here, so they can't route through that
@@ -35,6 +35,7 @@ Setup steps: see sunny-vault/docs/architecture/discord-bot.md
 import asyncio
 import io
 import logging
+import subprocess
 from datetime import datetime
 from typing import Literal, Optional, Tuple
 
@@ -45,7 +46,6 @@ from sunny_code.components import (
     build_info, category_store, class_deadlines, pdf_text, service_registry, storm_mode, token_tracker, tts,
     usage_chart, voice_session,
 )
-from sunny_code.components.console import get_tailscale_ip
 from sunny_code.components.assistant import handle_message, is_briefing_trigger
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.crash_check import check_previous_crash
@@ -99,6 +99,18 @@ CLASS_REMINDERS_CHECK_INTERVAL_SECONDS = 3 * 60 * 60 # class_deadlines.check_and
 # scheduled_check_loop's 30s granularity here
 SPEAK_MAX_CHARS = 1000 # practical cap on synthesis time/file size, well under
 # Discord's own 6000-char slash-command string option limit
+
+
+def get_tailscale_ip():
+    """Get current Tailscale IPv4 address. Moved here from the now-removed
+    web console (console.py) -- this is its one remaining caller."""
+    try:
+        result = subprocess.run(['tailscale', 'ip', '-4'], capture_output=True, text=True, timeout=2)
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception as e:
+        logger.debug(f"Could not get Tailscale IP: {e}")
+    return None
 
 
 def _chunk_message(text: str, limit: int = MAX_MESSAGE_LENGTH):
@@ -203,7 +215,7 @@ def build_dashboard_embed(dashboard_data: dict, project_names: list) -> discord.
 
 def build_briefing_embed(text: str) -> discord.Embed:
     """Renders a morning/evening briefing (see BriefingTemplates in
-    briefing.py -- the same plain-text block the web console and voice
+    briefing.py -- the same plain-text block terminal chat and the voice
     pipeline read as-is) as a Discord embed instead of a wall of plain
     text, matching the visual language every other embed in this module
     uses (build_dashboard_embed above, /usage, the weekly health report).
@@ -420,7 +432,7 @@ def create_discord_bot(
             return
         await interaction.response.send_message(f"Build {build_info.get_build_version()}", ephemeral=True)
 
-    @tree.command(name="ip", description="Show Sunny's current Tailscale IP and a console link")
+    @tree.command(name="ip", description="Show Sunny's current Tailscale IP and the dashboard link")
     async def ip_command(interaction: discord.Interaction):
         if interaction.channel_id != chat_channel_id:
             await interaction.response.send_message(
@@ -439,7 +451,7 @@ def create_discord_bot(
             )
             return
         await interaction.followup.send(
-            f"Tailscale IP: `{tailscale_ip}`\nConsole: http://{tailscale_ip}:5000/console", ephemeral=True
+            f"Tailscale IP: `{tailscale_ip}`\nDashboard: {get_settings().dashboard_url}", ephemeral=True
         )
 
     @tree.command(name="services", description="Show on/off + autostart status for every background service")
@@ -685,13 +697,13 @@ def create_discord_bot(
         # google-integration.md) -- without this check that death is silent:
         # get_credentials() just starts returning None and Calendar/Gmail
         # quietly say "not connected" everywhere, with nothing pointing back
-        # at "go reconnect on /console". is_connected() actually attempts a
-        # refresh, so this doubles as the periodic liveness check
-        # is_client_configured()-only startup_summary() can't provide.
+        # at "go reconnect". is_connected() actually attempts a refresh, so
+        # this doubles as the periodic liveness check is_client_configured()
+        # -only startup_summary() can't provide.
         if google_auth.is_client_configured() and not google_auth.is_connected():
             alerts.append(
                 "**Google account** is disconnected (Calendar/Gmail) — "
-                "visit /console and click \"Connect Google Account\" to reconnect."
+                f"reconnect from {get_settings().dashboard_url} or visit /auth/google/login directly."
             )
 
         if not alerts:
@@ -758,9 +770,9 @@ def create_discord_bot(
         state["dashboard_message_id"] = new_message.id
 
     async def on_task_change(change_message: str = None):
-        """Runs on every successful add/update/delete, from any interface (web
-        console, terminal chat, or this bot) — wiring it here covers all of
-        them, not just Discord-originated changes."""
+        """Runs on every successful add/update/delete, from any interface
+        (terminal chat, the Pi companion, or this bot) — wiring it here
+        covers all of them, not just Discord-originated changes."""
         await refresh_dashboard()
         if change_message and task_updates_channel_id:
             await _post_to(task_updates_channel_id, change_message)
@@ -998,8 +1010,8 @@ def create_discord_bot(
         # Checked before the shared assistant router, same reason lists/alarms
         # are checked before tasks there: a generic "delete <title>" pattern
         # would otherwise swallow "delete channel #general" as a task-delete
-        # attempt. Guild-scoped, so this only ever matches here, never on the
-        # console or terminal chat.
+        # attempt. Guild-scoped, so this only ever matches here, never on
+        # terminal chat or the Pi companion.
         admin_command = ServerAdminParser.parse(message.content)
         if admin_command is not None:
             action, data = admin_command

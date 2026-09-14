@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     api_port: int = 5000
     api_host: str = "127.0.0.1"  # Local dev, will bind to tailscale_ip on brain
 
+    # The standalone project-dashboard app (keaton.dev) running alongside
+    # Sunny on the same host -- Sunny's own web console (console.py) was
+    # retired 2026-09-13 in favor of it. Used only to point users at it from
+    # Discord/log messages; Sunny itself never calls into it.
+    dashboard_url: str = "http://100.117.41.53:8088"
+
     # APIs
     claude_api_key: str = ""
     openweathermap_api_key: str = ""

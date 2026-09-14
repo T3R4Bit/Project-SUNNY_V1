@@ -8,15 +8,15 @@ tags: [feature, weather, location, console, gps]
 
 # Location
 
-Where Sunny thinks "here" is, for weather lookups. Two sources feed it: a static city (set on `/console`, the LOCATION card) and, as of 2026-08-20, a live GPS fix pushed from the phone via OwnTracks. GPS wins when it's fresh; the static city is the fallback.
+Where Sunny thinks "here" is, for weather lookups. Two sources feed it: a static city (`POST /api/weather/location` — no web UI drives this since Sunny's own console was retired 2026-09-13, see [[dashboard]]) and, as of 2026-08-20, a live GPS fix pushed from the phone via OwnTracks. GPS wins when it's fresh; the static city is the fallback.
 
 ## Status
 
-Built — `sunny_code/components/location_store.py`, wired into [[weather|sunny_code/components/weather.py]], the LOCATION card on `/console`, and `sunny_code/components/location_routes.py` for GPS.
+Built — `sunny_code/components/location_store.py`, wired into [[weather|sunny_code/components/weather.py]], `/api/weather/location`, and `sunny_code/components/location_routes.py` for GPS. Setting the static city requires a direct API call (`curl`/similar) today — no browser UI exists for it (see [[dashboard]]'s "What's gone").
 
 ## Why Not Just an Env Var
 
-`WEATHER_LOCATION` still exists in `.env` and still works — it's the initial fallback if nothing's been saved through the console yet, so an existing setup keeps working untouched. But it's not the primary path anymore, on purpose:
+`WEATHER_LOCATION` still exists in `.env` and still works — it's the initial fallback if nothing's been saved via the API yet, so an existing setup keeps working untouched. But it's not the primary path anymore, on purpose:
 
 - **Restart-free.** Editing `.env` requires restarting Sunny to take effect (well — technically `get_settings()` re-reads `.env` fresh on every call today, so even that would work live, but that's an implementation detail not a design guarantee). A dedicated store makes "no restart needed" an explicit contract, not an accident of how config happens to be loaded.
 - **Not a secret.** `.env` is for things that would be bad to leak (API keys, OAuth client secrets) and gets `chmod 600`'d. A city name isn't that — it doesn't need to live in the same file or carry the same handling.
@@ -26,7 +26,7 @@ Built — `sunny_code/components/location_store.py`, wired into [[weather|sunny_
 
 - `location_store.get_location()` — checks `location.json` (project root, gitignored) first; falls back to `.env`'s `WEATHER_LOCATION` if that file doesn't exist or is empty/placeholder. Returns `None` if neither is set.
 - `location_store.set_location(value)` — writes `location.json`. Immediate effect: the next `weather.get_current()`/`get_tomorrow()` call reads the new value, nothing else to restart or reload.
-- `POST /api/weather/location` / `GET /api/weather/location` — the two routes backing the console card (`sunny_code/components/weather_routes.py`).
+- `POST /api/weather/location` / `GET /api/weather/location` — the two routes for reading/setting the static city (`sunny_code/components/weather_routes.py`).
 - `data_sources.is_configured("weather")` requires a real `OPENWEATHERMAP_API_KEY` **and either** `location_store.get_location()` (static city) **or** `location_store.get_coordinates()` (a fresh GPS fix) — a key alone can't answer "what's the weather," and a GPS-only setup (no city ever set) must still be honestly reported as connected once a fix exists.
 - `location_store.record_gps_fix(lat, lon, tst=None)` — writes `location_gps.json` (project root, gitignored), called by `POST /api/location/owntracks`.
 - `location_store.get_coordinates(max_age_minutes=30)` — the last GPS fix, or `None` if there isn't one or it's older than `max_age_minutes`. Sunny never polls the phone; OwnTracks pushes on its own schedule (~30 min by default, or immediately on a "significant" move — see "setup gps"), and staleness is checked entirely on the receiving end.
@@ -45,11 +45,10 @@ Still one fixed *device* (the phone), not true per-session/per-device location �
 - `sunny_code/components/location_routes.py` — `POST /api/location/owntracks`
 - `sunny_code/components/weather_routes.py` — `/api/weather/location` GET/POST (static city)
 - `sunny_code/components/weather.py` — reads location via the store, not settings directly
-- `sunny_code/components/console_stats.py` — LOCATION card on `/console`
 - `sunny_code/components/setup_guides.py` — `"setup gps"` guide
 - `sunny_code/components/data_sources.py` — `is_configured("weather")` requires a key and (city or GPS)
 
 ## Dependencies
 
 - [[weather|Weather integration]] — the only current consumer
-- [[dashboard|Console]] — hosts the input
+- [[dashboard|Console (retired)]] — used to host the input; no replacement UI exists yet

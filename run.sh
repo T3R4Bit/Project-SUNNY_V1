@@ -4,7 +4,6 @@
 # Examples:
 # ./run.sh Start web server (default) — this is what systemd runs
 # ./run.sh reload Same, but with auto-reload on file changes — local dev only
-# ./run.sh chatbot Alias for the default server (kept for old muscle memory)
 # ./run.sh chat Terminal chat — full assistant, no web server needed
 # ./run.sh cli briefing Start briefing CLI
 # ./run.sh cli tasks Start tasks CLI
@@ -100,8 +99,8 @@ LLM_CHAT_TEMPERATURE=
 # Weather (OpenWeatherMap)
 # ---------------------------------------------------------------------------
 OPENWEATHERMAP_API_KEY=...
-# Optional fallback only — set your real location on /console (LOCATION card)
-# instead, it saves instantly with no restart. See
+# Optional fallback only — set your real location via POST
+# /api/weather/location instead, it saves instantly with no restart. See
 # sunny-vault/docs/architecture/location.md. Format if you do set it here:
 # "City,State,CountryCode" — e.g. Detroit,MI,US (state code only applies to US)
 WEATHER_LOCATION=...
@@ -131,7 +130,7 @@ SPOTIFY_OAUTH_REDIRECT_URI=https://sunshine-m700.wahoo-sidewinder.ts.net:5443/au
 
 # ---------------------------------------------------------------------------
 # Discord bot — leave token/chat-channel blank to run without the bot
-# (console chat still works). See sunny-vault/docs/architecture/discord-bot.md
+# (terminal chat via ./run.sh chat still works). See sunny-vault/docs/architecture/discord-bot.md
 # ---------------------------------------------------------------------------
 DISCORD_BOT_TOKEN=
 # Required — the one channel commands are read from.
@@ -264,7 +263,6 @@ case "$COMMAND" in
         echo -e "${GREEN}Starting web server on 0.0.0.0:5000${NC}"
         echo -e "${GREEN}Local: http://127.0.0.1:5000${NC}"
         echo -e "${GREEN}Network/Tailscale: http://100.117.41.53:5000${NC}"
-        echo -e "${GREEN}Console: http://100.117.41.53:5000/console${NC}"
         echo -e "${CYAN}Press Ctrl+C to stop${NC}"
         echo ""
         # Direct invocation (not `uvicorn sunny_code.main:app`) so
@@ -272,15 +270,6 @@ case "$COMMAND" in
         # and, when TLS_CERTFILE/TLS_KEYFILE are set, a second HTTPS server.
         # The bare uvicorn CLI form can only bind one port and never calls
         # run() at all. See main.py's start()/lifespan comments.
-        python -m sunny_code.main
-        ;;
-
-    "chatbot")
-        echo -e "${GREEN}Starting console on 0.0.0.0:5000${NC}"
-        echo -e "${GREEN}Local: http://127.0.0.1:5000/console${NC}"
-        echo -e "${GREEN}Network/Tailscale: http://100.117.41.53:5000/console${NC}"
-        echo -e "${CYAN}Press Ctrl+C to stop${NC}"
-        echo ""
         python -m sunny_code.main
         ;;
 

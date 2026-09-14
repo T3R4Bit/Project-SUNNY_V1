@@ -12,6 +12,15 @@ Running log of real changes, most recent first. Not every commit — the milesto
 
 ---
 
+## 2026-09-13
+
+**Retired Sunny's own web console — `project-dashboard` now owns the web UI**
+- Removed `sunny_code/components/console.py` entirely: the tabbed `/console` page (Chat, Stats, Logs, OAuth Links), the `/`/`/chatbot` redirects, `POST /api/assistant/message`, `GET /api/stats`, `GET /api/traces/recent`/`/stream`. A standalone app (`project-dashboard`, aka `keaton.dev`) running in its own Docker container alongside Sunny now provides the web UI, consuming Sunny's existing HTTP API (`/health`, `/api/dashboard/*`, `/api/briefing/*`, the new `/api/calendar/today` + `/api/gmail/flagged` from `dashboard_data_routes.py`) directly.
+- Everything that wasn't the console page itself is untouched: `/auth/google/*`, `/auth/spotify/*` (OAuth), `/api/weather/location`, `/api/location/owntracks`, `/legal/*`, `/api/tasks/*`, `/ws/pi`. `main.py`'s `/` now redirects to a new `DASHBOARD_URL` setting (default `http://100.117.41.53:8088`) instead of `/console`.
+- `discord_bot.py`'s `get_tailscale_ip()` (previously imported from `console.py`) moved in-line — it's now its only caller. The `/ip` command, the Google-disconnected usage alert, `key_status.py`'s startup summary, and the `setup google`/`setup spotify` guides all point at the dashboard (or the relevant `/auth/*/login` route directly) instead of `/console`.
+- **Real functionality gap, not just a rename**: the LOCATION card (`/api/weather/location`) had no other UI — setting a static city now requires a direct API call, since `project-dashboard` doesn't have a location-setting page yet. The Stats tab (live CPU/RAM/disk/temp) and Logs tab (live trace viewer) also have no replacement anywhere; `trace.py` still writes `traces.jsonl` and still supports SSE subscribers, just with no current caller. Discord being down previously had a from-anywhere-on-Tailscale browser fallback (`/console`); now the only fallback is terminal chat (`python chat.py`), which needs a shell on the host.
+- Updated every doc that gave setup instructions through `/console` (`google-integration.md`, `spotify-integration.md`, `location.md`, `briefing-engine.md`, `discord-bot.md`, `TASK_SYSTEM.md`, `ABOUT.md`, `phases.md`, both `QUICKSTART.md`s, `SETUP_LINUX.md`, both `README.md`s) — see [[architecture/dashboard]] for the retirement note and current API surface.
+
 ## 2026-08-31
 
 **Second full documentation audit + revised build plan — "Path to Usable"**
