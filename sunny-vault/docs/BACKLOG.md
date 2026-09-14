@@ -102,7 +102,7 @@ Full architecture and rationale in [[architecture/personal-assistant-vision]] �
 - [x] A compact structured context-engine state (vs. full history) for when an LLM call is actually needed
       *(built: `context_engine.py`'s `build_context()`/`format_context()` — pure read-time aggregator over tasks/lists/today's calendar/project folders, no new storage. No real caller yet.)*
 - [x] Track suggestion outcomes (accepted/rejected/ignored/snoozed) and adjust future suggestion timing/confidence per pattern
-      *(built: `suggestion_tracker.py` — `record_suggestion`/`record_outcome`/`acceptance_rate`, append-only vault log. No real caller yet — waits on the first feature that actually emits a proactive suggestion.)*
+      *(built: `suggestion_tracker.py` — `record_suggestion`/`record_outcome`/`acceptance_rate`, append-only vault log. First real caller: `briefing_api.py`'s `/morning` and `/evening` routes record a suggestion per briefing and return its id, and `POST /api/briefing/feedback` records the outcome — see [[architecture/proactive-architecture]].)*
 
 **Travel intelligence** ([[architecture/personal-assistant-vision#17-travel-commute-intelligence]]) — same gap as the existing commute/traffic item elsewhere in this backlog; not built
 
@@ -132,3 +132,4 @@ Tracked directly in `sunny-companion/BUILD_PLAN.md` (a real phase-by-phase check
 - [ ] Optimize project creation less questions
 - [ ] notion like side bar with page's # and ## and ###
 - [ ] notion like /page and folder in folder type thing
+- [ ] time zone mangement for travel #travelmode 

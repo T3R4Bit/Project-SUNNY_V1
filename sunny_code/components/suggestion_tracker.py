@@ -1,11 +1,13 @@
 """Tracks what happened to a proactive suggestion Sunny made -- accepted,
 rejected, ignored, or snoozed -- per personal-assistant-vision.md section 12
-("Learning From Behavior"). No real caller yet: this exists so a future
-proactive feature (a workout-window suggestion, an opportunity surfaced by
-the opportunity engine, etc.) has one place to record outcomes instead of
-each feature inventing its own tracking, and so acceptance_rate() below is
-already available the day the first real suggestion-emitting feature is
-built.
+("Learning From Behavior"). First real caller: briefing_api.py's /morning
+and /evening routes record a suggestion per briefing and return its id;
+POST /api/briefing/feedback maps a dashboard's helpful/not_helpful vote to
+record_outcome(). Built generally enough that another proactive feature (a
+workout-window suggestion, an opportunity surfaced by the opportunity
+engine, etc.) can share this same place to record outcomes instead of
+inventing its own tracking, and acceptance_rate() below is already
+available for that next caller too.
 
 Append-only vault log, same shape as health_check.py's report log -- this
 is "one growing timeline," not "many independent records," so it follows

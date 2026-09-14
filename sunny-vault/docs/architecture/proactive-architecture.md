@@ -53,7 +53,7 @@ Both actions just log (to `sunny-vault/log/rules-engine.md`, append-only, same s
 
 ## Suggestion-Outcome Tracking
 
-`suggestion_tracker.py` — not a layer in the diagram, but the "Learning From Behavior" piece from vision doc §12. `record_suggestion(kind, content) -> id`, `record_outcome(id, outcome)` where outcome is `accepted`/`rejected`/`ignored`/`snoozed`, and `acceptance_rate(kind, days=30)` for a future feature to check before deciding how aggressively to keep suggesting something. Append-only vault log (`sunny-vault/log/suggestions.md`), same pattern as the rules-engine log. No real caller yet — becomes real the day the first suggestion-emitting feature (a workout-window nudge, an opportunity surfaced by a future opportunity engine) is built.
+`suggestion_tracker.py` — not a layer in the diagram, but the "Learning From Behavior" piece from vision doc §12. `record_suggestion(kind, content) -> id`, `record_outcome(id, outcome)` where outcome is `accepted`/`rejected`/`ignored`/`snoozed`, and `acceptance_rate(kind, days=30)` for a future feature to check before deciding how aggressively to keep suggesting something. Append-only vault log (`sunny-vault/log/suggestions.md`), same pattern as the rules-engine log. First real caller: `briefing_api.py`'s `/morning`/`/evening` routes call `record_suggestion("morning_brief"|"evening_brief", briefing)` and return the id in the response; `POST /api/briefing/feedback` maps a dashboard's helpful/not_helpful vote to `record_outcome(id, "accepted"|"rejected")`.
 
 ## What's Still Missing
 
@@ -84,5 +84,5 @@ Both actions just log (to `sunny-vault/log/rules-engine.md`, append-only, same s
 - [x] `suggestion_tracker.py` — record/outcome/acceptance-rate
 - [x] Scheduled 30-minute evaluation loop, service-registry gated
 - [ ] A real caller for `vault_permissions.request_vault_write()` (the knowledge health check is the natural first one — see [[../BACKLOG.md]])
-- [ ] A real caller for `suggestion_tracker.record_suggestion()` (waits on the first real proactive-suggestion feature)
+- [x] A real caller for `suggestion_tracker.record_suggestion()` — `briefing_api.py`'s `/morning`/`/evening` routes plus `POST /api/briefing/feedback`
 - [ ] Layer 4 (LLM planner) and the rest of Layer 5 (executor)

@@ -86,3 +86,62 @@ def get_summary() -> Optional[Dict]:
         "urgent_count": urgent_count,
         "top_subjects": top_subjects,
     }
+
+
+def get_flagged(limit: int = 5) -> Optional[List[Dict]]:
+    """Structured flagged-mail list for external dashboards (e.g. keaton.dev):
+    important unread first (flag URGENT), topped up with other unread (flag
+    LATER) up to `limit`. None if Gmail is unavailable — same fail-quietly
+    contract as get_summary()."""
+    service = _service()
+    if service is None:
+        return None
+
+    def _fetch(query: str, need: int, seen: set) -> List[Dict]:
+        if need <= 0:
+            return []
+        msgs = (
+            service.users()
+            .messages()
+            .list(userId="me", q=query, maxResults=need + len(seen))
+            .execute()
+            .get("messages", [])
+        )
+        out = []
+        for msg in msgs:
+            if msg["id"] in seen or len(out) >= need:
+                continue
+            detail = (
+                service.users()
+                .messages()
+                .get(
+                    userId="me",
+                    id=msg["id"],
+                    format="metadata",
+                    metadataHeaders=["From", "Subject"],
+                )
+                .execute()
+            )
+            headers = detail.get("payload", {}).get("headers", [])
+            seen.add(msg["id"])
+            out.append(
+                {"subject": _header(headers, "Subject") or "(no subject)", "from": _header(headers, "From")}
+            )
+        return out
+
+    try:
+        seen: set = set()
+        urgent = _fetch("is:unread is:important", limit, seen)
+        for m in urgent:
+            m["flag"] = "URGENT"
+        later = _fetch("is:unread", limit - len(urgent), seen)
+        for m in later:
+            m["flag"] = "LATER"
+    except HttpError as e:
+        logger.error(f"Gmail API error in get_flagged: {e}", exc_info=True)
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error in get_flagged: {e}", exc_info=True)
+        return None
+
+    return urgent + later

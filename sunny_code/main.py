@@ -15,6 +15,7 @@ from sunny_code.logging_config import setup_logging
 from sunny_code.components.dashboard import create_dashboard_app
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.briefing_api import create_briefing_router
+from sunny_code.components.dashboard_data_routes import create_dashboard_data_router
 from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.tasks_api import create_tasks_router
@@ -239,6 +240,11 @@ class SunnyCore:
         # Briefing endpoints
         briefing_router = create_briefing_router()
         app.include_router(briefing_router, prefix="/api")
+
+        # Structured Calendar/Gmail read endpoints for external dashboards
+        # (e.g. keaton.dev) — /api/calendar/today, /api/gmail/flagged
+        dashboard_data_router = create_dashboard_data_router()
+        app.include_router(dashboard_data_router, prefix="/api")
 
         # Task endpoints
         tasks_router = create_tasks_router(self.tasks_engine)
