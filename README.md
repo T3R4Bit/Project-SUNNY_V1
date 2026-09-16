@@ -6,6 +6,11 @@ Sunny is an always-on personal assistant that runs on a Lenovo mini PC, reachabl
 
 A dedicated hardware companion device (Raspberry Pi, animated face, local wake word) is in active prototyping — see `sunny-companion/BUILD_PLAN.md`. Everything below already runs today without it.
 
+**Related projects** (same box, same tailnet — see the [top-level README](../README.md)
+for how they fit together): [`../warren`](../warren/README.md) is a separate trading
+system with no shared code or credentials; [`../dashboard`](../dashboard/README.md) is
+the web UI that surfaces Sunny's status/data at `/sunny`.
+
 ---
 
 ## Core Features
