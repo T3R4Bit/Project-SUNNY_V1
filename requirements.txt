@@ -21,4 +21,4 @@ pypdf>=4.0.0
 # Garmin's official Health API, which needs a wellness-partner agreement.
 # garmin_client.py degrades to "not configured" if this import fails, so
 # Sunny still runs without it installed.
-garminconnect>=0.2.19
+garminconnect>=0.3.0

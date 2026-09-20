@@ -3,8 +3,7 @@ steps, training readiness and training load.
 
 UNOFFICIAL API, DELIBERATELY
 ---------------------------
-This uses the `garminconnect` library (which authenticates through `garth`),
-not Garmin's official Health API. The official one requires a Garmin
+This uses the `garminconnect` library, not Garmin's official Health API. The official one requires a Garmin
 Connect Developer / wellness-partner agreement -- an application and
 approval process on Garmin's side, not an API key you can sign up for --
 which is why this sat blocked in BACKLOG.md.
@@ -19,9 +18,10 @@ The consequences of that choice, stated plainly:
   - It authenticates as you, so it is rate-limit-sensitive in a way a
     partner API is not. Pull ONCE OR TWICE A DAY. Do not poll. There is no
     loop in this module for that reason -- daily_ingest.py owns scheduling.
-  - garth caches an OAuth token (~1 year) after the first login, so
-    credentials are needed once rather than per call. MFA on the Garmin
-    account complicates the first login and may need an interactive run.
+  - login(tokenstore=path) caches an OAuth session under
+    .garmin_tokens/ after the first login and reuses it thereafter, so
+    credentials are exchanged once rather than per call. MFA is
+    reported and skipped rather than prompted for -- see _client().
 
 METRIC NAMING
 -------------
@@ -93,19 +93,41 @@ def _client():
         return None
 
     try:
-        token_dir = settings.project_root / ".garth"
-        client = Garmin(email, password)
-        # Resume the cached session if garth has one; only fall back to a
-        # full login when it does not. A login per pull would be both slow
-        # and a good way to attract Garmin's attention.
+        token_dir = settings.project_root / ".garmin_tokens"
+        # return_on_mfa is load-bearing in a daemon. Without it the library
+        # calls its prompt_mfa callback, which reads a code from stdin --
+        # and this runs under systemd with no stdin, so an MFA challenge
+        # would hang the ingest thread indefinitely rather than failing.
+        # Returning instead lets it be reported and skipped.
         try:
-            client.login(str(token_dir))
-        except Exception:
-            client.login()
-            try:
-                client.garth.dump(str(token_dir))
-            except Exception as e:
-                logger.warning(f"Could not cache Garmin session token: {type(e).__name__}")
+            client = Garmin(email, password, return_on_mfa=True)
+        except TypeError:
+            # Older garminconnect without the flag. Accepted rather than
+            # hard-failed, but an MFA-protected account on such a version
+            # is the hang described above.
+            client = Garmin(email, password)
+
+        # One call does everything: login(tokenstore) loads a cached
+        # session when one exists, and after a fresh login dumps the new
+        # tokens back to that path itself. An earlier version of this
+        # called client.garth.dump() by hand -- garminconnect 0.3.x has no
+        # `garth` attribute at all, so that silently failed and forced a
+        # full SSO login on every single pull, which is exactly the
+        # behavior this module's docstring says to avoid.
+        result = client.login(str(token_dir))
+
+        # (mfa_status, _) on modern versions; older ones return a bool or
+        # None, hence the shape check rather than a bare truthiness test.
+        mfa_status = result[0] if isinstance(result, tuple) and result else None
+        if mfa_status:
+            logger.error(
+                "Garmin login needs an MFA code and this runs headless — "
+                "run one interactive login on the server to cache a token: "
+                "venv/bin/python -c \"from garminconnect import Garmin; "
+                "g=Garmin(EMAIL,PASSWORD); g.login('.garmin_tokens')\""
+            )
+            return None
+
         return client
     except Exception as e:
         # Deliberately broad: the library raises its own exception types,
