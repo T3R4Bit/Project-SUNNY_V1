@@ -291,7 +291,9 @@ def _advice(windows: List[Dict], readiness_value, load, calendar_available: bool
         return "No free windows long enough in the next couple of days."
 
     best = windows[0]
-    parts = [f"Best window: {best['label']} ({best['minutes']} min) — {best['intensity']}"]
+    free = best.get("free_minutes", best["minutes"])
+    span = f"{best['minutes']} min" if free <= best["minutes"] else f"{best['minutes']} min of {free} free"
+    parts = [f"Best window: {best['label']} ({span}) — {best['intensity']}"]
     if readiness_value is not None:
         parts.append(f"readiness {readiness_value}")
     if load and load["under_target"]:

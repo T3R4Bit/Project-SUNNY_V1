@@ -352,7 +352,16 @@ Have a productive day!
             return ""
 
         best = result["windows"][0]
-        lines = [f"   {best['label']} — {best['minutes']} min free · {best['intensity']}"]
+        # "free" only applies when the whole block is being suggested. A
+        # narrowed slot inside a longer block would otherwise report 75
+        # minutes free on a day with three hours open.
+        free = best.get("free_minutes", best["minutes"])
+        span = (
+            f"{best['minutes']} min"
+            if free <= best["minutes"]
+            else f"{best['minutes']} min of {free} free"
+        )
+        lines = [f"   {best['label']} — {span} · {best['intensity']}"]
 
         gap = result.get("load_gap")
         if gap and gap.get("under_target"):
