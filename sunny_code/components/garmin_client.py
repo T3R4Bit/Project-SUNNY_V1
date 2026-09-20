@@ -1,0 +1,272 @@
+"""Garmin Connect ingest -- sleep, resting HR, HRV, Body Battery, stress,
+steps, training readiness and training load.
+
+UNOFFICIAL API, DELIBERATELY
+---------------------------
+This uses the `garminconnect` library (which authenticates through `garth`),
+not Garmin's official Health API. The official one requires a Garmin
+Connect Developer / wellness-partner agreement -- an application and
+approval process on Garmin's side, not an API key you can sign up for --
+which is why this sat blocked in BACKLOG.md.
+
+The consequences of that choice, stated plainly:
+
+  - It can break without warning when Garmin changes their endpoints.
+    Every call here is wrapped and returns None on failure, same
+    fail-quiet contract as google_calendar/google_gmail/weather. A broken
+    Garmin must degrade the brief's fitness section, never take down the
+    brief.
+  - It authenticates as you, so it is rate-limit-sensitive in a way a
+    partner API is not. Pull ONCE OR TWICE A DAY. Do not poll. There is no
+    loop in this module for that reason -- daily_ingest.py owns scheduling.
+  - garth caches an OAuth token (~1 year) after the first login, so
+    credentials are needed once rather than per call. MFA on the Garmin
+    account complicates the first login and may need an interactive run.
+
+METRIC NAMING
+-------------
+Everything lands in metrics_store under `garmin.*`. Names are stable
+because they become chart series and, later, inputs to the composite
+readiness score -- renaming one orphans its history.
+
+"STRAIN" DOES NOT EXIST HERE
+----------------------------
+Garmin has no strain metric; that is Whoop's. The closest equivalents are
+training load (acute), intensity minutes, and training readiness. The
+composite score that blends these is deliberately NOT in this module --
+this file only ingests what the watch actually reports, so that the score's
+weights can be changed later without re-pulling anything.
+"""
+
+import logging
+from datetime import date, datetime, timedelta
+from typing import Dict, List, Optional
+
+from sunny_code.components import metrics_store
+from sunny_code.config import get_settings, looks_configured
+
+logger = logging.getLogger(__name__)
+
+# Series names. `garmin.` prefix groups them in the dashboard and keeps
+# them distinct from check-in answers (`health.*`) and server stats.
+M_SLEEP_SCORE = "garmin.sleep_score"
+M_SLEEP_HOURS = "garmin.sleep_hours"
+M_RESTING_HR = "garmin.resting_hr"
+M_HRV = "garmin.hrv_overnight"
+M_BODY_BATTERY_WAKE = "garmin.body_battery_wake"
+M_STRESS_AVG = "garmin.stress_avg"
+M_STEPS = "garmin.steps"
+M_TRAINING_READINESS = "garmin.training_readiness"
+M_ACUTE_LOAD = "garmin.acute_load"
+M_RESPIRATION = "garmin.respiration_avg"
+M_SPO2 = "garmin.spo2_avg"
+
+# How many recent days a routine pull re-fetches. Not 1: Garmin revises
+# yesterday's sleep score and training readiness for hours after the fact,
+# so pulling only "today" permanently stores whichever provisional value
+# happened to exist at pull time. metrics_store upserts, so overlapping
+# re-pulls are free.
+ROUTINE_LOOKBACK_DAYS = 3
+
+
+def _client():
+    """An authenticated Garmin client, or None if unavailable.
+
+    None covers every "cannot do this right now" case -- library missing,
+    credentials unset, login rejected -- because every caller treats them
+    identically: skip the fitness data, say so honestly, carry on.
+    """
+    settings = get_settings()
+    email = getattr(settings, "garmin_email", "")
+    password = getattr(settings, "garmin_password", "")
+    if not looks_configured(email) or not looks_configured(password):
+        return None
+
+    try:
+        from garminconnect import Garmin
+    except ImportError:
+        logger.warning("garminconnect not installed — Garmin ingest unavailable")
+        return None
+
+    try:
+        token_dir = settings.project_root / ".garth"
+        client = Garmin(email, password)
+        # Resume the cached session if garth has one; only fall back to a
+        # full login when it does not. A login per pull would be both slow
+        # and a good way to attract Garmin's attention.
+        try:
+            client.login(str(token_dir))
+        except Exception:
+            client.login()
+            try:
+                client.garth.dump(str(token_dir))
+            except Exception as e:
+                logger.warning(f"Could not cache Garmin session token: {type(e).__name__}")
+        return client
+    except Exception as e:
+        # Deliberately broad: the library raises its own exception types,
+        # and a new one appearing after a Garmin-side change must not
+        # escape into the caller.
+        logger.error(f"Garmin login failed: {type(e).__name__}: {e}")
+        return None
+
+
+def _num(value) -> Optional[float]:
+    """Coerce a Garmin field to a float, or None. Garmin returns nulls,
+    empty strings and occasionally strings-that-are-numbers depending on
+    which endpoint a field came from."""
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe(fn, label: str):
+    """Call one Garmin endpoint, swallowing failures. Each endpoint is
+    fetched independently so one unavailable metric (Pulse Ox off, a watch
+    that does not report HRV) does not cost every other metric for that
+    day."""
+    try:
+        return fn()
+    except Exception as e:
+        logger.warning(f"Garmin {label} unavailable: {type(e).__name__}: {e}")
+        return None
+
+
+def fetch_day(client, day: date) -> Dict[str, Optional[float]]:
+    """Every supported metric for one date, as {series_name: value}.
+
+    Missing metrics are simply absent rather than zero -- metrics_store's
+    record_many() skips None, because "the watch did not report this" and
+    "this was zero" are different facts and only one of them should be
+    chartable.
+    """
+    iso = day.isoformat()
+    out: Dict[str, Optional[float]] = {}
+
+    sleep = _safe(lambda: client.get_sleep_data(iso), "sleep")
+    if isinstance(sleep, dict):
+        daily = sleep.get("dailySleepDTO") or {}
+        out[M_SLEEP_SCORE] = _num((daily.get("sleepScores") or {}).get("overall", {}).get("value")) \
+            if isinstance(daily.get("sleepScores"), dict) else None
+        seconds = _num(daily.get("sleepTimeSeconds"))
+        out[M_SLEEP_HOURS] = round(seconds / 3600, 2) if seconds else None
+        out[M_RESPIRATION] = _num(daily.get("averageRespirationValue"))
+        out[M_SPO2] = _num(daily.get("averageSpO2Value"))
+
+    stats = _safe(lambda: client.get_stats(iso), "daily stats")
+    if isinstance(stats, dict):
+        out[M_RESTING_HR] = _num(stats.get("restingHeartRate"))
+        out[M_STEPS] = _num(stats.get("totalSteps"))
+        out[M_STRESS_AVG] = _num(stats.get("averageStressLevel"))
+
+    hrv = _safe(lambda: client.get_hrv_data(iso), "HRV")
+    if isinstance(hrv, dict):
+        summary = hrv.get("hrvSummary") or {}
+        out[M_HRV] = _num(summary.get("lastNightAvg"))
+
+    battery = _safe(lambda: client.get_body_battery(iso, iso), "body battery")
+    if isinstance(battery, list) and battery:
+        entry = battery[0] if isinstance(battery[0], dict) else {}
+        # Wake-time reading, not the current one: Body Battery drains
+        # through the day, so "what did I start with" is the figure worth
+        # a daily row. The max over the day is the closest proxy the API
+        # exposes without walking the per-minute series.
+        out[M_BODY_BATTERY_WAKE] = _num(entry.get("charged")) or _num(entry.get("maxBodyBattery"))
+
+    readiness = _safe(lambda: client.get_training_readiness(iso), "training readiness")
+    if isinstance(readiness, list) and readiness and isinstance(readiness[0], dict):
+        out[M_TRAINING_READINESS] = _num(readiness[0].get("score"))
+
+    load = _safe(lambda: client.get_training_status(iso), "training status")
+    if isinstance(load, dict):
+        acute = load.get("acuteTrainingLoadDTO") or {}
+        out[M_ACUTE_LOAD] = _num(acute.get("acuteTrainingLoad"))
+
+    return out
+
+
+def ingest(days: int = ROUTINE_LOOKBACK_DAYS) -> Dict:
+    """Pull the last `days` days and store them. Returns a small result
+    summary rather than raising, so a scheduler can log it and move on.
+
+    Not scheduled here -- see daily_ingest.py. This module deliberately
+    owns no loop, so nothing can accidentally start polling an unofficial
+    API as you.
+    """
+    client = _client()
+    if client is None:
+        return {"ok": False, "reason": "not_configured", "days": 0, "points": 0}
+
+    today = date.today()
+    stored_days, stored_points = 0, 0
+    for offset in range(days):
+        day = today - timedelta(days=offset)
+        metrics = fetch_day(client, day)
+        written = metrics_store.record_many(metrics, ts=day.isoformat())
+        if written:
+            stored_days += 1
+            stored_points += written
+
+    logger.info(f"Garmin ingest: {stored_points} points across {stored_days} days")
+    return {"ok": True, "reason": None, "days": stored_days, "points": stored_points}
+
+
+def backfill(start: date, end: Optional[date] = None) -> Dict:
+    """One-off historical pull from `start` to `end` (default today).
+
+    Garmin retains this history server-side, which is why most of the
+    health dataset can be recovered after the fact and check-in answers
+    cannot. Run deliberately, not on a schedule -- a long backfill is many
+    sequential API calls against an unofficial endpoint.
+    """
+    client = _client()
+    if client is None:
+        return {"ok": False, "reason": "not_configured", "days": 0, "points": 0}
+
+    end = end or date.today()
+    if start > end:
+        return {"ok": False, "reason": "start_after_end", "days": 0, "points": 0}
+
+    stored_days, stored_points = 0, 0
+    day = start
+    while day <= end:
+        metrics = fetch_day(client, day)
+        written = metrics_store.record_many(metrics, ts=day.isoformat())
+        if written:
+            stored_days += 1
+            stored_points += written
+        day += timedelta(days=1)
+
+    logger.info(f"Garmin backfill {start}..{end}: {stored_points} points across {stored_days} days")
+    return {"ok": True, "reason": None, "days": stored_days, "points": stored_points}
+
+
+def status() -> Dict:
+    """Whether Garmin is configured and when it last produced data --
+    for the setup guide and the dashboard's connection list."""
+    settings = get_settings()
+    configured = looks_configured(getattr(settings, "garmin_email", "")) and \
+        looks_configured(getattr(settings, "garmin_password", ""))
+    try:
+        from garminconnect import Garmin  # noqa: F401
+        installed = True
+    except ImportError:
+        installed = False
+
+    latest = metrics_store.latest(M_SLEEP_SCORE) or metrics_store.latest(M_RESTING_HR)
+    return {
+        "configured": configured,
+        "library_installed": installed,
+        "last_data": latest["ts"] if latest else None,
+    }
+
+
+def recent(names: Optional[List[str]] = None, days: int = 7) -> Dict[str, List[Dict]]:
+    """Recent series for the named metrics (default: the brief's set),
+    for the fitness section of a briefing."""
+    names = names or [M_SLEEP_SCORE, M_SLEEP_HOURS, M_BODY_BATTERY_WAKE, M_TRAINING_READINESS, M_STEPS]
+    start = (date.today() - timedelta(days=days)).isoformat()
+    return {name: metrics_store.series(name, start=start) for name in names}

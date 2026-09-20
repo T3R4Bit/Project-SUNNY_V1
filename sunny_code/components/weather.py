@@ -94,6 +94,15 @@ def get_current(location: Optional[str] = None) -> Optional[Dict]:
             "temp": round(data["main"]["temp"]),
             "condition": data["weather"][0]["description"].capitalize(),
             "humidity": data["main"]["humidity"],
+            # Barometric pressure (hPa) is not shown in any brief -- it is
+            # here because daily_ingest.py logs it alongside the nightly
+            # migraine check-in. Pressure swings are a well-known migraine
+            # trigger, and unlike sleep or HR this cannot be backfilled
+            # from a free weather API, so it has to be captured on the day
+            # or the correlation is permanently unavailable. .get() rather
+            # than [] because it is optional context, never worth failing
+            # the whole weather call over.
+            "pressure": data.get("main", {}).get("pressure"),
         }
     except (KeyError, IndexError, TypeError, ValueError) as e:
         logger.error(f"Unexpected OpenWeatherMap response shape: {e}", exc_info=True)

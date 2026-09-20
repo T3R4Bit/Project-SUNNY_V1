@@ -21,7 +21,8 @@ from sunny_code.components.data_sources import is_configured, missing_requiremen
 from sunny_code.components.llm_client import ask_claude, ask_claude_stream
 from sunny_code.components.request_log import log_unfulfilled
 from sunny_code.components import (
-    class_memory, conversation_memory, docs_search, google_calendar, google_gmail, health_check, weather,
+    checkin, class_memory, conversation_memory, day_boundary, docs_search, google_calendar, google_gmail,
+    health_check, metrics_store, weather,
 )
 
 OnChunk = Callable[[str], Awaitable[None]]
@@ -70,20 +71,18 @@ def _weather_locations_for(target_date) -> List[Tuple[str, Optional[str]]]:
 class BriefingTemplates:
     """Hardcoded briefing templates. Real data where it exists, honest gaps where it doesn't."""
 
-    # Before this hour, a goodnight is still talking about the day you were
-    # awake for, not the calendar day that technically started at midnight --
-    # a goodnight said at 3am on the 27th recaps the 26th and previews the
-    # 27th (the day not yet been through), not the 28th. Only evening_briefing
-    # uses this; morning_briefing always reports the actual calendar date.
-    _DAY_BOUNDARY_HOUR = 5
+    # Kept as an alias so this class reads the same as before; the constant
+    # and its reasoning now live in day_boundary.py, because check-in
+    # answers, Garmin ingest and brief selection all need the same 5am
+    # boundary and three private copies would be three things to get out
+    # of sync. Only evening_briefing uses this; morning_briefing always
+    # reports the actual calendar date.
+    _DAY_BOUNDARY_HOUR = day_boundary.DAY_BOUNDARY_HOUR
 
     @staticmethod
     def _perceived_today(now: datetime):
-        """Recap date for evening_briefing -- see _DAY_BOUNDARY_HOUR."""
-        today = now.date()
-        if now.hour < BriefingTemplates._DAY_BOUNDARY_HOUR:
-            today -= timedelta(days=1)
-        return today
+        """Recap date for evening_briefing -- see day_boundary.logging_day."""
+        return day_boundary.logging_day(now)
 
     @staticmethod
     def format_time_list(events: List[Dict], key: str = "time") -> str:
@@ -286,6 +285,34 @@ Have a productive day!
         return briefing
 
     @staticmethod
+    def _wellness_lines(day: str) -> List[str]:
+        """Real health figures for `day` (a logging-day key), newest data
+        only. Empty list when nothing has been ingested, so the caller can
+        fall back to the honest "not connected" note rather than printing
+        a wellness section full of blanks.
+
+        Reads metrics_store directly rather than calling Garmin: ingest is
+        a twice-daily job (see daily_ingest.py), and a brief must never be
+        the thing that triggers a call to an unofficial API.
+        """
+        from sunny_code.components import garmin_client
+
+        rows = [
+            ("Sleep", garmin_client.M_SLEEP_HOURS, "{:.1f} h"),
+            ("Sleep score", garmin_client.M_SLEEP_SCORE, "{:.0f}"),
+            ("Body Battery at wake", garmin_client.M_BODY_BATTERY_WAKE, "{:.0f}"),
+            ("Training readiness", garmin_client.M_TRAINING_READINESS, "{:.0f}"),
+            ("Resting HR", garmin_client.M_RESTING_HR, "{:.0f} bpm"),
+            ("Steps", garmin_client.M_STEPS, "{:,.0f}"),
+        ]
+        lines = []
+        for label, metric, fmt in rows:
+            value = metrics_store.get_for_day(metric, day)
+            if value is not None:
+                lines.append(f"{label}: {fmt.format(value)}")
+        return lines
+
+    @staticmethod
     async def evening_briefing(tasks_db: TaskDB) -> str:
         """Evening briefing: real tasks, honest gaps everywhere else."""
         now = datetime.now()
@@ -319,7 +346,18 @@ Have a productive day!
             BriefingTemplates._calendar_text(tomorrow_day_offset, unconfigured),  # tomorrow preview
             BriefingTemplates._weather_lines(forecast_date, not is_late_night, unconfigured),  # tomorrow's forecast
         )
-        health_note = note("health")
+        # Real Garmin data if it has been ingested, else the honest
+        # "not connected" note -- same contract as weather/calendar above.
+        wellness_lines = BriefingTemplates._wellness_lines(today_prefix)
+        health_note = "\n   ".join(wellness_lines) if wellness_lines else note("health")
+
+        # The check-in question goes last in the brief and is asked one at
+        # a time: a brief ending in a list of questions gets skipped
+        # wholesale, which yields no data rather than partial data. None
+        # once today's answers are in, so re-reading the brief later in
+        # the night doesn't re-ask what was already answered.
+        checkin_prompt = checkin.prompt_text(today_prefix)
+        checkin_recap = checkin.summary_line(today_prefix)
 
         open_tasks = tasks_db.get_open_tasks()
         done_today = [
@@ -348,8 +386,8 @@ TOMORROW'S WEATHER
    {weather_note}
 
 TODAY'S WELLNESS
-   {health_note}
-
+   {health_note}{(chr(10) + "   Logged today — " + checkin_recap) if checkin_recap else ""}
+{(chr(10) + "CHECK-IN" + chr(10) + "   " + checkin_prompt + chr(10)) if checkin_prompt else ""}
 Sleep well and rest up for tomorrow!
 """
         if unconfigured:

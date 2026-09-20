@@ -17,6 +17,7 @@ from sunny_code.components.dashboard import create_dashboard_app
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.briefing_api import create_briefing_router
 from sunny_code.components.dashboard_data_routes import create_dashboard_data_router
+from sunny_code.components.metrics_routes import create_metrics_router
 from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.tasks_api import create_tasks_router
@@ -33,7 +34,7 @@ from sunny_code.components.spotify_engine import SpotifyEngine
 from sunny_code.components.spotify_routes import create_spotify_auth_router
 from sunny_code.components.calendar_engine import CalendarEngine
 from sunny_code.components.crash_check import check_previous_crash
-from sunny_code.components import health_check, rules_engine, service_registry
+from sunny_code.components import daily_ingest, health_check, rules_engine, service_registry, token_tracker
 from sunny_code.components.health_check import run_weekly_health_check
 from sunny_code.components.weather_routes import create_weather_router
 from sunny_code.components.location_routes import create_location_router
@@ -92,6 +93,9 @@ class SunnyCore:
         # Same guard, same reason, for the rules-engine loop below.
         self._rules_engine_started = False
 
+        # Same guard, same reason, for the daily health-data ingest loop below.
+        self._daily_ingest_started = False
+
         self.app = self._create_app()
         self.discord_bot = self._create_discord_bot()
         # Registered once here (not re-fetched per run) so run_weekly_health_check()
@@ -102,6 +106,7 @@ class SunnyCore:
         health_check.set_post_fn(getattr(self.discord_bot, "post_to_health", None) if self.discord_bot else None)
         self.health_check_loop = self._create_health_check_loop()
         self.rules_engine_loop = self._create_rules_engine_loop()
+        self.daily_ingest_loop = self._create_daily_ingest_loop()
 
     def _create_discord_bot(self):
         """Build the Discord bot if a token + chat channel are configured;
@@ -174,6 +179,32 @@ class SunnyCore:
 
         return rules_engine_loop
 
+    def _create_daily_ingest_loop(self):
+        """Health-data capture (see daily_ingest.py). Standalone like the
+        two loops above — it doesn't need Discord, and barometric pressure
+        in particular must keep being logged whether or not anything is
+        connected, because it's the one input to the migraine correlation
+        that can't be backfilled later.
+
+        An interval loop rather than a fixed clock time so a restart can't
+        skip a day. Twice daily: enough to pick up Garmin's revisions to
+        the previous night's sleep/readiness scores, nowhere near often
+        enough to resemble polling an unofficial API authenticated as the
+        user. discord.ext.tasks runs the callback once immediately on
+        .start(), so a restart also captures straight away rather than
+        waiting out the first interval."""
+
+        @tasks.loop(hours=daily_ingest.INTERVAL_HOURS)
+        async def daily_ingest_loop():
+            if not service_registry.is_enabled("daily_ingest"):
+                return
+            try:
+                await asyncio.to_thread(daily_ingest.run)
+            except Exception as e:
+                self.logger.error(f"daily_ingest_loop: run() failed: {e}", exc_info=True)
+
+        return daily_ingest_loop
+
     def _create_app(self) -> FastAPI:
         """Create FastAPI application with all routes."""
 
@@ -215,12 +246,27 @@ class SunnyCore:
                 if service_registry.is_autostart("rules_engine"):
                     self.rules_engine_loop.start()
 
+            # Same again for health-data capture (Garmin + barometric
+            # pressure) -- see _create_daily_ingest_loop.
+            if not self._daily_ingest_started:
+                self._daily_ingest_started = True
+                if service_registry.is_autostart("daily_ingest"):
+                    self.daily_ingest_loop.start()
+
             yield
             if discord_task is not None:
                 await self.discord_bot.close()
                 discord_task.cancel()
             self.health_check_loop.cancel()
             self.rules_engine_loop.cancel()
+            self.daily_ingest_loop.cancel()
+            # Release the pooled SQLite connections from plan item A4 —
+            # each of these opened a single long-lived connection instead
+            # of reconnecting per call; close them on real shutdown so the
+            # fd isn't held by a process that's exiting anyway.
+            self.scheduled_engine.db.close()
+            self.dashboard_app.db.close()
+            token_tracker.close()
 
         app = FastAPI(
             title=self.settings.app_name,
@@ -244,6 +290,7 @@ class SunnyCore:
 
         # Dashboard endpoints
         dashboard_app = create_dashboard_app()
+        self.dashboard_app = dashboard_app
         app.include_router(dashboard_app.router, prefix="/api")
 
         # Briefing endpoints
@@ -254,6 +301,10 @@ class SunnyCore:
         # (e.g. keaton.dev) — /api/calendar/today, /api/gmail/flagged
         dashboard_data_router = create_dashboard_data_router()
         app.include_router(dashboard_data_router, prefix="/api")
+
+        # Time-series + check-in endpoints -- /api/metrics/series,
+        # /api/checkin/*, /api/health/garmin/* (see metrics_routes.py)
+        app.include_router(create_metrics_router(), prefix="/api")
 
         # Task endpoints
         tasks_router = create_tasks_router(self.tasks_engine)

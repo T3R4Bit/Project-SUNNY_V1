@@ -17,3 +17,8 @@ piper-tts>=1.7.0
 vosk>=0.3.45
 matplotlib>=3.8.0
 pypdf>=4.0.0
+# Unofficial Garmin Connect client (see components/garmin_client.py). Not
+# Garmin's official Health API, which needs a wellness-partner agreement.
+# garmin_client.py degrades to "not configured" if this import fails, so
+# Sunny still runs without it installed.
+garminconnect>=0.2.19

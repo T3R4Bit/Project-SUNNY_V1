@@ -36,11 +36,11 @@ import asyncio
 import random
 import time
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from sunny_code.components import (
-    build_info, category_store, class_setup_engine, exam_prep, health_check, service_registry, setup_guides,
-    token_tracker, trace,
+    build_info, category_store, checkin, class_setup_engine, exam_prep, health_check, service_registry,
+    setup_guides, token_tracker, trace,
 )
 from sunny_code.components.briefing import BriefingEngine, OnChunk, OnSearchStart
 from sunny_code.components.calendar_engine import CalendarEngine
@@ -366,7 +366,7 @@ def _set_pending(session_id: str, awaiting: str, **extra) -> None:
     _pending[session_id] = {"awaiting": awaiting, "ts": time.time(), **extra}
 
 
-def _looks_like_a_command(stripped: str, lowered: str) -> bool:
+def _looks_like_a_command(stripped: str, lowered: str, categories: Optional[List[str]] = None) -> bool:
     """True if the text matches some other recognized command grammar (task,
     list, alarm/reminder, help, or a briefing keyword) — used so a pending
     follow-up question doesn't swallow an unrelated message as if it were
@@ -376,7 +376,14 @@ def _looks_like_a_command(stripped: str, lowered: str) -> bool:
     is itself one of _HELP_TRIGGERS for a top-level message — every pending
     handler already has its own "still need X" re-prompt for an empty
     answer, and that's clearly the right response to silence/whitespace
-    sent while a question is outstanding, not the general help text."""
+    sent while a question is outstanding, not the general help text.
+
+    `categories` lets a caller that already fetched category_store's list
+    for this message pass it in instead of paying for another disk read;
+    every other caller (the project/class-setup wizards) omits it and this
+    fetches its own, same as before."""
+    if categories is None:
+        categories = category_store.get_categories()
     if not stripped:
         return False
     if lowered in _HELP_TRIGGERS or lowered in _BRIEFING_KEYWORDS:
@@ -393,7 +400,7 @@ def _looks_like_a_command(stripped: str, lowered: str) -> bool:
     if (lowered in _CATEGORY_LIST_TRIGGERS or _extract_category_add(stripped, lowered) is not None
             or _extract_category_remove(stripped, lowered) is not None):
         return True
-    task_cmd_type, _, _ = TaskCommandParser.parse_command(stripped, category_store.get_categories())
+    task_cmd_type, _, _ = TaskCommandParser.parse_command(stripped, categories)
     if task_cmd_type not in ("unknown", "add"):
         return True
     if ListCommandParser.parse(stripped) is not None:
@@ -717,6 +724,9 @@ async def _handle_message_inner(
     stripped = text.strip()
     lowered = stripped.lower().strip("?!. ")
     source = device_from_session(session_id)
+    # Fetched once per message instead of re-reading category_store's file
+    # on every one of the several places below that need it (plan item B4).
+    categories = category_store.get_categories()
 
     pending = _get_pending(session_id)
     if pending and pending.get("awaiting") == "task_title":
@@ -725,13 +735,39 @@ async def _handle_message_inner(
             trace.mark_route("wizard:task_title", "cancel", confidence="exact", function="cancel")
             return "No worries — cancelled."
 
-        if not _looks_like_a_command(stripped, lowered):
+        if not _looks_like_a_command(stripped, lowered, categories):
             _pending.pop(session_id, None)
             trace.mark_route("wizard:task_title", "create_task", confidence="exact", function="_create_task_from_reply")
             return await _create_task_from_reply(stripped, tasks_engine, session_id, source)
 
         _pending.pop(session_id, None)
         # falls through to normal handling below
+
+    elif pending and pending.get("awaiting") == "checkin":
+        # Answering the nightly check-in question the evening brief just
+        # asked. Unlike the task wizards above, the guard here is
+        # parse_answer() rather than _looks_like_a_command(): a check-in
+        # answer is a tiny closed vocabulary ("yes"/"no"), so anything
+        # that isn't one is definitionally not an answer, and falling
+        # through is strictly better than recording a false 0 that would
+        # be indistinguishable from a real "no" forever after.
+        question = checkin._BY_ID.get(pending.get("question_id", ""))
+        if question is not None and lowered not in _CANCEL_WORDS:
+            value = checkin.parse_answer(question, stripped)
+            if value is not None:
+                _pending.pop(session_id, None)
+                checkin.record_answer(question["id"], value)
+                trace.mark_route("checkin", "record", confidence="exact", function="checkin.record_answer")
+                nxt = checkin.next_question()
+                if nxt is not None:
+                    _set_pending(session_id, "checkin", question_id=nxt["id"])
+                    return f"Logged. {nxt['prompt']}"
+                return "Logged — thanks. Sleep well."
+        # Not an answer (or cancelled): drop the pending state and let the
+        # message route normally. Deliberately silent about the abandoned
+        # question -- it gets asked again tomorrow, and nagging about a
+        # skipped check-in is how people stop reading the brief.
+        _pending.pop(session_id, None)
 
     elif pending and pending.get("awaiting") == "task_category":
         task_data = {k: v for k, v in pending.items() if k not in ("awaiting", "ts")}
@@ -740,7 +776,7 @@ async def _handle_message_inner(
             trace.mark_route("wizard:task_category", "cancel", confidence="exact", function="cancel")
             return "No worries — cancelled."
 
-        if not _looks_like_a_command(stripped, lowered):
+        if not _looks_like_a_command(stripped, lowered, categories):
             _pending.pop(session_id, None)
             trace.mark_route("wizard:task_category", "finish_task", confidence="exact", function="_finish_task_with_category")
             return await _finish_task_with_category(stripped, task_data, tasks_engine, session_id, source)
@@ -824,7 +860,7 @@ async def _handle_message_inner(
 
     if lowered in _CATEGORY_LIST_TRIGGERS:
         trace.mark_route("category_store", "list", confidence="exact", function="category_store.get_categories")
-        return "Categories: " + ", ".join(category_store.get_categories())
+        return "Categories: " + ", ".join(categories)
 
     # Checked by prefix first, not just by _extract_category_add's return
     # value, so "add category" with no name at all (prefix matches, name
@@ -852,7 +888,7 @@ async def _handle_message_inner(
         trace.mark_route("category_store", "remove", confidence="heuristic", function="category_store.remove_category")
         return message
 
-    cmd_type, success, task_data = TaskCommandParser.parse_command(stripped, category_store.get_categories())
+    cmd_type, success, task_data = TaskCommandParser.parse_command(stripped, categories)
 
     if cmd_type == "add" and not success:
         if stripped.startswith("!task"):
@@ -873,13 +909,12 @@ async def _handle_message_inner(
         # Title (and any --flags) resolved, but no category was stated or
         # recognized inline — ask instead of silently defaulting to General.
         _set_pending(session_id, "task_category", **task_data)
-        categories = category_store.get_categories()
         trace.mark_route("wizard:task_category", "start", confidence="exact", function="_set_pending")
         return f'Got it — which category: {", ".join(categories)}? (or say "cancel")'
 
     if cmd_type != "unknown":
         _, message = await tasks_engine.execute_command(
-            stripped, source=source, known_categories=category_store.get_categories()
+            stripped, source=source, known_categories=categories
         )
         trace.mark_route("tasks_engine", cmd_type, confidence="exact", function="tasks_engine.execute_command")
         return message
@@ -890,7 +925,16 @@ async def _handle_message_inner(
 
     if lowered in _EVENING_TRIGGERS:
         trace.mark_route("briefing", "evening", confidence="exact", function="briefing_engine.generate_evening_briefing")
-        return await briefing_engine.generate_evening_briefing()
+        brief = await briefing_engine.generate_evening_briefing()
+        # The brief renders the check-in question; this arms the follow-up
+        # so the next message can answer it. Set after generating, not
+        # before, so a night whose questions are already answered (the
+        # brief re-read later) doesn't leave a pending state nothing will
+        # ever satisfy.
+        question = checkin.next_question()
+        if question is not None:
+            _set_pending(session_id, "checkin", question_id=question["id"])
+        return brief
 
     # Substring, not an exact-phrase tuple -- "can you run a system health
     # check" (a real phrasing that failed live, 2026-08-23) doesn't match

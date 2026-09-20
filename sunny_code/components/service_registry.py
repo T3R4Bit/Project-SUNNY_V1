@@ -42,6 +42,12 @@ SERVICES = (
     "voice_join",
     "rules_engine",
     "class_reminders",
+    # Twice-daily Garmin + barometric-pressure capture (main.py's
+    # daily_ingest_loop). Togglable like the rest, but worth knowing
+    # before disabling it: pressure readings cannot be backfilled from a
+    # free weather API, so time spent off is a permanent hole in the
+    # migraine correlation rather than a gap that a later re-run fills.
+    "daily_ingest",
 )
 
 _DEFAULTS = {name: {"enabled": True, "autostart": True} for name in SERVICES}

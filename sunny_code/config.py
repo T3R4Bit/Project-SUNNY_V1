@@ -1,5 +1,6 @@
 """Configuration management using pydantic-settings."""
 
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -72,6 +73,20 @@ class Settings(BaseSettings):
     spotify_client_secret: str = ""
     spotify_oauth_redirect_uri: str = "http://127.0.0.1:5000/auth/spotify/callback"
     spotify_token_path: Path = project_root / "spotify_token.json"
+
+    # Garmin Connect — powers the health metrics in the daily brief and the
+    # dashboard's health charts. These are your ordinary Garmin Connect
+    # account credentials, because this uses the unofficial `garminconnect`
+    # library rather than Garmin's official Health API (which needs a
+    # wellness-partner agreement, not a signup — see
+    # sunny_code/components/garmin_client.py's module docstring).
+    #
+    # Consequences worth knowing before filling these in: the credentials
+    # authenticate as you, a token is cached to `.garth/` after first
+    # login (~1 year), and MFA on the account may require an interactive
+    # first run. Ingest is twice-daily and never polls.
+    garmin_email: str = ""
+    garmin_password: str = ""
 
     # Discord bot — DISCORD_CHAT_CHANNEL_ID is the one required channel the bot
     # reads commands from (tasks/lists/alarms/server-admin). DISCORD_TASKS_
@@ -274,8 +289,26 @@ class Settings(BaseSettings):
         case_sensitive = False
 
 
+_SETTINGS_TTL_SECONDS = 5.0
+_settings_cache: tuple[Settings, float] | None = None
+
+
 def get_settings() -> Settings:
-    """Build a fresh Settings from the current .env — deliberately not cached,
-    so a live edit (location, an API key) takes effect on the very next call
-    with no restart. Called often; keep this cheap and side-effect-free."""
-    return Settings()
+    """Build a Settings from the current .env, cached for up to
+    _SETTINGS_TTL_SECONDS so a live edit (location, an API key) takes effect
+    within a few seconds with no restart, instead of parsing .env fresh on
+    every single call — this is called ~90+ times per request/turn across
+    the codebase (every LLM call, every STT/TTS turn, etc.), so an unbounded
+    per-call rebuild is real, measurable overhead. Not a functools.lru_cache
+    (no invalidation path) — a short TTL keeps the "no restart needed"
+    contract intact, just not literally instant. Called often; keep this
+    cheap and side-effect-free."""
+    global _settings_cache
+    now = time.monotonic()
+    if _settings_cache is not None:
+        cached, cached_at = _settings_cache
+        if now - cached_at < _SETTINGS_TTL_SECONDS:
+            return cached
+    fresh = Settings()
+    _settings_cache = (fresh, now)
+    return fresh

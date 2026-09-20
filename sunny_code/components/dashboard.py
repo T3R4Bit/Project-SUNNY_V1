@@ -8,7 +8,6 @@ from pathlib import Path
 from fastapi import APIRouter
 
 from sunny_code.components import token_tracker
-from sunny_code.components.db_connection import closing_transaction
 from sunny_code.config import get_settings
 
 
@@ -20,11 +19,30 @@ class DashboardDB:
 
     def __init__(self, db_path: Path):
         self.db_path = db_path
+        self._conn: sqlite3.Connection | None = None
         self._init_db()
+
+    def _connect(self) -> sqlite3.Connection:
+        """Long-lived connection reused across calls instead of reopening
+        sunny.db every time — DashboardDB is single-process-only (only the
+        main server ever constructs one; chat.py, the one other process
+        that runs this codebase, never does), so there's no cross-process
+        lock-contention concern here, unlike scheduled_db.py's scheduled.db."""
+        if self._conn is None:
+            self._conn = sqlite3.connect(self.db_path)
+            self._conn.row_factory = sqlite3.Row
+        return self._conn
+
+    def close(self) -> None:
+        """Release the pooled connection. Call on app shutdown."""
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
 
     def _init_db(self):
         """Initialize database schema."""
-        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
+        conn = self._connect()
+        with conn:
             cursor = conn.cursor()
 
             # Metrics table (30-second samples)
@@ -68,7 +86,6 @@ class DashboardDB:
                 """
             )
 
-            conn.commit()
             logger.info(f"Database initialized: {self.db_path}")
 
     def record_metric(
@@ -81,7 +98,8 @@ class DashboardDB:
         cost: float = 0.0,
     ):
         """Record a metrics snapshot."""
-        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
+        conn = self._connect()
+        with conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -90,11 +108,11 @@ class DashboardDB:
                 """,
                 (cpu, ram, disk, cpu_temp, tokens, cost),
             )
-            conn.commit()
 
     def update_service_health(self, service: str, success: bool, error: str = None):
         """Update service health status."""
-        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
+        conn = self._connect()
+        with conn:
             cursor = conn.cursor()
             if success:
                 cursor.execute(
@@ -120,12 +138,11 @@ class DashboardDB:
                     """,
                     (error, service),
                 )
-            conn.commit()
 
     def get_health_status(self) -> dict:
         """Get current service health."""
-        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
-            conn.row_factory = sqlite3.Row
+        conn = self._connect()
+        with conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM service_health ORDER BY service_name")
             rows = cursor.fetchall()
@@ -152,8 +169,8 @@ class DashboardAPI:
         @self.router.get("/metrics/latest")
         async def latest_metrics():
             """Get latest metrics snapshot."""
-            with closing_transaction(sqlite3.connect(self.db.db_path)) as conn:
-                conn.row_factory = sqlite3.Row
+            conn = self.db._connect()
+            with conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     "SELECT * FROM metrics ORDER BY timestamp DESC LIMIT 1"
