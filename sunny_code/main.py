@@ -34,7 +34,9 @@ from sunny_code.components.spotify_engine import SpotifyEngine
 from sunny_code.components.spotify_routes import create_spotify_auth_router
 from sunny_code.components.calendar_engine import CalendarEngine
 from sunny_code.components.crash_check import check_previous_crash
-from sunny_code.components import daily_ingest, health_check, rules_engine, service_registry, token_tracker
+from sunny_code.components import (
+    daily_ingest, health_check, personality, rules_engine, service_registry, token_tracker,
+)
 from sunny_code.components.health_check import run_weekly_health_check
 from sunny_code.components.weather_routes import create_weather_router
 from sunny_code.components.location_routes import create_location_router
@@ -95,6 +97,12 @@ class SunnyCore:
 
         # Same guard, same reason, for the daily health-data ingest loop below.
         self._daily_ingest_started = False
+
+        # Create sunny-vault/personality.md if it's missing, so the file is
+        # discoverable in Obsidian rather than being a feature you'd only
+        # find by reading the source. Never overwrites an existing one --
+        # see personality.py on why Sunny otherwise never writes this file.
+        personality.ensure_exists()
 
         self.app = self._create_app()
         self.discord_bot = self._create_discord_bot()

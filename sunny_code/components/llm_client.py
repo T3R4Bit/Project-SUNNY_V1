@@ -22,7 +22,7 @@ from typing import Awaitable, Callable, Optional, Tuple
 
 import anthropic
 
-from sunny_code.components import instructions, token_tracker
+from sunny_code.components import instructions, personality, token_tracker
 from sunny_code.config import get_settings, looks_configured
 
 logger = logging.getLogger(__name__)
@@ -122,6 +122,33 @@ async def _preflight_refusal(purpose: str, model_id: str, prompt: str) -> Option
     return None
 
 
+
+def _with_personality(system: str | None) -> str | None:
+    """Prepend the user's tunable personality (sunny-vault/personality.md)
+    to whatever per-purpose system prompt was loaded.
+
+    Applied here rather than in each caller so it reaches every interface
+    and every purpose at once -- chat, voice, briefs, study reviews --
+    which is the whole point of a single personality file. Per-purpose
+    instructions still follow it, so a specific prompt can override the
+    general register where it needs to (the health report should stay
+    structured even at humor: 5).
+
+    Never raises: personality.as_prompt_section() already falls back to
+    its last good rendering, and a personality file must not be able to
+    break an LLM call.
+    """
+    try:
+        section = personality.as_prompt_section()
+    except Exception:
+        return system
+    if not section:
+        return system
+    if not system:
+        return section
+    return section + "\n" + system
+
+
 async def ask_claude(
     prompt: str,
     model: str = "haiku",
@@ -165,6 +192,7 @@ async def ask_claude(
     model_id = MODELS.get(model, MODELS["haiku"])
     if system is None:
         system = instructions.load_instructions(purpose)
+    system = _with_personality(system)
 
     if await _preflight_refusal(purpose, model_id, prompt) is not None:
         return None
@@ -269,6 +297,7 @@ async def ask_claude_stream(
     model_id = MODELS.get(model, MODELS["haiku"])
     if system is None:
         system = instructions.load_instructions(purpose)
+    system = _with_personality(system)
 
     if await _preflight_refusal(purpose, model_id, prompt) is not None:
         return
