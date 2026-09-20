@@ -16,7 +16,6 @@ import sqlite3
 from datetime import date, timedelta
 from typing import Dict, List, Tuple
 
-from sunny_code.components.db_connection import closing_transaction
 from sunny_code.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -34,21 +33,43 @@ _PRICING = {
 _DEFAULT_PRICING = _PRICING["claude-opus-5"]
 
 
+_pooled_conn: sqlite3.Connection | None = None
+
+
 def _connect() -> sqlite3.Connection:
-    settings = get_settings()
-    conn = sqlite3.connect(settings.db_path)
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS token_usage (
-            date DATE PRIMARY KEY,
-            prompt_tokens INTEGER,
-            completion_tokens INTEGER,
-            total_cost REAL,
-            by_model TEXT
+    """Long-lived module-level connection, reused across calls instead of
+    reopening sunny.db every time — this module is single-process-only
+    (only the main server touches sunny.db's token_usage table; chat.py,
+    the one other process that runs this codebase, never does), so unlike
+    scheduled_db.py's scheduled.db there's no cross-process lock-contention
+    concern here. Schema creation is idempotent (IF NOT EXISTS) so it only
+    needs to run once, on first connect, not on every call."""
+    global _pooled_conn
+    if _pooled_conn is None:
+        settings = get_settings()
+        conn = sqlite3.connect(settings.db_path)
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS token_usage (
+                date DATE PRIMARY KEY,
+                prompt_tokens INTEGER,
+                completion_tokens INTEGER,
+                total_cost REAL,
+                by_model TEXT
+            )
+            """
         )
-        """
-    )
-    return conn
+        _pooled_conn = conn
+    return _pooled_conn
+
+
+def close() -> None:
+    """Release the pooled connection. Call on app shutdown."""
+    global _pooled_conn
+    if _pooled_conn is not None:
+        _pooled_conn.close()
+        _pooled_conn = None
 
 
 def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
@@ -59,8 +80,8 @@ def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> fl
 def record_usage(model: str, prompt_tokens: int, completion_tokens: int, cost: float) -> None:
     """Add usage to today's rollup row, upserting the by_model breakdown."""
     today = date.today().isoformat()
-    with closing_transaction(_connect()) as conn:
-        conn.row_factory = sqlite3.Row
+    conn = _connect()
+    with conn:
         row = conn.execute(
             "SELECT prompt_tokens, completion_tokens, total_cost, by_model FROM token_usage WHERE date = ?",
             (today,),
@@ -94,8 +115,8 @@ def record_usage(model: str, prompt_tokens: int, completion_tokens: int, cost: f
 
 def get_today_usage() -> Dict:
     today = date.today().isoformat()
-    with closing_transaction(_connect()) as conn:
-        conn.row_factory = sqlite3.Row
+    conn = _connect()
+    with conn:
         row = conn.execute(
             "SELECT prompt_tokens, completion_tokens, total_cost, by_model FROM token_usage WHERE date = ?",
             (today,),
@@ -129,8 +150,8 @@ def get_daily_costs(days: int = 30) -> List[Dict]:
     total_tokens."""
     today = date.today()
     start = (today - timedelta(days=days - 1)).isoformat()
-    with closing_transaction(_connect()) as conn:
-        conn.row_factory = sqlite3.Row
+    conn = _connect()
+    with conn:
         rows = conn.execute(
             "SELECT date, prompt_tokens, completion_tokens, total_cost FROM token_usage WHERE date >= ? ORDER BY date",
             (start,),
@@ -154,7 +175,8 @@ def get_daily_costs(days: int = 30) -> List[Dict]:
 
 def get_month_cost() -> float:
     month_prefix = date.today().isoformat()[:7]  # YYYY-MM
-    with closing_transaction(_connect()) as conn:
+    conn = _connect()
+    with conn:
         result = conn.execute(
             "SELECT COALESCE(SUM(total_cost), 0) FROM token_usage WHERE date LIKE ?",
             (f"{month_prefix}-%",),

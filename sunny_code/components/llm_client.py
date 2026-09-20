@@ -97,7 +97,7 @@ def _get_async_client(api_key: str) -> "anthropic.AsyncAnthropic":
     return client
 
 
-def _preflight_refusal(purpose: str, model_id: str, prompt: str) -> Optional[str]:
+async def _preflight_refusal(purpose: str, model_id: str, prompt: str) -> Optional[str]:
     """Checks shared by ask_claude() and ask_claude_stream() so the two
     never drift out of sync on when a call gets refused before it's even
     attempted. Returns the refusal status string (also what gets logged)
@@ -105,18 +105,18 @@ def _preflight_refusal(purpose: str, model_id: str, prompt: str) -> Optional[str
     settings = get_settings()
     if not looks_configured(settings.claude_api_key):
         logger.info("ask_claude: no Claude API key configured, skipping")
-        log_llm_call(purpose, model_id, prompt, status="not_configured")
+        await log_llm_call_async(purpose, model_id, prompt, status="not_configured")
         return "not_configured"
 
     if _auth_disabled:
         logger.warning("ask_claude: disabled after an invalid API key error earlier this run — restart required")
-        log_llm_call(purpose, model_id, prompt, status="auth_disabled")
+        await log_llm_call_async(purpose, model_id, prompt, status="auth_disabled")
         return "auth_disabled"
 
     ok, reason = token_tracker.check_budget()
     if not ok:
         logger.warning(f"ask_claude: refusing call, {reason}")
-        log_llm_call(purpose, model_id, prompt, status="budget_exceeded", detail=reason)
+        await log_llm_call_async(purpose, model_id, prompt, status="budget_exceeded", detail=reason)
         return "budget_exceeded"
 
     return None
@@ -166,7 +166,7 @@ async def ask_claude(
     if system is None:
         system = instructions.load_instructions(purpose)
 
-    if _preflight_refusal(purpose, model_id, prompt) is not None:
+    if await _preflight_refusal(purpose, model_id, prompt) is not None:
         return None
 
     async with _concurrency_guard:
@@ -178,22 +178,22 @@ async def ask_claude(
         except anthropic.AuthenticationError:
             _auth_disabled = True
             logger.error("ask_claude: invalid Claude API key — disabling further calls until restart")
-            log_llm_call(purpose, model_id, prompt, status="auth_error")
+            await log_llm_call_async(purpose, model_id, prompt, status="auth_error")
             return None
         except anthropic.RateLimitError:
             logger.warning("ask_claude: rate limited — failing this call, a later message can retry")
-            log_llm_call(purpose, model_id, prompt, status="rate_limited")
+            await log_llm_call_async(purpose, model_id, prompt, status="rate_limited")
             return None
         except anthropic.APIStatusError as e:
             logger.error(f"ask_claude: Claude API error ({e.status_code}): {e.message}")
-            log_llm_call(purpose, model_id, prompt, status="api_error", detail=f"HTTP {e.status_code}: {e.message}")
+            await log_llm_call_async(purpose, model_id, prompt, status="api_error", detail=f"HTTP {e.status_code}: {e.message}")
             return None
         except anthropic.APIConnectionError as e:
             # type(e).__name__ only, never str(e)/exc_info — a connection error's
             # message can embed the full request URL, which includes the
             # API key (same caution as weather.py's equivalent handler).
             logger.error(f"ask_claude: connection error: {type(e).__name__}")
-            log_llm_call(purpose, model_id, prompt, status="connection_error", detail=type(e).__name__)
+            await log_llm_call_async(purpose, model_id, prompt, status="connection_error", detail=type(e).__name__)
             return None
 
     text = "".join(block.text for block in response.content if block.type == "text")
@@ -204,7 +204,7 @@ async def ask_claude(
         completion_tokens=response.usage.output_tokens,
         cost=token_tracker.calculate_cost(model_id, response.usage.input_tokens, response.usage.output_tokens),
     )
-    log_llm_call(purpose, model_id, prompt, status="success", response=text)
+    await log_llm_call_async(purpose, model_id, prompt, status="success", response=text)
 
     return text
 
@@ -270,7 +270,7 @@ async def ask_claude_stream(
     if system is None:
         system = instructions.load_instructions(purpose)
 
-    if _preflight_refusal(purpose, model_id, prompt) is not None:
+    if await _preflight_refusal(purpose, model_id, prompt) is not None:
         return
 
     kwargs = {"model": model_id, "max_tokens": max_tokens, "messages": [{"role": "user", "content": prompt}]}
@@ -315,21 +315,21 @@ async def ask_claude_stream(
         except anthropic.AuthenticationError:
             _auth_disabled = True
             logger.error("ask_claude: invalid Claude API key — disabling further calls until restart")
-            log_llm_call(purpose, model_id, prompt, status="auth_error")
+            await log_llm_call_async(purpose, model_id, prompt, status="auth_error")
             return
         except anthropic.RateLimitError:
             logger.warning("ask_claude: rate limited — failing this call, a later message can retry")
-            log_llm_call(purpose, model_id, prompt, status="rate_limited")
+            await log_llm_call_async(purpose, model_id, prompt, status="rate_limited")
             return
         except anthropic.APIStatusError as e:
             logger.error(f"ask_claude: Claude API error ({e.status_code}): {e.message}")
-            log_llm_call(purpose, model_id, prompt, status="api_error", detail=f"HTTP {e.status_code}: {e.message}")
+            await log_llm_call_async(purpose, model_id, prompt, status="api_error", detail=f"HTTP {e.status_code}: {e.message}")
             return
         except anthropic.APIConnectionError as e:
             # type(e).__name__ only, never str(e)/exc_info — see ask_claude's
             # equivalent handler above.
             logger.error(f"ask_claude: connection error: {type(e).__name__}")
-            log_llm_call(purpose, model_id, prompt, status="connection_error", detail=type(e).__name__)
+            await log_llm_call_async(purpose, model_id, prompt, status="connection_error", detail=type(e).__name__)
             return
 
     if final_usage is not None:
@@ -339,7 +339,7 @@ async def ask_claude_stream(
             completion_tokens=final_usage.output_tokens,
             cost=token_tracker.calculate_cost(model_id, final_usage.input_tokens, final_usage.output_tokens),
         )
-    log_llm_call(purpose, model_id, prompt, status="success", response="".join(full_text_parts))
+    await log_llm_call_async(purpose, model_id, prompt, status="success", response="".join(full_text_parts))
 
 
 def _call_claude_sync(
@@ -408,3 +408,21 @@ def log_llm_call(
             f.write(entry)
     except OSError as e:
         logger.error(f"Failed to write to LLM usage log: {e}", exc_info=True)
+
+
+async def log_llm_call_async(
+    purpose: str,
+    model: str,
+    prompt: str,
+    status: str = "success",
+    detail: Optional[str] = None,
+    response: Optional[str] = None,
+) -> None:
+    """log_llm_call, off the event loop. Every call site in this module
+    uses this instead of calling log_llm_call directly, so the blocking
+    file write there never runs inline on the event loop -- same reasoning
+    as _call_claude_sync already being run via asyncio.to_thread instead of
+    inline. Same content, same file, same order (each call is individually
+    awaited under _concurrency_guard, so relative ordering across calls in
+    the same coroutine is unchanged)."""
+    await asyncio.to_thread(log_llm_call, purpose, model, prompt, status, detail, response)

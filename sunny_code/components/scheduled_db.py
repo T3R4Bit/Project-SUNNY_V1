@@ -26,7 +26,32 @@ class ScheduledDB:
 
     def __init__(self, db_path: Path):
         self.db_path = db_path
+        self._read_conn: Optional[sqlite3.Connection] = None
         self._init_db()
+
+    def _get_due_items_conn(self) -> sqlite3.Connection:
+        """Long-lived read-only connection reused only by get_due_items() —
+        the one confirmed hot path here (polled every 30s by discord_bot.py's
+        scheduled_check_loop; see db_connection.py's docstring for the past
+        fd-leak incident this file already fixed via closing_transaction).
+        Every other method here stays connect-per-call: scheduled.db is also
+        written to by chat.py, a separate OS process (see chat.py's own
+        ScheduledDB construction), so this class can't assume it's the only
+        writer the way token_tracker.py/dashboard.py can for sunny.db. A
+        connection reused only for repeat SELECTs carries no extra
+        cross-process lock risk (SQLite doesn't hold a lock across idle
+        SELECT-only connections), so pooling just this one read path is
+        safe even with a concurrent writer process."""
+        if self._read_conn is None:
+            self._read_conn = sqlite3.connect(self.db_path)
+            self._read_conn.row_factory = sqlite3.Row
+        return self._read_conn
+
+    def close(self) -> None:
+        """Release the pooled read connection. Call on app shutdown."""
+        if self._read_conn is not None:
+            self._read_conn.close()
+            self._read_conn = None
 
     def _init_db(self):
         with closing_transaction(sqlite3.connect(self.db_path)) as conn:
@@ -106,11 +131,10 @@ class ScheduledDB:
             query += " AND kind = ?"
             params.append(kind)
 
-        with closing_transaction(sqlite3.connect(self.db_path)) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute(query, params)
-            return [dict(row) for row in cursor.fetchall()]
+        conn = self._get_due_items_conn()
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
 
     def find_active(self, kind: str, label_text: str) -> List[Dict]:
         """Find active items of a kind matching label text (exact match first, else substring)."""
