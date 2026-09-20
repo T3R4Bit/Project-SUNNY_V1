@@ -8,19 +8,23 @@ tags: [roadmap, timeline, planning, garmin, pwa, memory]
 
 # Roadmap — September 2026
 
-> **Build status (2026-09-20, overnight session)** — branch `feat/roadmap-stage-a`
+> **Build status (2026-09-20, overnight session)** — merged to `main`, **pushed to GitHub**
 >
 > | Stage | State |
 > | --- | --- |
-> | A — capture (Garmin, pressure, check-in) | **Built**, needs credentials |
+> | A — capture (Garmin, pressure, check-in) | **Shipped** · needs `GARMIN_EMAIL`/`GARMIN_PASSWORD` |
 > | A2 — vault sync | Not started (needs TrueNAS access) |
-> | B — brief windows (#12), personality (#16) | **Built** |
-> | B — capture speed (#3, #11) | Partly: see "Morning decisions" below |
-> | C — Gmail diagnosability (#14) | **Built**, root cause still needs the live box |
-> | D–H | Not started |
+> | B — brief windows (#12), personality (#16) | **Shipped** |
+> | B — capture speed (#3, #11) | Category bugs fixed; LLM inference deferred |
+> | C — Gmail diagnosability (#14) | **Shipped** · root cause still needs the live box |
+> | D — readiness score + workouts | Not started (wants ~3 weeks of data) |
+> | E–H | Not started |
+> | **New: `/health` page (#9, #10)** | **Shipped** · tiles, range-selectable charts, check-in |
 >
-> Five commits, 4 new test suites (86 checks, all passing). Nothing is
-> deployed — this is all on a branch. See "Morning decisions" at the bottom.
+> 8 commits, 4 new test suites (125 checks, all passing). Pushed to
+> `T3R4Bit/Project-SUNNY@main` and `T3R4Bit/keaton-dev@master`.
+> **Still needs a pull + restart on the Lenovo and the site host to go live.**
+> See "Morning decisions" at the bottom.
 
 Sequenced plan for the 16 items raised 2026-09-20. Complements [[BACKLOG.md]]
 (unscoped item list) and [[phases.md]] (historical build timeline) — this doc is
@@ -399,9 +403,33 @@ Blocking, in priority order:
    category from the task title needs `extract.py` plus a live API key to verify,
    and replacing a working wizard with an unverified LLM path felt like the wrong
    thing to leave running unattended. Decide whether to build it next.
-5. **Backfill window** — how far back should the first Garmin pull go?
-   `POST /api/health/garmin/backfill {"start": "2026-01-01"}`. Longer is many
-   sequential calls against an unofficial API.
+5. ~~**Backfill window**~~ — decided: **365 days, automatic on first connection.**
+   Range endpoints (`get_sleep_daily`, `get_rhr_daily`, `get_daily_steps`,
+   `get_hrv_data_range`) make a year cost ~65 throttled calls in 28-day chunks
+   rather than ~2,200 per-day ones, so a year is affordable where it wouldn't
+   have been. Training readiness and acute load have no range variant and only
+   exist on newer watches, so those fetch the recent 60 days only. Override with
+   `POST /api/health/garmin/backfill {"start": "..."}`.
+
+6. ~~**HRV Status / Pulse Ox**~~ — decided: **ingest whatever the watch reports,
+   require neither.** Each Garmin endpoint is fetched independently, so a missing
+   metric costs only itself. Recommendation: leave overnight Pulse Ox **off** —
+   it's a real battery cost and overnight HRV plus respiration already carry most
+   of the recovery signal. Turn it on later if SpO₂ earns its place.
+
+### Deploy state
+
+Pushed to both GitHub repos. The monorepo has no GitHub remote of its own —
+`sunny/` and `dashboard/` are subtrees that split back to their own repos:
+
+```bash
+git subtree split --prefix=sunny -b _push && git push gh-sunny _push:main
+git subtree split --prefix=dashboard -b _push2 && git push gh-dash _push2:master
+```
+
+Remotes `gh-sunny` and `gh-dash` are configured in the monorepo. Both pushes were
+verified fast-forwards. **The Lenovo and the site host still need to pull and
+restart.**
 
 ## Explicitly not doing
 
