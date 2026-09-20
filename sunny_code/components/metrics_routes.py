@@ -18,7 +18,9 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from sunny_code.components import checkin, daily_ingest, day_boundary, garmin_client, metrics_store
+from sunny_code.components import (
+    checkin, daily_ingest, day_boundary, garmin_client, metrics_store, readiness, workouts,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -166,6 +168,7 @@ def create_metrics_router() -> APIRouter:
 
         # (series name, label, unit, decimals, higher_is_better)
         tracked = [
+            (readiness.M_SCORE, "Sunny Readiness", "", 0, True),
             (garmin_client.M_TRAINING_READINESS, "Training readiness", "", 0, True),
             (garmin_client.M_BODY_BATTERY_WAKE, "Body Battery at wake", "", 0, True),
             (garmin_client.M_SLEEP_HOURS, "Sleep", "h", 1, True),
@@ -178,6 +181,10 @@ def create_metrics_router() -> APIRouter:
             (garmin_client.M_RESPIRATION, "Respiration", "br/min", 0, None),
             (garmin_client.M_SPO2, "SpO₂", "%", 0, True),
             (garmin_client.M_SKIN_TEMP, "Skin temp", "°C", 1, None),
+            (garmin_client.M_VO2MAX, "VO₂ max", "", 1, True),
+            (garmin_client.M_LOAD_AEROBIC_LOW, "Aerobic base load", "", 0, True),
+            (garmin_client.M_LOAD_AEROBIC_HIGH, "Aerobic high load", "", 0, True),
+            (garmin_client.M_LOAD_ANAEROBIC, "Anaerobic load", "", 0, True),
             (daily_ingest.M_PRESSURE, "Pressure", "hPa", 0, None),
         ]
 
@@ -216,6 +223,31 @@ def create_metrics_router() -> APIRouter:
             "checkin": checkin.answered(today),
             "garmin": garmin_client.status(),
         }
+
+    @router.get("/health/readiness")
+    async def get_readiness(day: Optional[str] = None):
+        """Today's composite, with the components that produced it.
+
+        Always returns the breakdown, never a bare number: a score built
+        from two of three signals is a different claim from one built on
+        all three, and the caller has to be able to tell."""
+        result = readiness.score(day)
+        if result is None:
+            return {"available": False, "score": None, "load_gap": readiness.load_gap()}
+        return {"available": True, **result, "load_gap": readiness.load_gap()}
+
+    @router.post("/health/readiness/recompute")
+    async def recompute_readiness(days: int = Query(365, ge=1, le=1000)):
+        """Rebuild the stored score series. Pure arithmetic over metrics
+        already held -- no API calls -- so it's safe to re-run after
+        retuning the weights, which is the point: a retune should change
+        history too, not just tomorrow."""
+        return {"days_stored": readiness.recompute_history(days=days)}
+
+    @router.get("/health/workouts")
+    async def get_workout_windows(days_ahead: int = Query(2, ge=1, le=7)):
+        """Free calendar windows ranked by readiness."""
+        return workouts.find_windows(days_ahead=days_ahead)
 
     @router.get("/health/garmin/status")
     async def garmin_status():

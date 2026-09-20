@@ -66,6 +66,19 @@ M_SPO2 = "garmin.spo2_avg"
 M_SKIN_TEMP = "garmin.skin_temp_c"
 # Not a health metric -- records that a historical backfill completed, so
 # the automatic first-run one happens once rather than on every restart.
+# Monthly training load per intensity band, with Garmin's own target
+# range. There is no acuteTrainingLoad field on this account -- confirmed
+# live 2026-09-20, acuteTrainingLoadDTO comes back None -- so this is what
+# "training load" actually means here. The target minimums are what make
+# the numbers interpretable: load alone says nothing without the range
+# Garmin thinks it should sit in.
+M_VO2MAX = "garmin.vo2max"
+M_LOAD_AEROBIC_LOW = "garmin.load_aerobic_low"
+M_LOAD_AEROBIC_HIGH = "garmin.load_aerobic_high"
+M_LOAD_ANAEROBIC = "garmin.load_anaerobic"
+M_LOAD_AEROBIC_LOW_MIN = "garmin.load_aerobic_low_target_min"
+M_LOAD_AEROBIC_HIGH_MIN = "garmin.load_aerobic_high_target_min"
+M_LOAD_ANAEROBIC_MIN = "garmin.load_anaerobic_target_min"
 M_BACKFILL_MARKER = "garmin.backfill_completed"
 
 # How many recent days a routine pull re-fetches. Not 1: Garmin revises
@@ -209,10 +222,41 @@ def fetch_day(client, day: date) -> Dict[str, Optional[float]]:
     if isinstance(readiness, list) and readiness and isinstance(readiness[0], dict):
         out[M_TRAINING_READINESS] = _num(readiness[0].get("score"))
 
-    load = _safe(lambda: client.get_training_status(iso), "training status")
-    if isinstance(load, dict):
-        acute = load.get("acuteTrainingLoadDTO") or {}
-        out[M_ACUTE_LOAD] = _num(acute.get("acuteTrainingLoad"))
+    status = _safe(lambda: client.get_training_status(iso), "training status")
+    if isinstance(status, dict):
+        out.update(_parse_training_status(status))
+
+    return out
+
+
+def _parse_training_status(status: Dict) -> Dict[str, Optional[float]]:
+    """VO2 max and monthly training load out of get_training_status.
+
+    The load figures live under an account-keyed map
+    (metricsTrainingLoadBalanceDTOMap -> {<some id>: {...}}), so the key
+    cannot be hardcoded -- this takes the first entry rather than guessing
+    an id that differs per device. acuteTrainingLoadDTO exists in the
+    response shape but is None on this account, which is why acute load is
+    not read here.
+    """
+    out: Dict[str, Optional[float]] = {}
+
+    vo2 = (status.get("mostRecentVO2Max") or {}).get("generic") or {}
+    out[M_VO2MAX] = _num(vo2.get("vo2MaxPreciseValue") or vo2.get("vo2MaxValue"))
+
+    balance = (status.get("mostRecentTrainingLoadBalance") or {}).get(
+        "metricsTrainingLoadBalanceDTOMap"
+    ) or {}
+    entry = next((v for v in balance.values() if isinstance(v, dict)), {})
+    for metric, key in (
+        (M_LOAD_AEROBIC_LOW, "monthlyLoadAerobicLow"),
+        (M_LOAD_AEROBIC_HIGH, "monthlyLoadAerobicHigh"),
+        (M_LOAD_ANAEROBIC, "monthlyLoadAnaerobic"),
+        (M_LOAD_AEROBIC_LOW_MIN, "monthlyLoadAerobicLowTargetMin"),
+        (M_LOAD_AEROBIC_HIGH_MIN, "monthlyLoadAerobicHighTargetMin"),
+        (M_LOAD_ANAEROBIC_MIN, "monthlyLoadAnaerobicTargetMin"),
+    ):
+        out[metric] = _num(entry.get(key))
 
     return out
 
@@ -324,10 +368,14 @@ _CHUNK_DAYS = 28
 _THROTTLE_SECONDS = 1.5
 
 # Training readiness and training status have no range endpoint, so they
-# cost one call per day. They're also only produced by newer watches and
-# only meaningful recently, so a full-history per-day sweep for them would
-# be thousands of calls for mostly-empty results. Recent window only.
-_PER_DAY_RECENT_WINDOW = 60
+# cost one call per day -- the one genuinely expensive part of a backfill.
+#
+# Originally capped at 60 days on the assumption that readiness only
+# exists recently. That was wrong: a spot check on 2026-09-20 returned
+# real scores for dates 8 months back, so the cap was the limiter, not
+# availability. Raised to a year, which is ~365 throttled calls and the
+# reason backfill() is manual and one-shot rather than scheduled.
+_PER_DAY_RECENT_WINDOW = 365
 
 # How far back an automatic first-run backfill reaches. A year covers a
 # full seasonal cycle (which is what makes the barometric-pressure and

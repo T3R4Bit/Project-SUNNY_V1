@@ -22,7 +22,7 @@ from sunny_code.components.llm_client import ask_claude, ask_claude_stream
 from sunny_code.components.request_log import log_unfulfilled
 from sunny_code.components import (
     checkin, class_memory, conversation_memory, day_boundary, docs_search, google_calendar, google_gmail,
-    health_check, metrics_store, weather,
+    health_check, metrics_store, readiness, weather,
 )
 
 OnChunk = Callable[[str], Awaitable[None]]
@@ -224,8 +224,20 @@ class BriefingTemplates:
             BriefingTemplates._email_text(unconfigured),
         )
         commute_note = note("commute")
-        health_note = note("health")
         news_note = note("news")
+
+        # Real wellness data when it exists, else the honest note -- same
+        # contract as weather/calendar. Uses today's calendar date rather
+        # than the logging day: a morning brief is always about the day
+        # actually starting.
+        wellness_lines = BriefingTemplates._wellness_lines(now.date().isoformat())
+        health_note = ("\n   ".join(wellness_lines)) if wellness_lines else note("health")
+
+        # The workout window is in the MORNING brief specifically: it's
+        # only actionable while the day it describes still has the free
+        # time in it. Reading it at 10pm is just a report on a day that
+        # already happened.
+        workout_note = BriefingTemplates._workout_line()
 
         open_tasks = tasks_db.get_open_tasks()
         in_progress = tasks_db.get_in_progress_tasks()
@@ -266,7 +278,7 @@ TASKS ({task_count} total)
 
 WELLNESS
    {health_note}
-
+{workout_note}
 HEADLINES
    {news_note}
 
@@ -297,6 +309,14 @@ Have a productive day!
         """
         from sunny_code.components import garmin_client
 
+        # Composite first: it's the one line worth reading if you read
+        # only one, and it carries its own "from N of 3 signals" caveat
+        # when incomplete.
+        lines = []
+        readiness_line = readiness.summary_line(day)
+        if readiness_line:
+            lines.append(readiness_line)
+
         rows = [
             ("Sleep", garmin_client.M_SLEEP_HOURS, "{:.1f} h"),
             ("Sleep score", garmin_client.M_SLEEP_SCORE, "{:.0f}"),
@@ -305,12 +325,48 @@ Have a productive day!
             ("Resting HR", garmin_client.M_RESTING_HR, "{:.0f} bpm"),
             ("Steps", garmin_client.M_STEPS, "{:,.0f}"),
         ]
-        lines = []
         for label, metric, fmt in rows:
             value = metrics_store.get_for_day(metric, day)
             if value is not None:
                 lines.append(f"{label}: {fmt.format(value)}")
         return lines
+
+    @staticmethod
+    def _workout_line() -> str:
+        """A TRAINING section for the morning brief, or "" when there's
+        nothing honest to say.
+
+        Silent rather than apologetic when the calendar isn't connected or
+        no window is long enough -- a brief that prints "no workout window"
+        every single day teaches you to skip the section.
+        """
+        from sunny_code.components import workouts
+
+        try:
+            result = workouts.find_windows(days_ahead=2)
+        except Exception as e:
+            logger.error(f"Workout windows failed: {e}", exc_info=True)
+            return ""
+
+        if not result.get("available") or not result.get("windows"):
+            return ""
+
+        best = result["windows"][0]
+        lines = [f"   {best['label']} — {best['minutes']} min free · {best['intensity']}"]
+
+        gap = result.get("load_gap")
+        if gap and gap.get("under_target"):
+            worst = gap["worst"]
+            lines.append(
+                f"   {worst['label'].capitalize()} load is {worst['deficit_pct']}% under "
+                f"Garmin's target ({worst['current']} vs {worst['target_min']})"
+            )
+
+        runner_up = result["windows"][1] if len(result["windows"]) > 1 else None
+        if runner_up:
+            lines.append(f"   Backup: {runner_up['label']} ({runner_up['minutes']} min)")
+
+        return "\nTRAINING\n" + "\n".join(lines) + "\n"
 
     @staticmethod
     async def evening_briefing(tasks_db: TaskDB) -> str:
