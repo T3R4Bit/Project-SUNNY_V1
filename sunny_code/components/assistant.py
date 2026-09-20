@@ -532,17 +532,45 @@ async def _finish_task_with_category(
     command string left to re-parse here, unlike _create_task_from_reply,
     so this goes through TaskEngine.create_task_from_data() directly.
 
-    Accepts the reply as-is even if it doesn't match a category in
-    category_store — same permissive spirit as every other field here
-    (categories are still free-form storage; the live list is just what
-    gets offered/asked about)."""
+    Used to accept the reply as-is even when it matched no known category,
+    on the reasoning that categories are free-form storage. In practice
+    that turned every typo into a new one-task category: answering
+    "shcool" filed the task under "shcool", which then showed up as its
+    own heading in the dashboard's grouping forever, invisible until you
+    noticed your School list was missing something. Typos are far more
+    common here than a deliberate new category, and a deliberate new one
+    has a real command ("add category X"), so an unrecognized answer now
+    re-asks instead of silently inventing.
+
+    Prefix matching is accepted because the question lists the options, so
+    "mot" answering "General, School, Motorsports" is unambiguous and
+    typing the whole word is friction for no benefit."""
     category = reply.strip().strip('"\'')
+    categories = category_store.get_categories()
+
     if not category:
         _set_pending(session_id, "task_category", **pending_data)
-        categories = category_store.get_categories()
         return f'Still need a category — {", ".join(categories)}? (or say "cancel")'
 
-    matched = next((c for c in category_store.get_categories() if c.lower() == category.lower()), category)
+    matched = next((c for c in categories if c.lower() == category.lower()), None)
+    if matched is None:
+        prefix_hits = [c for c in categories if c.lower().startswith(category.lower())]
+        if len(prefix_hits) == 1:
+            matched = prefix_hits[0]
+        elif len(prefix_hits) > 1:
+            _set_pending(session_id, "task_category", **pending_data)
+            return (
+                f'"{category}" could be {" or ".join(prefix_hits)} — which one? '
+                '(or say "cancel")'
+            )
+
+    if matched is None:
+        _set_pending(session_id, "task_category", **pending_data)
+        return (
+            f'I don\'t have a category called "{category}" — {", ".join(categories)}? '
+            f'(or "add category {category}" first, or say "cancel")'
+        )
+
     data = {**pending_data, "tag": matched}
     _, message = await tasks_engine.create_task_from_data(data, source=source)
     return message
@@ -775,6 +803,20 @@ async def _handle_message_inner(
             _pending.pop(session_id, None)
             trace.mark_route("wizard:task_category", "cancel", confidence="exact", function="cancel")
             return "No worries — cancelled."
+
+        # A name from the live category list answers the outstanding
+        # question, full stop — checked BEFORE _looks_like_a_command so a
+        # category whose name collides with some other command grammar
+        # can still be used as an answer. Without this, adding a category
+        # called "Help", "Info" or "Lists" would make it unanswerable:
+        # the guard would classify the reply as an unrelated command,
+        # silently drop the pending task, and route the word somewhere
+        # else — losing the task the user was halfway through creating.
+        answer = stripped.strip('"\'').lower()
+        if any(c.lower() == answer for c in categories):
+            _pending.pop(session_id, None)
+            trace.mark_route("wizard:task_category", "finish_task", confidence="exact", function="_finish_task_with_category")
+            return await _finish_task_with_category(stripped, task_data, tasks_engine, session_id, source)
 
         if not _looks_like_a_command(stripped, lowered, categories):
             _pending.pop(session_id, None)

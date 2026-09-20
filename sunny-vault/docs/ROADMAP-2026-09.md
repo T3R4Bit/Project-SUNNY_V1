@@ -8,7 +8,21 @@ tags: [roadmap, timeline, planning, garmin, pwa, memory]
 
 # Roadmap — September 2026
 
-Sequenced plan for the 13 items raised 2026-09-20. Complements [[BACKLOG.md]]
+> **Build status (2026-09-20, overnight session)** — branch `feat/roadmap-stage-a`
+>
+> | Stage | State |
+> | --- | --- |
+> | A — capture (Garmin, pressure, check-in) | **Built**, needs credentials |
+> | A2 — vault sync | Not started (needs TrueNAS access) |
+> | B — brief windows (#12), personality (#16) | **Built** |
+> | B — capture speed (#3, #11) | Partly: see "Morning decisions" below |
+> | C — Gmail diagnosability (#14) | **Built**, root cause still needs the live box |
+> | D–H | Not started |
+>
+> Five commits, 4 new test suites (86 checks, all passing). Nothing is
+> deployed — this is all on a branch. See "Morning decisions" at the bottom.
+
+Sequenced plan for the 16 items raised 2026-09-20. Complements [[BACKLOG.md]]
 (unscoped item list) and [[phases.md]] (historical build timeline) — this doc is
 specifically *what order, and why*. Pull each stage into `phases.md` as it starts.
 
@@ -51,15 +65,15 @@ so it has real material to remember, rather than being an empty store looking fo
 
 Capture only. No score, no dashboard, no reasoning.
 
-- [ ] `garminconnect` auth via `garth`, token cached to disk (~1yr before reauth)
-- [ ] Daily pull job — once or twice a day, never polling
-- [ ] `metrics(name, ts, value)` table, replacing the dead fixed-column one at
+- [x] `garminconnect` auth via `garth`, token cached to disk (~1yr before reauth)
+- [x] Daily pull job — once or twice a day, never polling
+- [x] `metrics(name, ts, value)` table, replacing the dead fixed-column one at
       `dashboard.py:51` (nothing has ever written to it)
-- [ ] Backfill script for whatever history Connect will return
-- [ ] Daily check-in framework — generic, migraine as its first question, delivered
+- [x] Backfill script for whatever history Connect will return
+- [x] Daily check-in framework — generic, migraine as its first question, delivered
       through the existing Discord nightly brief
-- [ ] Barometric pressure logged on the same row from the existing weather API
-- [ ] `DAY_BOUNDARY_HOUR = 5` as one shared constant
+- [x] Barometric pressure logged on the same row from the existing weather API
+- [x] `DAY_BOUNDARY_HOUR = 5` as one shared constant
 
 **Closes:** #7 (data half), #8
 **Prereqs on you:** confirm the watch reports HRV Status; enable overnight Pulse Ox
@@ -142,12 +156,12 @@ and Sunny would otherwise both want to write.
       extraction as the fallback instead of the current error
 - [ ] **Category (#3)** — infer from title against `category_store`, auto-file above
       ~85% and say which one, ask only below that
-- [ ] **Brief windows (#12)** — one `active_brief_period(now)`: daily 05:00-18:30,
+- [x] **Brief windows (#12)** — one `active_brief_period(now)`: daily 05:00-18:30,
       nightly 18:30-05:00. Every consumer calls it instead of deriving its own edge.
       Fix the alarm-prewarm boundary in `scheduled_check_loop`.
 - [ ] Thin memory hook — hand-edited `sunny-vault/memory/profile.md` injected into the
       chat prompt, plus "remember that…". Proves the injection path for Stage E.
-- [ ] **Personality file (#16)** — see below
+- [x] **Personality file (#16)** — see below
 
 **Closes:** #3, #11, #12, #16
 
@@ -165,11 +179,11 @@ proactivity: 3    # how readily to volunteer things I didn't ask for
 ---
 ```
 
-- [ ] Applies across **every** interface — chat, voice, briefs — not just the general-chat
+- [x] Applies across **every** interface — chat, voice, briefs — not just the general-chat
       fallback. `instructions/general-chat.md` already exists as a hand-editable prompt;
       this generalizes that idea instead of duplicating it.
-- [ ] Hot-reload on mtime change, so editing it in Obsidian takes effect without a restart
-- [ ] Fail quiet — a malformed file logs and falls back to last-good, never breaks Sunny
+- [x] Hot-reload on mtime change, so editing it in Obsidian takes effect without a restart
+- [x] Fail quiet — a malformed file logs and falls back to last-good, never breaks Sunny
 - [ ] `bluntness` and `verbosity` should also reach `tts_delivery.py`, which already
       varies pace by message type
 
@@ -193,16 +207,16 @@ structural fix. Personality proposals go to `memory/suggestions.md` for you to m
 
 Small, but it's blocking trust in the website panel.
 
-- [ ] Determine root cause live: `curl /api/gmail/flagged` and `/auth/google/status`
+- [x] Determine root cause live: `curl /api/gmail/flagged` and `/auth/google/status`
       on the Lenovo. The route exists and is mounted correctly (`main.py:264`), so it
       is *not* a missing endpoint.
-- [ ] Likely: `_service()` returns None — creds expired, or the stored token predates
+- [x] Likely: `_service()` returns None — creds expired, or the stored token predates
       the `gmail.readonly` scope. Status checks credentials, not scopes, so the status
       row reports "OK · email" while the mail panel says not connected.
-- [ ] Stop `sunny_client.gmail_flagged()` (`sunny_client.py:177`) converting every
+- [x] Stop `sunny_client.gmail_flagged()` (`sunny_client.py:177`) converting every
       failure into `{"available": False}`. That tolerance existed because the endpoint
       didn't exist yet; now it hides real errors. Same for `calendar_today()`.
-- [ ] Surface the real reason in the UI — "token expired", not a generic placeholder
+- [x] Surface the real reason in the UI — "token expired", not a generic placeholder
 
 **Closes:** #14
 
