@@ -61,6 +61,9 @@ M_TRAINING_READINESS = "garmin.training_readiness"
 M_ACUTE_LOAD = "garmin.acute_load"
 M_RESPIRATION = "garmin.respiration_avg"
 M_SPO2 = "garmin.spo2_avg"
+# Wrist/skin temperature -- one of the inputs Bevel's recovery score
+# uses. Only reported by watches that measure it; absent otherwise.
+M_SKIN_TEMP = "garmin.skin_temp_c"
 # Not a health metric -- records that a historical backfill completed, so
 # the automatic first-run one happens once rather than on every restart.
 M_BACKFILL_MARKER = "garmin.backfill_completed"
@@ -273,15 +276,43 @@ def _row_value(row: Dict, *keys: str) -> Optional[float]:
     return None
 
 
-# Bulk endpoints: (metric name, client method, arg style, value key candidates).
-# Every one of these replaces a per-day call, which is what makes a long
-# backfill viable -- see backfill()'s docstring.
+# Bulk endpoints: (client method, {metric: (candidate field names,)}).
+# One request per chunk can yield several metrics, which is what makes a
+# long backfill viable -- see backfill()'s docstring.
+#
+# The field names are not guesses. They were read off the live API on
+# 2026-09-20 (see the row-keys logging in _backfill_bulk), which is how
+# get_sleep_daily turned out to carry six metrics rather than the one it
+# was originally asked for. Alternatives are kept alongside each so a
+# Garmin-side rename degrades to a missing metric rather than a crash.
 _BULK_SOURCES = [
-    (M_SLEEP_SCORE, "get_sleep_daily", ("sleepScore", "overallScore", "score", "value")),
-    (M_RESTING_HR, "get_rhr_daily", ("restingHeartRate", "value", "restingHR")),
-    (M_STEPS, "get_daily_steps", ("totalSteps", "steps", "value")),
-    (M_HRV, "get_hrv_data_range", ("lastNightAvg", "weeklyAvg", "value")),
+    # The richest endpoint by a wide margin: its nested `values` dict holds
+    # sleep, HRV, resting HR, respiration, SpO2 and skin temperature. Using
+    # it for all six replaces five separate per-day calls, and supplies
+    # overnight HRV without get_hrv_data_range (dropped -- same figure,
+    # one more request, and it returned an unusable shape during the first
+    # real backfill).
+    ("get_sleep_daily", {
+        M_SLEEP_SCORE: ("sleepScore", "overallScore", "score"),
+        M_SLEEP_HOURS: ("totalSleepTimeInSeconds",),  # converted below
+        M_HRV: ("avgOvernightHrv", "hrv7dAverage"),
+        M_RESTING_HR: ("restingHeartRate",),
+        M_RESPIRATION: ("respiration", "averageRespirationValue"),
+        M_SPO2: ("spO2", "averageSpO2Value"),
+        M_SKIN_TEMP: ("skinTempC",),
+    }),
+    # Kept despite sleep_daily also carrying restingHeartRate: this one is
+    # reported on days with no recorded sleep, so dropping it would punch
+    # holes in the longest, most complete series.
+    ("get_rhr_daily", {M_RESTING_HR: ("restingHeartRate", "value", "restingHR")}),
+    ("get_daily_steps", {M_STEPS: ("totalSteps", "steps", "value")}),
+    # Range-capable, keyed on `date` rather than `calendarDate` -- handled
+    # by _row_date's candidate list.
+    ("get_body_battery", {M_BODY_BATTERY_WAKE: ("charged", "maxBodyBattery")}),
 ]
+
+# Metrics stored in seconds by Garmin but useful in hours.
+_SECONDS_TO_HOURS = {M_SLEEP_HOURS}
 
 # Days per range request. Garmin rejects or truncates very wide windows on
 # some endpoints, and a smaller chunk also means a failure costs less work.
@@ -307,10 +338,10 @@ DEFAULT_BACKFILL_DAYS = 365
 def _backfill_bulk(client, start: date, end: date) -> int:
     """Range-endpoint pass. Returns points stored."""
     stored = 0
-    for metric, method_name, value_keys in _BULK_SOURCES:
+    for method_name, metric_fields in _BULK_SOURCES:
         method = getattr(client, method_name, None)
         if method is None:
-            logger.warning(f"garminconnect has no {method_name} — skipping {metric}")
+            logger.warning(f"garminconnect has no {method_name} — skipping")
             continue
 
         window_start = start
@@ -335,26 +366,35 @@ def _backfill_bulk(client, start: date, end: date) -> int:
                 window_start = window_end + timedelta(days=1)
                 continue
 
-            # Log the real shape once per metric. Without this, a changed
+            # Log the real shape once per endpoint. Without this, a changed
             # field name stores nothing and looks identical to "no data" --
-            # this turns that into one greppable log line.
+            # this turns that into one greppable log line. It is how
+            # get_sleep_daily was found to carry six metrics rather than one.
             if rows and not logged_shape:
                 sample = rows[0] if isinstance(rows[0], dict) else {}
+                nested = sample.get("values") if isinstance(sample.get("values"), dict) else {}
                 logger.info(f"Garmin {method_name} row keys: {sorted(sample.keys())[:12]}")
+                if nested:
+                    logger.info(f"Garmin {method_name} values keys: {sorted(nested.keys())[:24]}")
                 logged_shape = True
 
-            batch: Dict[str, float] = {}
+            batch: Dict[str, Dict[str, float]] = {}
             for row in rows:
                 if not isinstance(row, dict):
                     continue
                 day_key = _row_date(row)
-                value = _row_value(row, *value_keys)
-                if day_key and value is not None:
-                    batch[day_key] = value
+                if not day_key:
+                    continue
+                for metric, candidates in metric_fields.items():
+                    value = _row_value(row, *candidates)
+                    if value is None:
+                        continue
+                    if metric in _SECONDS_TO_HOURS:
+                        value = round(value / 3600, 2)
+                    batch.setdefault(day_key, {})[metric] = value
 
-            for day_key, value in batch.items():
-                metrics_store.record(metric, value, ts=day_key)
-            stored += len(batch)
+            for day_key, metrics in batch.items():
+                stored += metrics_store.record_many(metrics, ts=day_key)
 
             window_start = window_end + timedelta(days=1)
 

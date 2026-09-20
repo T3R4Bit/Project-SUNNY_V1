@@ -177,6 +177,7 @@ def create_metrics_router() -> APIRouter:
             (garmin_client.M_ACUTE_LOAD, "Acute load", "", 0, None),
             (garmin_client.M_RESPIRATION, "Respiration", "br/min", 0, None),
             (garmin_client.M_SPO2, "SpO₂", "%", 0, True),
+            (garmin_client.M_SKIN_TEMP, "Skin temp", "°C", 1, None),
             (daily_ingest.M_PRESSURE, "Pressure", "hPa", 0, None),
         ]
 
