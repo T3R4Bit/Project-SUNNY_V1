@@ -19,6 +19,40 @@ logger = logging.getLogger(__name__)
 
 _TOP_SUBJECTS_LIMIT = 5
 
+# Why the last Gmail call failed, for the dashboard to show. get_summary()
+# and get_flagged() both return None on failure by contract, which tells a
+# caller that something went wrong but not what -- and the difference
+# between "not signed in", "token expired" and "the Gmail API isn't
+# enabled in the Google Cloud project" is the difference between three
+# completely different fixes. Confirmed necessary 2026-09-20: the real
+# cause was a 403 accessNotConfigured (Gmail API never enabled on the
+# project), while the dashboard was guessing at an expired token.
+last_error_reason: Optional[str] = None
+
+
+def _record_error(exc) -> None:
+    """Store a short, human-actionable reason from a Gmail HttpError."""
+    global last_error_reason
+    text = str(exc)
+    if "accessNotConfigured" in text or "has not been used in project" in text:
+        last_error_reason = (
+            "The Gmail API isn't enabled for this Google Cloud project. "
+            "Enable it in the Cloud Console (APIs & Services -> Library -> "
+            "Gmail API), wait a minute, then retry. Calendar works because "
+            "its API is enabled separately."
+        )
+    elif "invalid_grant" in text or "Token has been expired" in text:
+        last_error_reason = "The Google token expired or was revoked — reconnect at /auth/google/login."
+    elif "insufficientPermissions" in text or "ACCESS_TOKEN_SCOPE_INSUFFICIENT" in text:
+        last_error_reason = (
+            "The stored Google token predates the gmail.readonly scope — "
+            "reconnect at /auth/google/login to re-consent."
+        )
+    elif "403" in text:
+        last_error_reason = f"Gmail refused the request (403). {text[:160]}"
+    else:
+        last_error_reason = f"{type(exc).__name__}: {text[:160]}"
+
 
 def _service():
     creds = google_auth.get_credentials()
@@ -76,6 +110,7 @@ def get_summary() -> Optional[Dict]:
                 )
     except HttpError as e:
         logger.error(f"Gmail API error: {e}", exc_info=True)
+        _record_error(e)
         return None
     except Exception as e:
         logger.error(f"Unexpected error calling Gmail: {e}", exc_info=True)
@@ -139,6 +174,7 @@ def get_flagged(limit: int = 5) -> Optional[List[Dict]]:
             m["flag"] = "LATER"
     except HttpError as e:
         logger.error(f"Gmail API error in get_flagged: {e}", exc_info=True)
+        _record_error(e)
         return None
     except Exception as e:
         logger.error(f"Unexpected error in get_flagged: {e}", exc_info=True)

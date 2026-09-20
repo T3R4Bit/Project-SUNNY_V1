@@ -54,16 +54,26 @@ def create_dashboard_data_router() -> APIRouter:
             # credentials rather than scopes and would happily report
             # "OK · your@email" alongside it.
             connected = await asyncio.to_thread(_google_connected)
+            if not connected:
+                return {
+                    "available": False,
+                    "messages": [],
+                    "reason": "not_connected",
+                    "detail": "Google isn't connected — sign in at /auth/google/login.",
+                }
+
+            # Prefer the real reason the API gave over a guess. An earlier
+            # version of this assumed an expired token; the actual cause
+            # turned out to be a 403 accessNotConfigured (the Gmail API was
+            # never enabled on the Cloud project), which no amount of
+            # reconnecting would have fixed.
             return {
                 "available": False,
                 "messages": [],
-                "reason": "call_failed" if connected else "not_connected",
-                "detail": (
-                    "Google is connected but the Gmail call failed — the token may be "
-                    "expired, or was granted before the gmail.readonly scope was added. "
-                    "Reconnect at /auth/google/login. See sunny.log for the API error."
-                    if connected
-                    else "Google isn't connected — sign in at /auth/google/login."
+                "reason": "call_failed",
+                "detail": google_gmail.last_error_reason or (
+                    "Google is connected but the Gmail call failed — see sunny.log "
+                    "for the API error."
                 ),
             }
         return {"available": True, "messages": flagged, "reason": None, "detail": None}
