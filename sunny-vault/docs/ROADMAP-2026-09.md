@@ -23,8 +23,45 @@ tags: [roadmap, timeline, planning, garmin, pwa, memory]
 >
 > 8 commits, 4 new test suites (125 checks, all passing). Pushed to
 > `T3R4Bit/Project-SUNNY@main` and `T3R4Bit/keaton-dev@master`.
-> **Still needs a pull + restart on the Lenovo and the site host to go live.**
-> See "Morning decisions" at the bottom.
+> **Sunny is LIVE on sunshine-m700** (pulled, deps installed, restarted,
+> verified). Garmin backfilled 2,869 points over 365 days.
+> **The website still needs a container rebuild** — see "Deploy state".
+
+### Live verification (2026-09-20)
+
+| Check | Result |
+| --- | --- |
+| `sunny.service` | active, 0 errors in the new process |
+| Garmin | connected · 359d resting HR, 349d sleep, 336d HRV, 60d readiness |
+| `/api/health/summary` | 200 · 9 metrics |
+| `/api/checkin/pending` | 200 · today's migraine question outstanding |
+| `/api/briefing/active` | 200 · correct period from the shared window |
+| Website `/health` | **staged, not built** — needs `docker compose up -d --build` |
+
+Three real bugs were found only by deploying, all fixed and live:
+
+1. **Cross-thread SQLite.** The perf pass pooled one connection per module;
+   sqlite3 connections are thread-bound, and these are reached from the event
+   loop, `asyncio.to_thread` workers and discord task loops. It took out the
+   Discord usage dashboard and the website's spend panel together. Now
+   thread-local.
+2. **Lost spend updates.** `record_usage` is a read-modify-write, so concurrent
+   LLM calls silently discarded each other's tokens — and those totals enforce
+   the spend caps, so it under-counted. Now serialized.
+3. **Garmin login.** `garminconnect` 0.3.x dropped `garth`, so the token-caching
+   call failed silently and every pull did a fresh SSO login. MFA would also have
+   hung the daemon on stdin. Both fixed.
+
+### Gmail root cause — found
+
+`403 accessNotConfigured`. **The Gmail API was never enabled on the Google Cloud
+project.** Not a token, not a scope — both of those were fine, and the earlier
+guess at an expired token would never have fixed it. Calendar works because its
+API is enabled separately.
+
+**Fix (one click, only you can do it):** Cloud Console → APIs & Services →
+Library → Gmail API → Enable. The panel now reports this exact reason instead of
+guessing.
 
 Sequenced plan for the 16 items raised 2026-09-20. Complements [[BACKLOG.md]]
 (unscoped item list) and [[phases.md]] (historical build timeline) — this doc is
