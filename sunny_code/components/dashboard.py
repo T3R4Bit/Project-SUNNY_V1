@@ -2,6 +2,7 @@
 
 import logging
 import sqlite3
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -19,25 +20,49 @@ class DashboardDB:
 
     def __init__(self, db_path: Path):
         self.db_path = db_path
-        self._conn: sqlite3.Connection | None = None
+        # Thread-local connections; see _connect().
+        self._local = threading.local()
+        self._conns: list[sqlite3.Connection] = []
+        self._conns_lock = threading.Lock()
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
-        """Long-lived connection reused across calls instead of reopening
-        sunny.db every time — DashboardDB is single-process-only (only the
-        main server ever constructs one; chat.py, the one other process
-        that runs this codebase, never does), so there's no cross-process
-        lock-contention concern here, unlike scheduled_db.py's scheduled.db."""
-        if self._conn is None:
-            self._conn = sqlite3.connect(self.db_path)
-            self._conn.row_factory = sqlite3.Row
-        return self._conn
+        """Long-lived connection per thread, reused across calls instead of
+        reopening sunny.db every time.
+
+        Pooled because DashboardDB is single-PROCESS-only (only the main
+        server ever constructs one; chat.py, the one other process running
+        this codebase, never does), so there's no cross-process
+        lock-contention concern, unlike scheduled_db.py's scheduled.db.
+
+        Per-THREAD because sqlite3 connections may only be used from the
+        thread that created them, and this class is reached from both
+        FastAPI request handlers and discord.ext.tasks loops. Sharing one
+        connection across those raised "SQLite objects created in a thread
+        can only be used in that same thread" — see token_tracker._connect
+        for the live 2026-09-20 occurrence and the same fix.
+        """
+        conn = getattr(self._local, "conn", None)
+        if conn is None:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            self._local.conn = conn
+            with self._conns_lock:
+                self._conns.append(conn)
+        return conn
 
     def close(self) -> None:
-        """Release the pooled connection. Call on app shutdown."""
-        if self._conn is not None:
-            self._conn.close()
-            self._conn = None
+        """Release every pooled connection. Call on app shutdown. Guarded
+        per connection because closing one from a thread other than its
+        creator is itself an error, and the process is exiting anyway."""
+        with self._conns_lock:
+            for conn in self._conns:
+                try:
+                    conn.close()
+                except sqlite3.Error:
+                    pass
+            self._conns.clear()
+        self._local.conn = None
 
     def _init_db(self):
         """Initialize database schema."""

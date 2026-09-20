@@ -13,6 +13,7 @@ correctly even if it's the first thing to touch sunny.db in a given process
 import json
 import logging
 import sqlite3
+import threading
 from datetime import date, timedelta
 from typing import Dict, List, Tuple
 
@@ -33,19 +34,41 @@ _PRICING = {
 _DEFAULT_PRICING = _PRICING["claude-opus-5"]
 
 
-_pooled_conn: sqlite3.Connection | None = None
+_local = threading.local()
+# Every connection handed out, so close() can release them all. A plain
+# module-level variable can only ever see the calling thread's.
+_all_conns: list[sqlite3.Connection] = []
+_all_conns_lock = threading.Lock()
+# Serializes record_usage's read-modify-write. See its docstring.
+_write_lock = threading.Lock()
 
 
 def _connect() -> sqlite3.Connection:
-    """Long-lived module-level connection, reused across calls instead of
-    reopening sunny.db every time — this module is single-process-only
+    """Long-lived connection per thread, reused across calls instead of
+    reopening sunny.db every time.
+
+    Pooled rather than per-call because this module is single-PROCESS-only
     (only the main server touches sunny.db's token_usage table; chat.py,
-    the one other process that runs this codebase, never does), so unlike
+    the one other process running this codebase, never does), so unlike
     scheduled_db.py's scheduled.db there's no cross-process lock-contention
-    concern here. Schema creation is idempotent (IF NOT EXISTS) so it only
-    needs to run once, on first connect, not on every call."""
-    global _pooled_conn
-    if _pooled_conn is None:
+    concern.
+
+    Per-THREAD rather than one module-level connection, which is a
+    different question the original pooling missed. sqlite3 connections
+    may only be used from the thread that created them, and this module is
+    called from at least three: the FastAPI event loop (/api/dashboard/
+    spend/*), asyncio.to_thread worker threads, and discord.ext.tasks
+    loops (usage_refresh_loop). A single shared connection raised
+    "SQLite objects created in a thread can only be used in that same
+    thread" on every call from any thread but the first — confirmed live
+    on 2026-09-20, which took out both the Discord usage dashboard and the
+    website's spend panel.
+
+    Schema creation is idempotent (IF NOT EXISTS), so running it once per
+    thread rather than once per process costs nothing.
+    """
+    conn = getattr(_local, "conn", None)
+    if conn is None:
         settings = get_settings()
         conn = sqlite3.connect(settings.db_path)
         conn.row_factory = sqlite3.Row
@@ -60,16 +83,27 @@ def _connect() -> sqlite3.Connection:
             )
             """
         )
-        _pooled_conn = conn
-    return _pooled_conn
+        _local.conn = conn
+        with _all_conns_lock:
+            _all_conns.append(conn)
+    return conn
 
 
 def close() -> None:
-    """Release the pooled connection. Call on app shutdown."""
-    global _pooled_conn
-    if _pooled_conn is not None:
-        _pooled_conn.close()
-        _pooled_conn = None
+    """Release every pooled connection. Call on app shutdown.
+
+    Closing from a thread other than the one that created a connection is
+    itself an error, so each close is guarded — the process is exiting
+    either way, and a noisy shutdown is worse than a leaked fd at that
+    point."""
+    with _all_conns_lock:
+        for conn in _all_conns:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
+        _all_conns.clear()
+    _local.conn = None
 
 
 def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
@@ -78,10 +112,25 @@ def calculate_cost(model: str, prompt_tokens: int, completion_tokens: int) -> fl
 
 
 def record_usage(model: str, prompt_tokens: int, completion_tokens: int, cost: float) -> None:
-    """Add usage to today's rollup row, upserting the by_model breakdown."""
+    """Add usage to today's rollup row, upserting the by_model breakdown.
+
+    Serialized across threads. This is a read-modify-write (SELECT the
+    current totals, add to them, UPDATE), so two concurrent calls could
+    both read the same row and the second write would discard the first's
+    tokens. llm_client makes bounded-concurrent Claude calls and records
+    usage after each, so that race is reachable in normal operation, not
+    theoretical -- and it loses spend downward, which matters because
+    these totals are what enforce the daily/monthly caps. Undercounting
+    means the circuit breaker trips late or not at all.
+
+    A plain threading.Lock is sufficient rather than BEGIN IMMEDIATE
+    because this table is single-process by design (see _connect). If
+    another process ever writes token_usage, this needs to become a
+    real write-locked transaction.
+    """
     today = date.today().isoformat()
     conn = _connect()
-    with conn:
+    with _write_lock, conn:
         row = conn.execute(
             "SELECT prompt_tokens, completion_tokens, total_cost, by_model FROM token_usage WHERE date = ?",
             (today,),
