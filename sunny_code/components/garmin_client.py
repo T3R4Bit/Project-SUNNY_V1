@@ -39,6 +39,7 @@ weights can be changed later without re-pulling anything.
 """
 
 import logging
+import time
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
 
@@ -60,6 +61,9 @@ M_TRAINING_READINESS = "garmin.training_readiness"
 M_ACUTE_LOAD = "garmin.acute_load"
 M_RESPIRATION = "garmin.respiration_avg"
 M_SPO2 = "garmin.spo2_avg"
+# Not a health metric -- records that a historical backfill completed, so
+# the automatic first-run one happens once rather than on every restart.
+M_BACKFILL_MARKER = "garmin.backfill_completed"
 
 # How many recent days a routine pull re-fetches. Not 1: Garmin revises
 # yesterday's sleep score and training readiness for hours after the fact,
@@ -214,34 +218,195 @@ def ingest(days: int = ROUTINE_LOOKBACK_DAYS) -> Dict:
     return {"ok": True, "reason": None, "days": stored_days, "points": stored_points}
 
 
-def backfill(start: date, end: Optional[date] = None) -> Dict:
-    """One-off historical pull from `start` to `end` (default today).
+def _row_date(row: Dict) -> Optional[str]:
+    """The calendar date out of a bulk-endpoint row.
+
+    Key names differ per endpoint and have changed across library
+    versions, so this tries the known spellings rather than assuming one.
+    Returns an ISO date string or None.
+    """
+    for key in ("calendarDate", "calendar_date", "date", "statisticsStartDate"):
+        value = row.get(key)
+        if isinstance(value, str) and len(value) >= 10:
+            return value[:10]
+    # Some rows carry only a timestamp.
+    for key in ("startTimestampLocal", "startTimestampGMT", "timestamp"):
+        value = row.get(key)
+        if isinstance(value, str) and len(value) >= 10:
+            return value[:10]
+    return None
+
+
+def _row_value(row: Dict, *keys: str) -> Optional[float]:
+    """The first present numeric field among `keys`, checking both the row
+    itself and a nested `values` dict (several Garmin bulk endpoints wrap
+    their payload that way)."""
+    nested = row.get("values") if isinstance(row.get("values"), dict) else {}
+    for key in keys:
+        for source in (row, nested):
+            if key in source:
+                number = _num(source.get(key))
+                if number is not None:
+                    return number
+    return None
+
+
+# Bulk endpoints: (metric name, client method, arg style, value key candidates).
+# Every one of these replaces a per-day call, which is what makes a long
+# backfill viable -- see backfill()'s docstring.
+_BULK_SOURCES = [
+    (M_SLEEP_SCORE, "get_sleep_daily", ("sleepScore", "overallScore", "score", "value")),
+    (M_RESTING_HR, "get_rhr_daily", ("restingHeartRate", "value", "restingHR")),
+    (M_STEPS, "get_daily_steps", ("totalSteps", "steps", "value")),
+    (M_HRV, "get_hrv_data_range", ("lastNightAvg", "weeklyAvg", "value")),
+]
+
+# Days per range request. Garmin rejects or truncates very wide windows on
+# some endpoints, and a smaller chunk also means a failure costs less work.
+_CHUNK_DAYS = 28
+
+# Pause between API calls. An unofficial endpoint authenticated as the user
+# is exactly the wrong place to hammer, and a backfill is the only code
+# path here that makes many calls in a row.
+_THROTTLE_SECONDS = 1.5
+
+# Training readiness and training status have no range endpoint, so they
+# cost one call per day. They're also only produced by newer watches and
+# only meaningful recently, so a full-history per-day sweep for them would
+# be thousands of calls for mostly-empty results. Recent window only.
+_PER_DAY_RECENT_WINDOW = 60
+
+# How far back an automatic first-run backfill reaches. A year covers a
+# full seasonal cycle (which is what makes the barometric-pressure and
+# sleep correlations interesting) without the call volume of "everything".
+DEFAULT_BACKFILL_DAYS = 365
+
+
+def _backfill_bulk(client, start: date, end: date) -> int:
+    """Range-endpoint pass. Returns points stored."""
+    stored = 0
+    for metric, method_name, value_keys in _BULK_SOURCES:
+        method = getattr(client, method_name, None)
+        if method is None:
+            logger.warning(f"garminconnect has no {method_name} — skipping {metric}")
+            continue
+
+        window_start = start
+        logged_shape = False
+        while window_start <= end:
+            window_end = min(window_start + timedelta(days=_CHUNK_DAYS - 1), end)
+            rows = _safe(
+                lambda: method(window_start.isoformat(), window_end.isoformat()),
+                f"{method_name} {window_start}..{window_end}",
+            )
+            time.sleep(_THROTTLE_SECONDS)
+
+            # Endpoints vary: some return a list, some a dict wrapping one.
+            if isinstance(rows, dict):
+                for key in ("hrvSummaries", "dailySleepDTO", "values", "items"):
+                    if isinstance(rows.get(key), list):
+                        rows = rows[key]
+                        break
+                else:
+                    rows = [rows]
+            if not isinstance(rows, list):
+                window_start = window_end + timedelta(days=1)
+                continue
+
+            # Log the real shape once per metric. Without this, a changed
+            # field name stores nothing and looks identical to "no data" --
+            # this turns that into one greppable log line.
+            if rows and not logged_shape:
+                sample = rows[0] if isinstance(rows[0], dict) else {}
+                logger.info(f"Garmin {method_name} row keys: {sorted(sample.keys())[:12]}")
+                logged_shape = True
+
+            batch: Dict[str, float] = {}
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                day_key = _row_date(row)
+                value = _row_value(row, *value_keys)
+                if day_key and value is not None:
+                    batch[day_key] = value
+
+            for day_key, value in batch.items():
+                metrics_store.record(metric, value, ts=day_key)
+            stored += len(batch)
+
+            window_start = window_end + timedelta(days=1)
+
+    return stored
+
+
+def _backfill_per_day(client, start: date, end: date) -> int:
+    """Per-day pass for metrics with no range endpoint. Deliberately
+    limited to the recent window -- see _PER_DAY_RECENT_WINDOW."""
+    stored = 0
+    day = max(start, end - timedelta(days=_PER_DAY_RECENT_WINDOW - 1))
+    while day <= end:
+        metrics: Dict[str, Optional[float]] = {}
+
+        readiness = _safe(lambda: client.get_training_readiness(day.isoformat()), "training readiness")
+        if isinstance(readiness, list) and readiness and isinstance(readiness[0], dict):
+            metrics[M_TRAINING_READINESS] = _num(readiness[0].get("score"))
+        time.sleep(_THROTTLE_SECONDS)
+
+        status = _safe(lambda: client.get_training_status(day.isoformat()), "training status")
+        if isinstance(status, dict):
+            acute = status.get("acuteTrainingLoadDTO") or {}
+            metrics[M_ACUTE_LOAD] = _num(acute.get("acuteTrainingLoad"))
+        time.sleep(_THROTTLE_SECONDS)
+
+        stored += metrics_store.record_many(metrics, ts=day.isoformat())
+        day += timedelta(days=1)
+
+    return stored
+
+
+def backfill(start: Optional[date] = None, end: Optional[date] = None) -> Dict:
+    """Historical pull from `start` (default: DEFAULT_BACKFILL_DAYS ago) to
+    `end` (default today).
 
     Garmin retains this history server-side, which is why most of the
     health dataset can be recovered after the fact and check-in answers
-    cannot. Run deliberately, not on a schedule -- a long backfill is many
-    sequential API calls against an unofficial endpoint.
+    cannot.
+
+    Two passes, for a reason worth stating. Most metrics have a bulk range
+    endpoint (get_sleep_daily, get_rhr_daily, get_daily_steps,
+    get_hrv_data_range), so a year of those costs roughly 65 calls in
+    28-day chunks rather than one call per metric per day. Training
+    readiness and acute load have no range variant, so they'd cost a call
+    each per day -- and they only exist on newer watches and only matter
+    recently, so those are fetched for the last 60 days only. Sweeping a
+    year per-day for them would be thousands of calls against an
+    unofficial endpoint for mostly-empty rows.
+
+    Every call is throttled. This is the only path here that makes many
+    requests in a row, and it is authenticated as the user.
     """
     client = _client()
     if client is None:
-        return {"ok": False, "reason": "not_configured", "days": 0, "points": 0}
+        return {"ok": False, "reason": "not_configured", "points": 0}
 
     end = end or date.today()
+    start = start or (end - timedelta(days=DEFAULT_BACKFILL_DAYS))
     if start > end:
-        return {"ok": False, "reason": "start_after_end", "days": 0, "points": 0}
+        return {"ok": False, "reason": "start_after_end", "points": 0}
 
-    stored_days, stored_points = 0, 0
-    day = start
-    while day <= end:
-        metrics = fetch_day(client, day)
-        written = metrics_store.record_many(metrics, ts=day.isoformat())
-        if written:
-            stored_days += 1
-            stored_points += written
-        day += timedelta(days=1)
+    logger.info(f"Garmin backfill starting: {start}..{end}")
+    points = _backfill_bulk(client, start, end)
+    points += _backfill_per_day(client, start, end)
 
-    logger.info(f"Garmin backfill {start}..{end}: {stored_points} points across {stored_days} days")
-    return {"ok": True, "reason": None, "days": stored_days, "points": stored_points}
+    metrics_store.record(M_BACKFILL_MARKER, 1.0, ts=date.today().isoformat())
+    logger.info(f"Garmin backfill {start}..{end} complete: {points} points")
+    return {"ok": True, "reason": None, "points": points, "start": start.isoformat(), "end": end.isoformat()}
+
+
+def has_backfilled() -> bool:
+    """Whether a backfill has ever completed. Used so the automatic
+    first-run backfill happens exactly once rather than on every restart."""
+    return metrics_store.latest(M_BACKFILL_MARKER) is not None
 
 
 def status() -> Dict:

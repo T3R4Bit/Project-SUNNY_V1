@@ -39,7 +39,10 @@ class CheckinAnswer(BaseModel):
 
 
 class BackfillRequest(BaseModel):
-    start: str
+    # Both optional: omitting them backfills the default window
+    # (garmin_client.DEFAULT_BACKFILL_DAYS) ending today, which is what the
+    # automatic first-run backfill does.
+    start: Optional[str] = None
     end: Optional[str] = None
 
 
@@ -144,6 +147,75 @@ def create_metrics_router() -> APIRouter:
 
     # --- health data sources ---------------------------------------------
 
+    @router.get("/health/summary")
+    async def health_summary(days: int = Query(30, ge=7, le=365)):
+        """Everything the website's health panel needs, in one call.
+
+        Each metric returns today's value, a recent average to compare it
+        against, and the raw series for a sparkline. The comparison is the
+        point: "6.1 hours" means nothing on its own, but "6.1 vs 7.4
+        average" is a fact you can act on. Doing this server-side keeps the
+        dashboard from making one request per metric.
+
+        `available` is False when nothing has ever been ingested, so the
+        page can show an honest "not connected yet" instead of a grid of
+        blanks -- same contract as every other data source here.
+        """
+        start = (date.today() - timedelta(days=days)).isoformat()
+        today = day_boundary.day_key()
+
+        # (series name, label, unit, decimals, higher_is_better)
+        tracked = [
+            (garmin_client.M_TRAINING_READINESS, "Training readiness", "", 0, True),
+            (garmin_client.M_BODY_BATTERY_WAKE, "Body Battery at wake", "", 0, True),
+            (garmin_client.M_SLEEP_HOURS, "Sleep", "h", 1, True),
+            (garmin_client.M_SLEEP_SCORE, "Sleep score", "", 0, True),
+            (garmin_client.M_RESTING_HR, "Resting HR", "bpm", 0, False),
+            (garmin_client.M_HRV, "Overnight HRV", "ms", 0, True),
+            (garmin_client.M_STEPS, "Steps", "", 0, True),
+            (garmin_client.M_STRESS_AVG, "Average stress", "", 0, False),
+            (garmin_client.M_ACUTE_LOAD, "Acute load", "", 0, None),
+            (garmin_client.M_RESPIRATION, "Respiration", "br/min", 0, None),
+            (garmin_client.M_SPO2, "SpO₂", "%", 0, True),
+            (daily_ingest.M_PRESSURE, "Pressure", "hPa", 0, None),
+        ]
+
+        out = {}
+        any_data = False
+        for name, label, unit, decimals, higher_better in tracked:
+            points = metrics_store.series(name, start=start)
+            if not points:
+                continue
+            any_data = True
+            values = [p["value"] for p in points]
+            current = metrics_store.get_for_day(name, today)
+            # Average excludes today so "today vs normal" isn't diluted by
+            # today itself -- with a short history that shift is large
+            # enough to hide the very change the comparison is for.
+            prior = [p["value"] for p in points if p["ts"] != today]
+            average = sum(prior) / len(prior) if prior else None
+
+            out[name] = {
+                "label": label,
+                "unit": unit,
+                "decimals": decimals,
+                "higher_is_better": higher_better,
+                "current": current,
+                "average": round(average, 2) if average is not None else None,
+                "min": min(values),
+                "max": max(values),
+                "points": points,
+            }
+
+        return {
+            "available": any_data,
+            "day": today,
+            "days": days,
+            "metrics": out,
+            "checkin": checkin.answered(today),
+            "garmin": garmin_client.status(),
+        }
+
     @router.get("/health/garmin/status")
     async def garmin_status():
         return garmin_client.status()
@@ -161,7 +233,7 @@ def create_metrics_router() -> APIRouter:
         """Historical pull. Deliberately POST and deliberately manual --
         a long backfill is many sequential calls against an unofficial API."""
         try:
-            start = datetime.fromisoformat(body.start).date()
+            start = datetime.fromisoformat(body.start).date() if body.start else None
             end = datetime.fromisoformat(body.end).date() if body.end else None
         except ValueError as e:
             raise HTTPException(status_code=400, detail=f"Bad date: {e}")

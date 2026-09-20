@@ -76,5 +76,23 @@ def run() -> Dict:
         logger.error(f"Garmin ingest failed: {e}", exc_info=True)
         result["garmin"] = {"ok": False, "reason": "exception", "days": 0, "points": 0}
 
+    # First successful connection pulls the history automatically, once.
+    # Garmin retains it server-side, so there's no reason to make someone
+    # remember to trigger a one-off endpoint -- and every day it isn't
+    # pulled is a day the charts and (later) the readiness weights have
+    # less to work with. Guarded by a stored marker rather than a config
+    # flag so a restart can't repeat it.
+    garmin_ok = (result["garmin"] or {}).get("ok")
+    if garmin_ok and not garmin_client.has_backfilled():
+        try:
+            logger.info("First successful Garmin connection — starting one-time history backfill")
+            result["backfill"] = garmin_client.backfill()
+        except Exception as e:
+            # A failed backfill must not mark itself done, so the next run
+            # retries. It also must not cost the routine ingest above,
+            # which has already stored today's data by this point.
+            logger.error(f"Garmin backfill failed: {e}", exc_info=True)
+            result["backfill"] = {"ok": False, "reason": "exception", "points": 0}
+
     logger.info(f"Daily ingest complete: {result}")
     return result
