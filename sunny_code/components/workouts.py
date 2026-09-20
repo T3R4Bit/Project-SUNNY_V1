@@ -53,6 +53,15 @@ LATEST_START_HOUR = 21
 # a perfectly good after-class window under an empty Sunday afternoon.
 DIMINISHING_MINUTES = 90
 
+# A free block longer than this stops being a suggestion and becomes a
+# statement about the day. "Tomorrow 6:00 AM, 960 min free" is accurate
+# and useless -- an empty calendar is not an instruction to train for
+# sixteen hours. Blocks above this are narrowed to a concrete slot at the
+# best-scoring hour inside them, with the full block reported separately
+# as context.
+MAX_SUGGESTED_MINUTES = 120
+SUGGESTED_SESSION_MINUTES = 75
+
 # Preferred start hours, by how well they tend to work rather than by
 # physiology: late afternoon beats late evening beats early morning.
 _HOUR_SCORES = [
@@ -162,9 +171,42 @@ def _gaps_for_day(day_offset: int) -> Optional[List[Dict]]:
     usable = []
     for gap in gaps:
         minutes = (gap["end"] - gap["start"]).total_seconds() / 60
-        if minutes >= MIN_WINDOW_MINUTES and EARLIEST_HOUR <= gap["start"].hour <= LATEST_START_HOUR:
-            usable.append({"start": gap["start"], "end": gap["end"], "minutes": int(minutes)})
+        if minutes < MIN_WINDOW_MINUTES or not (EARLIEST_HOUR <= gap["start"].hour <= LATEST_START_HOUR):
+            continue
+        usable.append(_narrow(gap, int(minutes)))
     return usable
+
+
+def _narrow(gap: Dict, minutes: int) -> Dict:
+    """Turn a very long free block into a concrete slot inside it.
+
+    Leaves ordinary gaps untouched. For anything above
+    MAX_SUGGESTED_MINUTES it picks the best-scoring start hour within the
+    block and proposes a session-length slot there, keeping the block's
+    real size in `free_minutes` so the brief can still say how much room
+    there is. Suggesting a specific time is the difference between advice
+    and an observation about your calendar.
+    """
+    if minutes <= MAX_SUGGESTED_MINUTES:
+        return {"start": gap["start"], "end": gap["end"], "minutes": minutes, "free_minutes": minutes}
+
+    latest_start = gap["end"] - timedelta(minutes=SUGGESTED_SESSION_MINUTES)
+    best = gap["start"]
+    best_score = _hour_score(best.hour)
+    cursor = gap["start"].replace(minute=0) + timedelta(hours=1)
+    while cursor <= latest_start:
+        if cursor.hour > LATEST_START_HOUR:
+            break
+        if _hour_score(cursor.hour) > best_score:
+            best, best_score = cursor, _hour_score(cursor.hour)
+        cursor += timedelta(hours=1)
+
+    return {
+        "start": best,
+        "end": best + timedelta(minutes=SUGGESTED_SESSION_MINUTES),
+        "minutes": SUGGESTED_SESSION_MINUTES,
+        "free_minutes": minutes,
+    }
 
 
 def find_windows(days_ahead: int = 2) -> Dict:
@@ -192,6 +234,7 @@ def find_windows(days_ahead: int = 2) -> Dict:
                 "day_offset": offset,
                 "label": _window_label(gap["start"], offset),
                 "minutes": gap["minutes"],
+                "free_minutes": gap.get("free_minutes", gap["minutes"]),
                 "rank": _rank(gap, readiness_value),
                 "intensity": _intensity(readiness_value),
             })
