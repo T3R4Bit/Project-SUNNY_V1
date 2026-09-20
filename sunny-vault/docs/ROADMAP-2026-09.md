@@ -382,6 +382,27 @@ never move. A 970 spinning up inside an otherwise idle-efficient NAS costs power
 - [ ] Which existing vault files does Sunny currently write that I also hand-edit?
       Audit before A2 — those are the actual conflict sources.
 
+## Morning decisions (2026-09-20 session)
+
+Blocking, in priority order:
+
+1. **Garmin credentials** — `GARMIN_EMAIL` / `GARMIN_PASSWORD` in `.env`. Until
+   these exist the ingest job runs, finds nothing, and logs pressure only. If the
+   account has MFA the first login may need an interactive run to cache the garth
+   token.
+2. **Does the watch report HRV Status, and is Pulse Ox worth enabling?** Both
+   affect which metrics have data when Stage D's scoring lands.
+3. **Gmail root cause** — needs `curl /api/gmail/flagged` and `/auth/google/status`
+   on the Lenovo. The panel now reports *why* it's empty; that reason is the
+   diagnosis.
+4. **LLM category inference** — the deterministic bugs are fixed. Auto-filing a
+   category from the task title needs `extract.py` plus a live API key to verify,
+   and replacing a working wizard with an unverified LLM path felt like the wrong
+   thing to leave running unattended. Decide whether to build it next.
+5. **Backfill window** — how far back should the first Garmin pull go?
+   `POST /api/health/garmin/backfill {"start": "2026-01-01"}`. Longer is many
+   sequential calls against an unofficial API.
+
 ## Explicitly not doing
 
 - **Telegram** — rejected 2026-09-20 to keep message content off third-party servers
