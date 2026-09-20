@@ -107,3 +107,6 @@ sunny.db
 # /graphify output (regenerable, not documentation)
 docs_list.txt
 graphify-out/
+
+# Windows-side dev venv for running tests off the Lenovo (Stage A work).
+.venv-dev/
