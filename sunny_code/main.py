@@ -19,6 +19,8 @@ from sunny_code.components.briefing_api import create_briefing_router
 from sunny_code.components.dashboard_data_routes import create_dashboard_data_router
 from sunny_code.components.metrics_routes import create_metrics_router
 from sunny_code.components.chat_routes import create_chat_router
+from sunny_code.components.push_routes import create_push_router
+from sunny_code.components.time_parse import next_occurrence
 from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.tasks_api import create_tasks_router
@@ -36,7 +38,8 @@ from sunny_code.components.spotify_routes import create_spotify_auth_router
 from sunny_code.components.calendar_engine import CalendarEngine
 from sunny_code.components.crash_check import check_previous_crash
 from sunny_code.components import (
-    daily_ingest, health_check, personality, rules_engine, service_registry, token_tracker,
+    daily_ingest, health_check, notify, personality, push_service, rules_engine,
+    service_registry, token_tracker,
 )
 from sunny_code.components.health_check import run_weekly_health_check
 from sunny_code.components.weather_routes import create_weather_router
@@ -99,6 +102,9 @@ class SunnyCore:
         # Same guard, same reason, for the daily health-data ingest loop below.
         self._daily_ingest_started = False
 
+        # Same guard, same reason, for the scheduled-dispatch loop below.
+        self._scheduled_dispatch_started = False
+
         # Create sunny-vault/personality.md if it's missing, so the file is
         # discoverable in Obsidian rather than being a feature you'd only
         # find by reading the source. Never overwrites an existing one --
@@ -116,6 +122,9 @@ class SunnyCore:
         self.health_check_loop = self._create_health_check_loop()
         self.rules_engine_loop = self._create_rules_engine_loop()
         self.daily_ingest_loop = self._create_daily_ingest_loop()
+        self.scheduled_dispatch_loop = self._create_scheduled_dispatch_loop()
+        # Discord becomes one delivery channel rather than the mechanism.
+        notify.register("discord", self._discord_notifier())
 
     def _create_discord_bot(self):
         """Build the Discord bot if a token + chat channel are configured;
@@ -214,6 +223,73 @@ class SunnyCore:
 
         return daily_ingest_loop
 
+    def _discord_notifier(self):
+        """Discord as a notify.py channel, or None when unconfigured.
+
+        Returning None rather than a no-op callable is deliberate: notify
+        then reports Discord as simply absent, instead of a channel that
+        silently accepts everything and delivers nothing.
+        """
+        if self.discord_bot is None:
+            return None
+
+        async def deliver(title: str, body: str) -> None:
+            channel = await self.discord_bot.fetch_channel(self.settings.discord_chat_channel_id)
+            await channel.send(f"{title}: {body}" if body else title)
+
+        return deliver
+
+    def _create_scheduled_dispatch_loop(self):
+        """Fire due alarms and reminders, through every notification
+        channel rather than just Discord.
+
+        This used to live inside discord_bot.py's scheduled_check_loop,
+        which had two real consequences: with Discord unconfigured the
+        loop never ran, so a reminder set from the web or the Pi fired
+        nowhere at all; and a Discord channel-fetch failure returned
+        early, before anything was marked fired or rescheduled, so a
+        permissions problem silently suppressed reminders instead of
+        reporting one.
+
+        Standalone here alongside the health-check and rules loops, for
+        the same reason those are: delivery is optional, the work is not.
+        Marking an item fired happens whether or not any channel accepted
+        it -- otherwise a failing channel would make it re-fire every 30
+        seconds forever.
+        """
+
+        @tasks.loop(seconds=30)
+        async def scheduled_dispatch_loop():
+            if not service_registry.is_enabled("scheduled_check"):
+                return
+            try:
+                now = datetime.now()
+                due = self.scheduled_engine.db.get_due_items(now)
+                for item in due:
+                    noun = "Alarm" if item["kind"] == "alarm" else "Reminder"
+                    await notify.send(
+                        title=noun,
+                        body=item["label"],
+                        url="/sunny",
+                        tag=f"scheduled-{item['id']}",
+                        # An alarm you sleep through is useless, so it
+                        # stays on screen until acknowledged. A reminder
+                        # behaves like every other notification.
+                        require_interaction=(item["kind"] == "alarm"),
+                    )
+
+                    if item["recurrence"]:
+                        trigger_at = datetime.fromisoformat(item["trigger_at"])
+                        self.scheduled_engine.db.reschedule(
+                            item["id"], next_occurrence(trigger_at, item["recurrence"])
+                        )
+                    else:
+                        self.scheduled_engine.db.deactivate(item["id"])
+            except Exception as e:
+                self.logger.error(f"scheduled_dispatch_loop failed: {e}", exc_info=True)
+
+        return scheduled_dispatch_loop
+
     def _create_app(self) -> FastAPI:
         """Create FastAPI application with all routes."""
 
@@ -262,6 +338,12 @@ class SunnyCore:
                 if service_registry.is_autostart("daily_ingest"):
                     self.daily_ingest_loop.start()
 
+            # Same again for due alarms/reminders.
+            if not self._scheduled_dispatch_started:
+                self._scheduled_dispatch_started = True
+                if service_registry.is_autostart("scheduled_check"):
+                    self.scheduled_dispatch_loop.start()
+
             yield
             if discord_task is not None:
                 await self.discord_bot.close()
@@ -269,6 +351,7 @@ class SunnyCore:
             self.health_check_loop.cancel()
             self.rules_engine_loop.cancel()
             self.daily_ingest_loop.cancel()
+            self.scheduled_dispatch_loop.cancel()
             # Release the pooled SQLite connections from plan item A4 —
             # each of these opened a single long-lived connection instead
             # of reconnecting per call; close them on real shutdown so the
@@ -314,6 +397,9 @@ class SunnyCore:
         # Time-series + check-in endpoints -- /api/metrics/series,
         # /api/checkin/*, /api/health/garmin/* (see metrics_routes.py)
         app.include_router(create_metrics_router(), prefix="/api")
+
+        # Web Push subscription + send (see push_service.py)
+        app.include_router(create_push_router(), prefix="/api")
 
         # Streaming HTTP chat for the web/PWA -- same handle_message() the
         # Discord bot and the Pi use, same shared engines (see chat_routes.py)

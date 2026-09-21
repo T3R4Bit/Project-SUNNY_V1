@@ -838,31 +838,16 @@ def create_discord_bot(
                     state["morning_prep_alarm_id"] = next_alarm["id"]
                     asyncio.create_task(briefing_engine.prewarm_morning_briefing())
 
-        if not service_registry.is_enabled("scheduled_check"):
-            return
-
-        due = scheduled_engine.db.get_due_items(now)
-        if not due:
-            return
-
-        try:
-            channel = await client.fetch_channel(chat_channel_id)
-        except (discord.NotFound, discord.Forbidden) as e:
-            logger.warning(f"Cannot access Discord chat channel {chat_channel_id}: {e}")
-            return
-
-        for item in due:
-            noun = "Alarm" if item["kind"] == "alarm" else "Reminder"
-            try:
-                await channel.send(f'{noun}: {item["label"]}')
-            except discord.Forbidden:
-                logger.warning("Missing permission to send scheduled-item ping")
-
-            if item["recurrence"]:
-                trigger_at = datetime.fromisoformat(item["trigger_at"])
-                scheduled_engine.db.reschedule(item["id"], next_occurrence(trigger_at, item["recurrence"]))
-            else:
-                scheduled_engine.db.deactivate(item["id"])
+        # Due-item dispatch deliberately does NOT live here any more -- see
+        # main.py's scheduled_dispatch_loop and notify.py. It ran inside
+        # this Discord-owned loop, which meant reminders only fired at all
+        # when Discord was configured, and a fetch_channel failure returned
+        # before anything was marked fired or rescheduled. Discord is now
+        # one delivery channel among several rather than the mechanism.
+        #
+        # This loop keeps the morning-prep lookahead above, which is
+        # genuinely Discord-adjacent (it warms a briefing the bot will
+        # serve) and has no delivery of its own.
 
     @tasks.loop(seconds=CLASS_REMINDERS_CHECK_INTERVAL_SECONDS)
     async def class_reminders_loop():

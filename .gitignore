@@ -110,3 +110,6 @@ graphify-out/
 
 # Windows-side dev venv for running tests off the Lenovo (Stage A work).
 .venv-dev/
+
+# Web Push VAPID keypair (private key -- never commit).
+.vapid/
