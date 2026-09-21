@@ -18,6 +18,7 @@ from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.briefing_api import create_briefing_router
 from sunny_code.components.dashboard_data_routes import create_dashboard_data_router
 from sunny_code.components.metrics_routes import create_metrics_router
+from sunny_code.components.chat_routes import create_chat_router
 from sunny_code.components.tasks_db import TaskDB
 from sunny_code.components.tasks_engine import TaskEngine
 from sunny_code.components.tasks_api import create_tasks_router
@@ -313,6 +314,17 @@ class SunnyCore:
         # Time-series + check-in endpoints -- /api/metrics/series,
         # /api/checkin/*, /api/health/garmin/* (see metrics_routes.py)
         app.include_router(create_metrics_router(), prefix="/api")
+
+        # Streaming HTTP chat for the web/PWA -- same handle_message() the
+        # Discord bot and the Pi use, same shared engines (see chat_routes.py)
+        app.include_router(
+            create_chat_router(
+                self.tasks_engine, self.briefing_engine, self.list_engine,
+                self.scheduled_engine, self.project_engine, self.spotify_engine,
+                self.calendar_engine,
+            ),
+            prefix="/api",
+        )
 
         # Task endpoints
         tasks_router = create_tasks_router(self.tasks_engine)
