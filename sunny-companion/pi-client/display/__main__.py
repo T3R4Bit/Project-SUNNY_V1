@@ -1,0 +1,234 @@
+"""Entry point: `python3 -m display` on the Pi.
+
+Ties the pieces together -- the snapshot poller, the rotating panes, the
+face, and the notification banner -- into one render loop that owns the
+screen.
+
+TWO SOURCES, TWO CADENCES
+-------------------------
+Dashboard data is PULLED on a slow timer, because it changes on the order
+of minutes and a poll that fails is harmless. Notifications are PUSHED
+over the companion WebSocket, because a reminder that arrives a minute
+late has already failed at its job.
+
+Both run in background threads. The render loop never blocks on the
+network: a frozen screen reads as a dead device even when only WiFi is
+at fault, and this thing sits on a desk where that distinction matters.
+"""
+
+import json
+import logging
+import os
+import sys
+import threading
+import time
+
+import pygame
+
+from display.app import (
+    BG, BLUE, DIM, FPS, ORANGE, PANE_SECONDS, PINK, SUNNY_URL, WHITE, YELLOW,
+    Display, Notifications, Snapshot, poll_snapshot,
+)
+from display.face import Face
+from display.panes import Panes
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("companion")
+
+# How long the face stays up after the last activity before the dashboard
+# comes back. Long enough that a pause mid-sentence doesn't flip the
+# screen away, short enough that an abandoned conversation doesn't leave
+# a static face there for minutes.
+FACE_LINGER_SECONDS = 8
+
+
+class Companion:
+    def __init__(self) -> None:
+        self.display = Display()
+        self.panes = Panes(self.display)
+        self.face = Face(self.display)
+        self.snapshot = Snapshot()
+        self.notifications = Notifications()
+        self.stop = threading.Event()
+
+        self.state = "idle"
+        self.last_activity = 0.0
+        self.pane_index = 0
+        self.pane_started = time.time()
+
+    # --- background ------------------------------------------------------
+
+    def start_threads(self) -> None:
+        threading.Thread(
+            target=poll_snapshot, args=(self.snapshot, self.stop), daemon=True
+        ).start()
+        threading.Thread(target=self._listen_events, daemon=True).start()
+
+    def _listen_events(self) -> None:
+        """Hold the companion WebSocket open for pushed notifications and
+        pipeline state.
+
+        Reconnects forever with a capped backoff. The server restarts
+        (deploys, reboots) and WiFi drops; a device that gives up after a
+        few tries is a device that is silently dead by morning.
+        """
+        try:
+            from websockets.sync.client import connect
+        except ImportError:
+            logger.warning("websockets not installed — notifications and face states disabled")
+            return
+
+        url = SUNNY_URL.replace("http://", "ws://").replace("https://", "wss://") + "/ws/pi"
+        backoff = 2
+
+        while not self.stop.is_set():
+            try:
+                with connect(url, open_timeout=10) as ws:
+                    logger.info("Connected to Sunny")
+                    backoff = 2
+                    while not self.stop.is_set():
+                        raw = ws.recv()
+                        if isinstance(raw, bytes):
+                            # Audio frames belong to the voice worker, not
+                            # the display. Ignored rather than treated as
+                            # an error.
+                            continue
+                        self._handle_event(json.loads(raw))
+            except Exception as e:
+                logger.warning(f"Socket closed ({type(e).__name__}) — retrying in {backoff}s")
+                self.stop.wait(backoff)
+                backoff = min(backoff * 2, 60)
+
+    def _handle_event(self, event: dict) -> None:
+        if event.get("type") == "notification":
+            self.notifications.push(event.get("title", "Sunny"), event.get("body", ""))
+            logger.info(f"Notification: {event.get('title')} — {event.get('body')}")
+            return
+
+        state = event.get("state")
+        if state:
+            self.state = state
+            self.face.set_state(state)
+            self.last_activity = time.time()
+
+    # --- rendering -------------------------------------------------------
+
+    def _draw_banner(self, note: dict) -> None:
+        d = self.display
+        w, h = d.size
+        height = int(h * 0.26)
+        pygame.draw.rect(d.screen, (26, 26, 26), (0, 0, w, height))
+        pygame.draw.rect(d.screen, PINK, (0, 0, w, max(3, int(h * 0.008))))
+
+        d.text("NOTIFICATION", d.f_tiny, PINK, 18, int(h * 0.035))
+        y = int(h * 0.085)
+        y += d.text(note.get("title", ""), d.f_mid, WHITE, 18, y, max_width=w - 36)
+        if note.get("body"):
+            d.text(note["body"], d.f_small, DIM, 18, y + int(h * 0.012), max_width=w - 36)
+
+    def _draw_status(self) -> None:
+        """A one-line footer about the connection, only when something is
+        wrong. A permanent "connected" badge is noise; the absence of a
+        warning is the signal."""
+        data, fetched_at, error = self.snapshot.read()
+        d = self.display
+        message, color = None, DIM
+
+        if self.snapshot.never_loaded:
+            message, color = "waiting for Sunny…", DIM
+        elif self.snapshot.stale:
+            age = int((time.time() - fetched_at) / 60)
+            message, color = f"data {age} min old · {error or 'no connection'}", ORANGE
+
+        if message:
+            d.text(message, d.f_tiny, color, d.size[0] // 2,
+                   d.size[1] - int(d.size[1] * 0.045), center=True)
+
+    def _advance_pane(self, data: dict) -> None:
+        panes = self.panes.all()
+        if time.time() - self.pane_started < PANE_SECONDS:
+            return
+        # Skip panes with nothing to show. Bounded by the pane count so an
+        # empty snapshot can't spin forever looking for a renderable one.
+        for _ in range(len(panes)):
+            self.pane_index = (self.pane_index + 1) % len(panes)
+            if self._pane_has_content(panes[self.pane_index], data):
+                break
+        self.pane_started = time.time()
+
+    def _pane_has_content(self, pane, data: dict) -> bool:
+        # Probing by rendering to the real surface would flicker, so this
+        # asks the pane against a throwaway surface first.
+        saved = self.display.screen
+        self.display.screen = pygame.Surface(self.display.size)
+        try:
+            return bool(pane(data))
+        except Exception:
+            return False
+        finally:
+            self.display.screen = saved
+
+    def run(self) -> None:
+        clock = pygame.time.Clock()
+        self.start_threads()
+
+        while True:
+            dt = clock.tick(FPS) / 1000.0
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return
+                if event.type == pygame.KEYDOWN:
+                    if event.key in (pygame.K_ESCAPE, pygame.K_q):
+                        return
+                    # Any other key dismisses a banner -- the device has no
+                    # touchscreen input wired up, but a keyboard is often
+                    # plugged in while working on it.
+                    self.notifications.dismiss()
+
+            data, _, _ = self.snapshot.read()
+            self.display.screen.fill(BG)
+
+            talking = (time.time() - self.last_activity) < FACE_LINGER_SECONDS
+            if talking and self.state != "idle":
+                self.face.draw(dt)
+            else:
+                if self.state != "idle":
+                    self.state = "idle"
+                    self.face.set_state("idle")
+                self._advance_pane(data)
+                panes = self.panes.all()
+                try:
+                    if not panes[self.pane_index](data):
+                        panes[0](data)  # clock always renders
+                except Exception as e:
+                    logger.error(f"Pane render failed: {e}", exc_info=True)
+                    panes[0](data)
+
+            # Banner last so it sits above whatever is behind it.
+            note = self.notifications.current()
+            if note:
+                self._draw_banner(note)
+
+            self._draw_status()
+            pygame.display.flip()
+
+
+def main() -> int:
+    try:
+        Companion().run()
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        logger.error(f"Display crashed: {e}", exc_info=True)
+        return 1
+    finally:
+        pygame.quit()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

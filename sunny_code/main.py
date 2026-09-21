@@ -30,6 +30,7 @@ from sunny_code.components.project_engine import ProjectEngine
 from sunny_code.components.scheduled_db import ScheduledDB
 from sunny_code.components.scheduled_engine import ScheduledEngine
 from sunny_code.components.scheduled_vault_mirror import create_scheduled_vault_mirror, write_scheduled_mirror
+from sunny_code.components import pi_companion
 from sunny_code.components.pi_companion import create_pi_companion_router
 from sunny_code.components.discord_bot import create_discord_bot
 from sunny_code.components.google_routes import create_google_auth_router
@@ -125,6 +126,10 @@ class SunnyCore:
         self.scheduled_dispatch_loop = self._create_scheduled_dispatch_loop()
         # Discord becomes one delivery channel rather than the mechanism.
         notify.register("discord", self._discord_notifier())
+        # The companion screen is a delivery channel too -- a notification
+        # that only reaches a phone is no use when the phone is in another
+        # room and the device is on the desk in front of you.
+        notify.register("pi", pi_companion.notify_device)
 
     def _create_discord_bot(self):
         """Build the Discord bot if a token + chat channel are configured;
