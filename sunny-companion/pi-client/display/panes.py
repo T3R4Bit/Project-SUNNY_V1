@@ -9,6 +9,8 @@ a screen whose entire job is being glanceable from across the room.
 from datetime import datetime
 from typing import Dict, Optional
 
+from display.app import time_12h
+
 BG = (10, 10, 10)
 WHITE = (240, 240, 240)
 DIM = (120, 120, 120)
@@ -30,9 +32,9 @@ class Panes:
         d = self.d
         d.header("SUNNY", BLUE)
         now = datetime.now()
-        d.text(now.strftime("%H:%M"), d.f_huge, WHITE, d.size[0] // 2,
+        d.text(time_12h(now), d.f_huge, WHITE, d.size[0] // 2,
                int(d.size[1] * 0.18), center=True)
-        d.text(now.strftime("%A, %B %d"), d.f_small, DIM, d.size[0] // 2,
+        d.text(f"{now.strftime('%A, %B')} {now.day}", d.f_small, DIM, d.size[0] // 2,
                int(d.size[1] * 0.60), center=True)
 
         health = self._section(data, "health") or {}

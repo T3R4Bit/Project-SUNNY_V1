@@ -83,6 +83,18 @@ YELLOW = (247, 209, 1)
 ORANGE = (255, 140, 0)
 
 
+def time_12h(when: Optional[datetime] = None) -> str:
+    """"4:17 PM" -- 12-hour with no leading zero.
+
+    Built by hand rather than with %-I (glibc-only) or %#I (Windows-only):
+    this is developed on one platform and runs on another, and a strftime
+    that raises on the wrong OS is a silly way to lose a display.
+    """
+    when = when or datetime.now()
+    hour = when.hour % 12 or 12
+    return f"{hour}:{when.minute:02d} {when.strftime('%p')}"
+
+
 def _pick_driver() -> str:
     """Use whatever display path exists.
 
@@ -271,11 +283,22 @@ class Display:
         return value + "…"
 
     def header(self, label: str, color):
+        """Pane title on the left, date and time on the right.
+
+        Uses f_small rather than f_tiny: this is read at desk distance,
+        and the date in particular is the kind of thing you glance at
+        rather than lean in for.
+        """
         pygame.draw.rect(
             self.screen, color,
-            (0, self.offset_y, self.size[0], max(3, int(self.size[1] * 0.018))),
+            (0, self.offset_y, self.size[0], max(4, int(self.size[1] * 0.020))),
         )
-        self.text(label, self.f_tiny, color, self.pad, int(self.size[1] * 0.045))
-        self.text(datetime.now().strftime("%H:%M"), self.f_tiny, DIM,
-                  self.size[0] - self.pad - self.f_tiny.size("00:00")[0],
-                  int(self.size[1] * 0.045))
+        y = int(self.size[1] * 0.052)
+        self.text(label, self.f_small, color, self.pad, y)
+
+        now = datetime.now()
+        # .day rather than %-d/%#d, for the same portability reason as
+        # time_12h above.
+        stamp = f"{now.strftime('%b')} {now.day} · {time_12h(now)}"
+        self.text(stamp, self.f_small, DIM,
+                  self.size[0] - self.pad - self.f_small.size(stamp)[0], y)
