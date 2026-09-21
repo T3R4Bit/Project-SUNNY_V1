@@ -554,7 +554,34 @@ Total: {len(open_tasks) + len(in_progress)} tasks
 
         # Health/Wellness questions
         elif any(h in question_lower for h in ["health", "wellness", "sleep", "exercise", "step", "mood"]):
-            return unconfigured_reply("health")
+            # Real figures now that Garmin ingest exists. This branch
+            # returned "not connected" for a while after the data started
+            # arriving, so Sunny would deny having sleep history while
+            # holding a year of it -- the worst version of the fail-quiet
+            # contract, since it reads as a confident no rather than a gap.
+            day = day_boundary.day_key()
+            wellness = BriefingTemplates._wellness_lines(day)
+            if not wellness:
+                return unconfigured_reply("health")
+
+            lines = ["", "WELLNESS", ""]
+            summary = readiness.summary_line(day)
+            if summary:
+                lines.append(summary)
+            lines.extend(wellness)
+
+            answered = checkin.summary_line(day)
+            if answered:
+                lines.append(f"Check-in: {answered}")
+
+            # Only when asked about training specifically -- a question
+            # about sleep shouldn't turn into a workout pitch.
+            if any(w in question_lower for w in ("exercise", "workout", "train", "gym")):
+                workout = BriefingTemplates._workout_line()
+                if workout:
+                    lines.append(workout.replace("\nTRAINING\n", "").rstrip())
+
+            return "\n".join(lines) + "\n"
 
         # Motorsports questions
         elif any(m in question_lower for m in ["motorsport", "racing", "formula", "motogp", "f1", "nascar"]):
