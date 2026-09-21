@@ -564,11 +564,9 @@ Total: {len(open_tasks) + len(in_progress)} tasks
             if not wellness:
                 return unconfigured_reply("health")
 
-            lines = ["", "WELLNESS", ""]
-            summary = readiness.summary_line(day)
-            if summary:
-                lines.append(summary)
-            lines.extend(wellness)
+            # _wellness_lines already leads with readiness.summary_line --
+            # adding it again here printed it twice.
+            lines = ["", "WELLNESS", ""] + wellness
 
             answered = checkin.summary_line(day)
             if answered:
