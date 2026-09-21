@@ -1,0 +1,28 @@
+[Unit]
+Description=Sunny Companion display (dashboard, face, notifications)
+# No network dependency on purpose: the app renders a clock and the last
+# known snapshot with no server at all, so it should appear on boot rather
+# than waiting on WiFi. It reconnects on its own once the tailnet is up.
+After=multi-user.target
+# The desktop and this app both want the display. Whichever is running,
+# the other must not be -- see the README on switching between them.
+Conflicts=lightdm.service
+
+[Service]
+Type=simple
+User=sunny
+WorkingDirectory=/home/sunny/Project-SUNNY/sunny-companion/pi-client
+Environment=SUNNY_URL=http://sunshine-m700.wahoo-sidewinder.ts.net:5000
+Environment=PYTHONUNBUFFERED=1
+# Driver is auto-detected in app.py: X11 when DISPLAY is set, kmsdrm
+# otherwise. Left unset here so the same unit works in either mode.
+ExecStart=/usr/bin/python3 -m display
+Restart=always
+RestartSec=5
+# A crash loop should be visible in the journal, not silently hidden by
+# systemd giving up after five tries -- this is the only screen the
+# device has.
+StartLimitIntervalSec=0
+
+[Install]
+WantedBy=multi-user.target
