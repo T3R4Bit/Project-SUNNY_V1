@@ -104,6 +104,26 @@ When the server goes away the last good snapshot keeps rendering with a
 staleness marker. A dashboard showing slightly old data is useful; a black
 screen is not.
 
+## Sizing
+
+Type is scaled off the panel's short edge and sized for **desk distance**,
+not phone distance -- this screen is 4.3" but sits two feet away and is
+never touched, so everything is deliberately oversized.
+
+`UI_SCALE` multiplies every font if it still isn't right:
+
+```bash
+systemctl --user edit --full sunny-face   # Environment=UI_SCALE=1.2
+systemctl --user restart sunny-face
+```
+
+Layout adapts to the aspect: the health stats sit in three columns in
+landscape and stack in portrait, because stacked in landscape they used a
+narrow left column and left most of an 800px screen empty.
+
+Times are 12-hour throughout, built by hand rather than with `%-I`
+(glibc-only) or `%#I` (Windows-only).
+
 ## Panes
 
 `clock`, `calendar`, `weather`, `tasks`, `health`, `checkin`, `usage` --
@@ -128,5 +148,7 @@ SCREENSHOT_PATH=/tmp/shot.png SCREENSHOT_AFTER=6 SCREENSHOT_EXIT=1 python3 -m di
 | `SUNNY_URL` | the tailnet address | server base URL |
 | `SNAPSHOT_INTERVAL` | `60` | dashboard poll seconds |
 | `PANE_SECONDS` | `12` | seconds per pane |
-| `FPS` | `30` | frame cap |
+| `FPS` | `30` | frame cap while the face animates |
+| `IDLE_FPS` | `4` | frame cap on the dashboard |
+| `UI_SCALE` | `1.0` | multiplies every font size |
 | `SDL_VIDEODRIVER` | auto | force `kmsdrm` or `x11` |
