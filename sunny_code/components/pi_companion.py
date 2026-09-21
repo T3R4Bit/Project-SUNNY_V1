@@ -62,6 +62,11 @@ _connections: "set" = set()
 # itself.
 _recent_notifications: "deque" = deque(maxlen=10)
 
+# How far back a reconnecting device replays. Long enough to cover a
+# service restart or a WiFi blip mid-reminder, short enough that a
+# notification you already saw and dismissed doesn't come back.
+REPLAY_MAX_AGE_SECONDS = 120
+
 
 async def broadcast(payload: Dict) -> int:
     """Send a JSON payload to every connected companion. Returns how many
@@ -96,8 +101,26 @@ async def notify_device(title: str, body: str) -> None:
     await broadcast(payload)
 
 
-def recent_notifications() -> List[Dict]:
-    return list(_recent_notifications)
+def recent_notifications(max_age_seconds: Optional[int] = None) -> List[Dict]:
+    """Buffered notifications, optionally only recent ones.
+
+    Unfiltered for the snapshot endpoint (a dashboard showing what
+    happened today is fine); filtered for reconnect replay, where an old
+    notification reappearing is actively misleading.
+    """
+    items = list(_recent_notifications)
+    if max_age_seconds is None:
+        return items
+
+    cutoff = datetime.now().timestamp() - max_age_seconds
+    fresh = []
+    for item in items:
+        try:
+            if datetime.fromisoformat(item["at"]).timestamp() >= cutoff:
+                fresh.append(item)
+        except (KeyError, ValueError):
+            continue
+    return fresh
 
 
 def connected_count() -> int:
@@ -246,9 +269,12 @@ def create_pi_companion_router(
         _connections.add(websocket)
         logger.info(f"Pi companion connected ({len(_connections)} total)")
 
-        # Replay anything that fired while this device was away, so a
-        # reconnect after a drop doesn't silently swallow a reminder.
-        for missed in recent_notifications():
+        # Replay only what fired in the last couple of minutes. The point
+        # is to cover a brief drop or a restart mid-reminder -- replaying
+        # the whole buffer meant an hours-old reminder popped up again
+        # every time the display service restarted, which trains you to
+        # ignore the banner.
+        for missed in recent_notifications(max_age_seconds=REPLAY_MAX_AGE_SECONDS):
             try:
                 await websocket.send_json({**missed, "replayed": True})
             except Exception:

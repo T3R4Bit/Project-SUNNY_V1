@@ -137,6 +137,7 @@ class Companion:
             d.text(note["body"], d.f_small, DIM, 18, y + int(h * 0.012), max_width=w - 36)
 
     def _draw_status(self) -> None:
+        # Absolute position: the footer is chrome, not pane content.
         """A one-line footer about the connection, only when something is
         wrong. A permanent "connected" badge is noise; the absence of a
         warning is the signal."""
@@ -151,6 +152,7 @@ class Companion:
             message, color = f"data {age} min old · {error or 'no connection'}", ORANGE
 
         if message:
+            d.offset_y = 0
             d.text(message, d.f_tiny, color, d.size[0] // 2,
                    d.size[1] - int(d.size[1] * 0.045), center=True)
 
@@ -199,6 +201,13 @@ class Companion:
             data, _, _ = self.snapshot.read()
             self.display.screen.fill(BG)
 
+            # Push pane content below the banner when one is up, so the
+            # first rows aren't drawn underneath it. Read before rendering
+            # so the offset and the banner always agree about whether
+            # there is one.
+            note = self.notifications.current()
+            self.display.offset_y = int(self.display.size[1] * 0.26) if note else 0
+
             talking = (time.time() - self.last_activity) < FACE_LINGER_SECONDS
             if talking and self.state != "idle":
                 self.face.draw(dt)
@@ -215,9 +224,10 @@ class Companion:
                     logger.error(f"Pane render failed: {e}", exc_info=True)
                     panes[0](data)
 
-            # Banner last so it sits above whatever is behind it.
-            note = self.notifications.current()
+            # Banner last so it sits above whatever is behind it, and
+            # drawn at absolute coordinates rather than offset ones.
             if note:
+                self.display.offset_y = 0
                 self._draw_banner(note)
 
             self._draw_status()

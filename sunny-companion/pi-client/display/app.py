@@ -188,6 +188,13 @@ class Display:
         self.f_small = pygame.font.Font(None, int(short * 0.052))
         self.f_tiny = pygame.font.Font(None, int(short * 0.040))
 
+        # Vertical offset applied to everything a pane draws. The
+        # notification banner sits at the top of the screen, and without
+        # this a pane's first rows render underneath it -- confirmed on
+        # the real panel, where the calendar's first event was hidden
+        # behind a banner. Panes stay offset-unaware; this shifts them.
+        self.offset_y = 0
+
     def text(self, surface_text, font, color, x, y, center=False, max_width=None):
         if max_width:
             surface_text = self._truncate(surface_text, font, max_width)
@@ -197,7 +204,7 @@ class Display:
             rect.centerx = x
         else:
             rect.x = x
-        rect.y = y
+        rect.y = y + self.offset_y
         self.screen.blit(surf, rect)
         return rect.height
 
@@ -209,7 +216,10 @@ class Display:
         return value + "…"
 
     def header(self, label: str, color):
-        pygame.draw.rect(self.screen, color, (0, 0, self.size[0], int(self.size[1] * 0.012)))
+        pygame.draw.rect(
+            self.screen, color,
+            (0, self.offset_y, self.size[0], int(self.size[1] * 0.012)),
+        )
         self.text(label, self.f_tiny, color, 18, int(self.size[1] * 0.032))
         self.text(datetime.now().strftime("%H:%M"), self.f_tiny, DIM,
                   self.size[0] - 18 - self.f_tiny.size("00:00")[0], int(self.size[1] * 0.032))
