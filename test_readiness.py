@@ -13,6 +13,7 @@ be wrong rather than absent:
   - A disconnected calendar must not read as a free day.
 """
 
+import asyncio
 import sys
 import tempfile
 from datetime import date, datetime, timedelta
@@ -145,7 +146,7 @@ def test_gap_detection():
 def test_no_calendar_is_not_a_free_day():
     print("\n-- calendar unavailable --")
     workouts._busy_blocks = lambda offset: None
-    result = workouts.find_windows(days_ahead=2)
+    result = asyncio.run(workouts.find_windows(days_ahead=2))
     check("available is False", result["available"] is False)
     check("no windows invented", result["windows"] == [])
     check("advice says so honestly", "isn't connected" in result["advice"])
