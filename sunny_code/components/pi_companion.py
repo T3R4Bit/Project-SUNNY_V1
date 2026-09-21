@@ -32,6 +32,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from sunny_code.components import google_calendar, stt, tts
+from sunny_code.config import get_settings
 from sunny_code.components.assistant import handle_message
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.lists_engine import ListEngine
@@ -228,18 +229,34 @@ def create_pi_companion_router(
 
         def _usage():
             usage = token_tracker.get_today_usage()
+            settings = get_settings()
             return {
                 "cost_today": round(usage.get("cost", 0.0), 4),
                 "tokens_today": usage.get("total_tokens", 0),
                 "month_cost": round(token_tracker.get_month_cost(), 2),
+                # The cap is what turns spend into a bar rather than a
+                # number with no scale.
+                "month_cap": getattr(settings, "monthly_spend_cap", 0) or 0,
+                "day_cap": getattr(settings, "daily_spend_cap", 0) or 0,
             }
 
         def _health():
             score = readiness.score(day)
+            garmin_readiness = metrics_store.get_for_day(garmin_client.M_TRAINING_READINESS, day)
+
             data = {
-                "readiness": score["score"] if score else None,
-                "band": score["band"] if score else None,
+                # Garmin's own Training Readiness, not the composite.
+                # The device shows the number you also see in the Garmin
+                # app; two screens disagreeing about "readiness" is worse
+                # than either number being slightly less considered.
+                "readiness": garmin_readiness,
+                "band": readiness.band(garmin_readiness) if garmin_readiness is not None else None,
+                # The composite is still carried, so nothing is lost and
+                # the device can show both if it ever wants to.
+                "composite": score["score"] if score else None,
                 "sleep_hours": metrics_store.get_for_day(garmin_client.M_SLEEP_HOURS, day),
+                "sleep_score": metrics_store.get_for_day(garmin_client.M_SLEEP_SCORE, day),
+                "body_battery": metrics_store.get_for_day(garmin_client.M_BODY_BATTERY_WAKE, day),
                 "steps": metrics_store.get_for_day(garmin_client.M_STEPS, day),
             }
             return data if any(v is not None for v in data.values()) else None
