@@ -44,6 +44,12 @@ logger = logging.getLogger("companion")
 # a static face there for minutes.
 FACE_LINGER_SECONDS = 8
 
+# Debug capture, off unless asked for. See the render loop for why reading
+# /dev/fb0 does not work under kmsdrm.
+SCREENSHOT_PATH = os.environ.get("SCREENSHOT_PATH", "")
+SCREENSHOT_AFTER = float(os.environ.get("SCREENSHOT_AFTER", "5"))
+SCREENSHOT_EXIT = os.environ.get("SCREENSHOT_EXIT", "") == "1"
+
 
 class Companion:
     def __init__(self) -> None:
@@ -58,6 +64,7 @@ class Companion:
         self.last_activity = 0.0
         self.pane_index = 0
         self.pane_started = time.time()
+        self._started = time.time()
 
     # --- background ------------------------------------------------------
 
@@ -215,6 +222,20 @@ class Companion:
 
             self._draw_status()
             pygame.display.flip()
+
+            # Debug capture. kmsdrm renders straight to the DRM plane and
+            # never touches /dev/fb0, so reading the framebuffer shows the
+            # old console rather than this app -- the only way to see what
+            # is actually on screen from an SSH session is for the app to
+            # save its own surface.
+            if SCREENSHOT_PATH and time.time() - self._started > SCREENSHOT_AFTER:
+                try:
+                    pygame.image.save(self.display.screen, SCREENSHOT_PATH)
+                    logger.info(f"Saved screenshot to {SCREENSHOT_PATH}")
+                except Exception as e:
+                    logger.warning(f"Screenshot failed: {e}")
+                if SCREENSHOT_EXIT:
+                    return
 
 
 def main() -> int:
