@@ -38,25 +38,62 @@ M_PRESSURE = "weather.pressure_hpa"
 INTERVAL_HOURS = 12
 
 
-def capture_pressure() -> bool:
-    """Log today's barometric pressure. True if a value was stored.
+def capture_pressure() -> int:
+    """Log barometric pressure for every location the briefs report on.
+
+    Returns how many locations were stored.
+
+    Three locations, not one. The morning brief already shows weather for
+    Home, for campus on class days and for Marietta on Mondays (see
+    briefing._weather_locations_for), and you are physically in those
+    places -- so a migraine correlation built only on the home reading is
+    correlating against pressure somewhere you were not. They are close
+    enough that the readings usually agree and far enough that sometimes
+    they do not, which is exactly when the correlation matters.
+
+    `weather.pressure_hpa` stays the Home series so existing history is
+    unbroken; the others get their own suffixed series rather than being
+    averaged, because averaging would hide the disagreement that makes
+    them worth capturing.
 
     Stored against the logging day, so a reading taken at 1am lands on the
     day being lived -- matching how the check-in answer it will be
     correlated against is filed.
     """
-    current = weather.get_current()
-    if not current:
-        logger.info("Pressure capture skipped — weather unavailable")
-        return False
+    day = day_boundary.day_key()
+    stored = 0
 
-    pressure = current.get("pressure")
-    if pressure is None:
-        logger.info("Pressure capture skipped — no pressure in weather response")
-        return False
+    for metric, location in _pressure_locations():
+        current = weather.get_current(location) if location else weather.get_current()
+        if not current:
+            logger.info(f"Pressure capture skipped for {metric} — weather unavailable")
+            continue
+        pressure = current.get("pressure")
+        if pressure is None:
+            logger.info(f"Pressure capture skipped for {metric} — none in response")
+            continue
+        metrics_store.record(metric, float(pressure), ts=day)
+        stored += 1
 
-    metrics_store.record(M_PRESSURE, float(pressure), ts=day_boundary.day_key())
-    return True
+    return stored
+
+
+def _pressure_locations():
+    """[(metric, location_override)] for today.
+
+    Imported lazily from briefing to avoid a circular import -- briefing
+    already imports this module's M_PRESSURE indirectly through the
+    wellness section.
+    """
+    from sunny_code.components.briefing import _weather_locations_for
+    from datetime import date as _date
+
+    out = [(M_PRESSURE, None)]
+    for label, override in _weather_locations_for(_date.today()):
+        if override is None:
+            continue  # "Home" is the default entry above
+        out.append((f"{M_PRESSURE}.{label.lower()}", override))
+    return out
 
 
 def run() -> Dict:
@@ -66,7 +103,7 @@ def run() -> Dict:
     result: Dict = {"pressure": False, "garmin": None}
 
     try:
-        result["pressure"] = capture_pressure()
+        result["pressure"] = capture_pressure()  # locations stored
     except Exception as e:
         logger.error(f"Pressure capture failed: {e}", exc_info=True)
 

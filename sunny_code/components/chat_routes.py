@@ -70,6 +70,42 @@ class RenameRequest(BaseModel):
     title: str
 
 
+# Slash-command palette for the web chat.
+#
+# Each entry maps a shortcut to the REAL phrase the assistant already
+# understands. That indirection is the whole point: there is one command
+# grammar, not two. A slash command is a discoverability aid and a typing
+# shortcut, never a second parser that can drift out of step with the one
+# in assistant.py.
+#
+# `takes_argument` means the phrase has a {} placeholder and the client
+# should leave the cursor there rather than sending immediately.
+SLASH_COMMANDS = [
+    {"name": "tasks", "description": "Show open tasks", "phrase": "show my tasks"},
+    {"name": "add", "description": "Add a task", "phrase": "add {} to my tasks", "takes_argument": True},
+    {"name": "done", "description": "Mark a task done", "phrase": "mark {} as done", "takes_argument": True},
+    {"name": "lists", "description": "Show all lists", "phrase": "my lists"},
+    {"name": "list", "description": "Show one list", "phrase": "what's on my {} list", "takes_argument": True},
+    {"name": "brief", "description": "Whichever brief is current", "phrase": "brief"},
+    {"name": "morning", "description": "Morning briefing", "phrase": "morning"},
+    {"name": "evening", "description": "Evening briefing", "phrase": "evening"},
+    {"name": "sleep", "description": "Last night's sleep and wellness", "phrase": "how did I sleep"},
+    {"name": "readiness", "description": "Today's readiness score", "phrase": "what's my readiness"},
+    {"name": "workout", "description": "Free windows to train", "phrase": "when should I work out"},
+    {"name": "alarms", "description": "Show alarms", "phrase": "show my alarms"},
+    {"name": "remind", "description": "Set a reminder", "phrase": "remind me to {}", "takes_argument": True},
+    {"name": "reminders", "description": "Show reminders", "phrase": "show my reminders"},
+    {"name": "classes", "description": "Show your classes", "phrase": "my classes"},
+    {"name": "classsetup", "description": "Set up classes from a syllabus", "phrase": "set up my classes"},
+    {"name": "categories", "description": "List task categories", "phrase": "my categories"},
+    {"name": "weather", "description": "Current weather", "phrase": "what's the weather"},
+    {"name": "usage", "description": "Claude spend and limits", "phrase": "what's my usage"},
+    {"name": "health", "description": "Latest system health report", "phrase": "health check"},
+    {"name": "version", "description": "Deployed commit", "phrase": "what version are you running"},
+    {"name": "help", "description": "Everything Sunny can do", "phrase": "help"},
+]
+
+
 def _sse(event: str, payload: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
 
@@ -208,6 +244,14 @@ def create_chat_router(
         except Exception as e:
             logger.error(f"Chat failed: {e}", exc_info=True)
             return {"ok": False, "reply": f"Something went wrong: {type(e).__name__}", "conversation_id": conversation_id}
+
+    @router.get("/chat/commands")
+    async def list_commands():
+        """The slash-command palette (see SLASH_COMMANDS).
+
+        Served rather than hardcoded in the client so the list cannot
+        drift from what the assistant actually understands."""
+        return {"commands": SLASH_COMMANDS}
 
     # --- conversations ----------------------------------------------------
 
