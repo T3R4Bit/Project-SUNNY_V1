@@ -44,6 +44,11 @@ logger = logging.getLogger("companion")
 # a static face there for minutes.
 FACE_LINGER_SECONDS = 8
 
+# Frame rate while showing the dashboard. Text that changes once a minute
+# does not need 30fps, and this is a four-core 1.2GHz board that also runs
+# wake-word detection.
+IDLE_FPS = int(os.environ.get("IDLE_FPS", "4"))
+
 # Debug capture, off unless asked for. See the render loop for why reading
 # /dev/fb0 does not work under kmsdrm.
 SCREENSHOT_PATH = os.environ.get("SCREENSHOT_PATH", "")
@@ -185,7 +190,13 @@ class Companion:
         self.start_threads()
 
         while True:
-            dt = clock.tick(FPS) / 1000.0
+            # The face animates; the dashboard is static text that changes
+            # once a minute. Running both at 30fps on a Pi 3B spends most
+            # of the CPU rotating identical frames, so idle drops to a
+            # tenth of that. Rotation happens per frame, so this is where
+            # its cost is actually paid or avoided.
+            talking_now = (time.time() - self.last_activity) < FACE_LINGER_SECONDS
+            dt = clock.tick(FPS if talking_now else IDLE_FPS) / 1000.0
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -231,7 +242,7 @@ class Companion:
                 self._draw_banner(note)
 
             self._draw_status()
-            pygame.display.flip()
+            self.display.present()
 
             # Debug capture. kmsdrm renders straight to the DRM plane and
             # never touches /dev/fb0, so reading the framebuffer shows the
@@ -240,7 +251,7 @@ class Companion:
             # save its own surface.
             if SCREENSHOT_PATH and time.time() - self._started > SCREENSHOT_AFTER:
                 try:
-                    pygame.image.save(self.display.screen, SCREENSHOT_PATH)
+                    pygame.image.save(self.display.physical, SCREENSHOT_PATH)
                     logger.info(f"Saved screenshot to {SCREENSHOT_PATH}")
                 except Exception as e:
                     logger.warning(f"Screenshot failed: {e}")

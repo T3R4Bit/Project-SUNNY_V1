@@ -48,6 +48,18 @@ SNAPSHOT_INTERVAL = int(os.environ.get("SNAPSHOT_INTERVAL", "60"))
 PANE_SECONDS = int(os.environ.get("PANE_SECONDS", "12"))
 FPS = int(os.environ.get("FPS", "30"))
 
+# Screen rotation in degrees, counter-clockwise, applied at present time.
+#
+# Done in software rather than in /boot/firmware/config.txt for two
+# reasons: writing there needs a sudo password this account doesn't have
+# passwordless, and a bad boot config leaves the panel dark until it's
+# fixed physically. This is a one-line env change and a service restart.
+#
+# The trade is a rotate-and-blit per frame. pygame has a fast path for
+# exact multiples of 90, so it is cheap, but see present() -- the
+# dashboard doesn't need 30fps and drops its frame rate to pay for it.
+ROTATE = int(os.environ.get("SCREEN_ROTATE", "90")) % 360
+
 # A snapshot older than this is marked stale on screen rather than shown
 # as if it were current. Three missed polls -- enough to ride out one
 # blip, short enough that you are never misled for long.
@@ -173,10 +185,23 @@ class Display:
         pygame.mouse.set_visible(False)
 
         info = pygame.display.Info()
-        self.size = (info.current_w, info.current_h)
-        self.screen = pygame.display.set_mode(self.size, pygame.FULLSCREEN)
+        physical = (info.current_w, info.current_h)
+        self.physical = pygame.display.set_mode(physical, pygame.FULLSCREEN)
         pygame.display.set_caption("Sunny Companion")
-        logger.info(f"Display up: {driver} {self.size[0]}x{self.size[1]}")
+
+        # Everything draws onto `canvas` at the LOGICAL size; present()
+        # rotates it onto the physical panel. A 90 or 270 rotation swaps
+        # width and height, so panes lay themselves out for the orientation
+        # you actually see rather than the one the panel reports.
+        self.rotate = ROTATE
+        self.size = (physical[1], physical[0]) if self.rotate in (90, 270) else physical
+        self.canvas = pygame.Surface(self.size)
+        self.screen = self.canvas
+
+        logger.info(
+            f"Display up: {driver} panel {physical[0]}x{physical[1]} "
+            f"-> logical {self.size[0]}x{self.size[1]} (rotate {self.rotate})"
+        )
 
         # Scale type to the panel rather than hardcoding sizes -- the same
         # code has to look right on a 480x800 portrait panel and on a
@@ -194,6 +219,19 @@ class Display:
         # the real panel, where the calendar's first event was hidden
         # behind a banner. Panes stay offset-unaware; this shifts them.
         self.offset_y = 0
+
+    def present(self) -> None:
+        """Push the canvas to the panel, rotating if needed.
+
+        Called once per frame instead of pygame.display.flip(). When
+        rotation is off this is a straight blit, so the unrotated path
+        costs nothing extra.
+        """
+        if self.rotate:
+            self.physical.blit(pygame.transform.rotate(self.canvas, self.rotate), (0, 0))
+        else:
+            self.physical.blit(self.canvas, (0, 0))
+        pygame.display.flip()
 
     def text(self, surface_text, font, color, x, y, center=False, max_width=None):
         if max_width:
