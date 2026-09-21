@@ -62,6 +62,29 @@ systemctl --user start sunny-face
 The app picks its driver automatically (X11 when `DISPLAY` is set, kmsdrm
 otherwise), so neither mode needs a config change.
 
+## Rotation
+
+`SCREEN_ROTATE=90` (set in the service unit). Panes draw onto a logical
+canvas with width and height swapped, so they lay out for the orientation
+you see rather than the one the panel reports: panel 480x800 becomes
+logical 800x480.
+
+If the picture comes out upside down for how the panel is mounted, use
+`270`. `0` disables rotation entirely and makes `present()` a straight
+blit with no per-frame cost.
+
+```bash
+systemctl --user edit --full sunny-face   # change SCREEN_ROTATE
+systemctl --user restart sunny-face
+```
+
+Done in software rather than `/boot/firmware/config.txt` because writing
+there needs a sudo password this account doesn't have passwordless, and a
+bad boot config leaves the panel dark until it's fixed physically. The
+cost is one rotate-and-blit per frame, which is why the dashboard idles at
+`IDLE_FPS` (4) instead of 30 -- measured **14% of one core** on the Pi 3B.
+The face still runs at full rate while it animates.
+
 ## Data
 
 Two sources, two cadences, both on background threads so the render loop
