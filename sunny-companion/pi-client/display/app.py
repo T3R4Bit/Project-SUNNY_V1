@@ -60,6 +60,11 @@ FPS = int(os.environ.get("FPS", "30"))
 # dashboard doesn't need 30fps and drops its frame rate to pay for it.
 ROTATE = int(os.environ.get("SCREEN_ROTATE", "90")) % 360
 
+# Global type scale. The device is read from across a desk, not held, so
+# the defaults below are already larger than a screen this size would
+# normally carry -- this is for tuning without editing ratios.
+UI_SCALE = float(os.environ.get("UI_SCALE", "1.0"))
+
 # A snapshot older than this is marked stale on screen rather than shown
 # as if it were current. Three missed polls -- enough to ride out one
 # blip, short enough that you are never misled for long.
@@ -206,12 +211,20 @@ class Display:
         # Scale type to the panel rather than hardcoding sizes -- the same
         # code has to look right on a 480x800 portrait panel and on a
         # monitor if one is ever plugged in for debugging.
+        # Scaled off the SHORT edge so a rotation doesn't resize the type,
+        # and sized for reading at desk distance rather than phone
+        # distance -- this panel is 4.3", but it is two feet away and
+        # never touched, so everything is deliberately oversized.
         short = min(self.size)
-        self.f_huge = pygame.font.Font(None, int(short * 0.30))
-        self.f_big = pygame.font.Font(None, int(short * 0.14))
-        self.f_mid = pygame.font.Font(None, int(short * 0.075))
-        self.f_small = pygame.font.Font(None, int(short * 0.052))
-        self.f_tiny = pygame.font.Font(None, int(short * 0.040))
+
+        def font(ratio: float):
+            return pygame.font.Font(None, max(12, int(short * ratio * UI_SCALE)))
+
+        self.f_huge = font(0.40)
+        self.f_big = font(0.20)
+        self.f_mid = font(0.105)
+        self.f_small = font(0.072)
+        self.f_tiny = font(0.052)
 
         # Vertical offset applied to everything a pane draws. The
         # notification banner sits at the top of the screen, and without
@@ -219,6 +232,10 @@ class Display:
         # the real panel, where the calendar's first event was hidden
         # behind a banner. Panes stay offset-unaware; this shifts them.
         self.offset_y = 0
+
+        # Side margin, proportional rather than a fixed 18px -- the same
+        # gutter has to look right at 480 wide and on a larger panel.
+        self.pad = int(self.size[0] * 0.035)
 
     def present(self) -> None:
         """Push the canvas to the panel, rotating if needed.
@@ -256,8 +273,9 @@ class Display:
     def header(self, label: str, color):
         pygame.draw.rect(
             self.screen, color,
-            (0, self.offset_y, self.size[0], int(self.size[1] * 0.012)),
+            (0, self.offset_y, self.size[0], max(3, int(self.size[1] * 0.018))),
         )
-        self.text(label, self.f_tiny, color, 18, int(self.size[1] * 0.032))
+        self.text(label, self.f_tiny, color, self.pad, int(self.size[1] * 0.045))
         self.text(datetime.now().strftime("%H:%M"), self.f_tiny, DIM,
-                  self.size[0] - 18 - self.f_tiny.size("00:00")[0], int(self.size[1] * 0.032))
+                  self.size[0] - self.pad - self.f_tiny.size("00:00")[0],
+                  int(self.size[1] * 0.045))

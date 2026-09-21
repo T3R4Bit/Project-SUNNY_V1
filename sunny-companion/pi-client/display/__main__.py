@@ -49,6 +49,11 @@ FACE_LINGER_SECONDS = 8
 # wake-word detection.
 IDLE_FPS = int(os.environ.get("IDLE_FPS", "4"))
 
+# Share of the screen the notification banner takes. Defined once because
+# the banner height and the offset panes are pushed down by must agree --
+# when they drifted apart, pane content rendered underneath the banner.
+BANNER_FRACTION = 0.42
+
 # Debug capture, off unless asked for. See the render loop for why reading
 # /dev/fb0 does not work under kmsdrm.
 SCREENSHOT_PATH = os.environ.get("SCREENSHOT_PATH", "")
@@ -131,15 +136,16 @@ class Companion:
     def _draw_banner(self, note: dict) -> None:
         d = self.display
         w, h = d.size
-        height = int(h * 0.26)
+        height = int(h * BANNER_FRACTION)
         pygame.draw.rect(d.screen, (26, 26, 26), (0, 0, w, height))
-        pygame.draw.rect(d.screen, PINK, (0, 0, w, max(3, int(h * 0.008))))
+        pygame.draw.rect(d.screen, PINK, (0, 0, w, max(4, int(h * 0.014))))
 
-        d.text("NOTIFICATION", d.f_tiny, PINK, 18, int(h * 0.035))
-        y = int(h * 0.085)
-        y += d.text(note.get("title", ""), d.f_mid, WHITE, 18, y, max_width=w - 36)
+        d.text("NOTIFICATION", d.f_tiny, PINK, d.pad, int(h * 0.055))
+        y = int(h * 0.13)
+        y += d.text(note.get("title", ""), d.f_big, WHITE, d.pad, y, max_width=w - d.pad * 2)
         if note.get("body"):
-            d.text(note["body"], d.f_small, DIM, 18, y + int(h * 0.012), max_width=w - 36)
+            d.text(note["body"], d.f_mid, DIM, d.pad, y + int(h * 0.02),
+                   max_width=w - d.pad * 2)
 
     def _draw_status(self) -> None:
         # Absolute position: the footer is chrome, not pane content.
@@ -217,7 +223,7 @@ class Companion:
             # so the offset and the banner always agree about whether
             # there is one.
             note = self.notifications.current()
-            self.display.offset_y = int(self.display.size[1] * 0.26) if note else 0
+            self.display.offset_y = int(self.display.size[1] * BANNER_FRACTION) if note else 0
 
             talking = (time.time() - self.last_activity) < FACE_LINGER_SECONDS
             if talking and self.state != "idle":
