@@ -54,6 +54,11 @@ IDLE_FPS = int(os.environ.get("IDLE_FPS", "4"))
 # when they drifted apart, pane content rendered underneath the banner.
 BANNER_FRACTION = 0.42
 
+# Pin the rotation to one pane by name, for development. Without it,
+# capturing a specific pane means guessing at rotation timing and taking
+# the same screenshot twice.
+PANE_ONLY = os.environ.get("PANE_ONLY", "")
+
 # Debug capture, off unless asked for. See the render loop for why reading
 # /dev/fb0 does not work under kmsdrm.
 SCREENSHOT_PATH = os.environ.get("SCREENSHOT_PATH", "")
@@ -168,6 +173,8 @@ class Companion:
                    d.size[1] - int(d.size[1] * 0.045), center=True)
 
     def _advance_pane(self, data: dict) -> None:
+        if PANE_ONLY:
+            return
         panes = self.panes.all()
         if time.time() - self.pane_started < PANE_SECONDS:
             return
@@ -234,6 +241,11 @@ class Companion:
                     self.face.set_state("idle")
                 self._advance_pane(data)
                 panes = self.panes.all()
+                if PANE_ONLY:
+                    pinned = getattr(self.panes, PANE_ONLY, None)
+                    if pinned:
+                        panes = [pinned]
+                        self.pane_index = 0
                 try:
                     if not panes[self.pane_index](data):
                         panes[0](data)  # clock always renders

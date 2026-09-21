@@ -106,6 +106,10 @@ def sparkline(
     pygame.draw.lines(surface, color, False, coords, width)
 
 
+CLOUD = (190, 195, 200)
+BLUE_DROP = (37, 150, 190)
+
+
 def weather_glyph(surface: pygame.Surface, center, size: int, condition: str, color) -> None:
     """A sun, cloud, rain or storm mark chosen from the condition text.
 
@@ -161,18 +165,20 @@ def weather_glyph(surface: pygame.Surface, center, size: int, condition: str, co
             (cx + size // 30, cy + int(size * 0.78)),
         ])
     elif any(w in text for w in ("rain", "drizzle", "shower")):
-        cloud(tint=DIM)
-        drops(3, color)
+        cloud(tint=CLOUD)
+        drops(3, BLUE_DROP)
     elif "snow" in text:
-        cloud(tint=DIM)
+        cloud(tint=CLOUD)
         for i in range(3):
             dx = cx - size // 3 + i * (size // 3)
             pygame.draw.circle(surface, color, (dx, cy + int(size * 0.72)), max(2, size // 14))
     elif any(w in text for w in ("cloud", "overcast")):
         # Partly cloudy keeps a sun peeking out; fully overcast does not.
+        # The cloud is always light and the sun always yellow -- drawing
+        # the cloud in the accent colour turned the two into one blob.
         if any(w in text for w in ("few", "scattered", "partly", "broken")):
             sun(cx + size // 3, cy - size // 3, size // 5)
-        cloud(tint=DIM if "overcast" in text else color)
+        cloud(tint=DIM if "overcast" in text else CLOUD)
     elif any(w in text for w in ("mist", "fog", "haze", "smoke")):
         for i in range(3):
             y = cy - size // 4 + i * (size // 4)
