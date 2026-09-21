@@ -218,10 +218,11 @@ class BriefingTemplates:
         # not the sum of all three. Safe to share `unconfigured` across
         # them: each one's own append happens synchronously before its
         # first await, never interleaved with another's.
-        weather_note, calendar_note, email_note = await asyncio.gather(
+        weather_note, calendar_note, email_note, workout_note = await asyncio.gather(
             BriefingTemplates._weather_lines(now.date(), False, unconfigured),
             BriefingTemplates._calendar_text(0, unconfigured),
             BriefingTemplates._email_text(unconfigured),
+            BriefingTemplates._workout_line(),
         )
         commute_note = note("commute")
         news_note = note("news")
@@ -237,7 +238,7 @@ class BriefingTemplates:
         # only actionable while the day it describes still has the free
         # time in it. Reading it at 10pm is just a report on a day that
         # already happened.
-        workout_note = BriefingTemplates._workout_line()
+
 
         open_tasks = tasks_db.get_open_tasks()
         in_progress = tasks_db.get_in_progress_tasks()
@@ -332,7 +333,7 @@ Have a productive day!
         return lines
 
     @staticmethod
-    def _workout_line() -> str:
+    async def _workout_line() -> str:
         """A TRAINING section for the morning brief, or "" when there's
         nothing honest to say.
 
@@ -343,7 +344,7 @@ Have a productive day!
         from sunny_code.components import workouts
 
         try:
-            result = workouts.find_windows(days_ahead=2)
+            result = await workouts.find_windows(days_ahead=2)
         except Exception as e:
             logger.error(f"Workout windows failed: {e}", exc_info=True)
             return ""

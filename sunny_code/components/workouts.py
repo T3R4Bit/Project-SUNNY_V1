@@ -32,6 +32,7 @@ whether to surface anything at all and what to say, which is a different
 question from which window is best.
 """
 
+import asyncio
 import logging
 from datetime import date, datetime, time, timedelta
 from typing import Dict, List, Optional
@@ -209,7 +210,7 @@ def _narrow(gap: Dict, minutes: int) -> Dict:
     }
 
 
-def find_windows(days_ahead: int = 2) -> Dict:
+async def find_windows(days_ahead: int = 2) -> Dict:
     """Free windows over the next `days_ahead` days, best first.
 
     Returns a result dict rather than a bare list so callers can tell
@@ -223,8 +224,18 @@ def find_windows(days_ahead: int = 2) -> Dict:
     windows: List[Dict] = []
     calendar_available = False
 
-    for offset in range(days_ahead):
-        gaps = _gaps_for_day(offset)
+    # Each day is a blocking Google Calendar request. Fetched sequentially
+    # this cost ~1.2s per day and ran on the event loop, which made it most
+    # of the morning brief's latency (measured 2.3s for two days on
+    # 2026-09-21). asyncio.gather over to_thread turns N round trips into
+    # roughly one, and google_calendar's own short TTL cache means the
+    # brief's SCHEDULE section and this share day 0 rather than each
+    # paying for it.
+    per_day = await asyncio.gather(
+        *(asyncio.to_thread(_gaps_for_day, offset) for offset in range(days_ahead))
+    )
+
+    for offset, gaps in enumerate(per_day):
         if gaps is None:
             continue
         calendar_available = True

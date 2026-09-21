@@ -48,6 +48,41 @@ class BackfillRequest(BaseModel):
     end: Optional[str] = None
 
 
+# Display metadata per series: (label, unit, decimals, higher_is_better).
+# Module level rather than inside the summary handler because the series
+# endpoint needs the same labels too. It previously did not have them, so
+# the dashboard fetched the ENTIRE health summary -- every metric, every
+# point -- purely to read one label, once per chart AND once per sparkline
+# tile. Rendering /health cost roughly twenty upstream requests as a result.
+METRIC_META = {
+    readiness.M_SCORE: ("Sunny Readiness", "", 0, True),
+    garmin_client.M_TRAINING_READINESS: ("Training readiness", "", 0, True),
+    garmin_client.M_BODY_BATTERY_WAKE: ("Body Battery at wake", "", 0, True),
+    garmin_client.M_SLEEP_HOURS: ("Sleep", "h", 1, True),
+    garmin_client.M_SLEEP_SCORE: ("Sleep score", "", 0, True),
+    garmin_client.M_RESTING_HR: ("Resting HR", "bpm", 0, False),
+    garmin_client.M_HRV: ("Overnight HRV", "ms", 0, True),
+    garmin_client.M_STEPS: ("Steps", "", 0, True),
+    garmin_client.M_STRESS_AVG: ("Average stress", "", 0, False),
+    garmin_client.M_ACUTE_LOAD: ("Acute load", "", 0, None),
+    garmin_client.M_RESPIRATION: ("Respiration", "br/min", 0, None),
+    garmin_client.M_SPO2: ("SpO₂", "%", 0, True),
+    garmin_client.M_SKIN_TEMP: ("Skin temp", "°C", 1, None),
+    garmin_client.M_VO2MAX: ("VO₂ max", "", 1, True),
+    garmin_client.M_LOAD_AEROBIC_LOW: ("Aerobic base load", "", 0, True),
+    garmin_client.M_LOAD_AEROBIC_HIGH: ("Aerobic high load", "", 0, True),
+    garmin_client.M_LOAD_ANAEROBIC: ("Anaerobic load", "", 0, True),
+    daily_ingest.M_PRESSURE: ("Pressure", "hPa", 0, None),
+}
+
+
+def _meta(name: str):
+    """(label, unit, decimals, higher_is_better) for a series, with a
+    readable fallback for anything not in the table -- a metric can be
+    recorded from anywhere, so this must never KeyError."""
+    return METRIC_META.get(name, (name.split(".")[-1].replace("_", " ").capitalize(), "", 0, None))
+
+
 def create_metrics_router() -> APIRouter:
     router = APIRouter()
 
@@ -69,7 +104,46 @@ def create_metrics_router() -> APIRouter:
             start = (date.today() - timedelta(days=days)).isoformat()
 
         points = metrics_store.series(name, start=start, bucket=bucket, agg=agg)
-        return {"name": name, "range": range, "bucket": bucket, "points": points}
+        label, unit, decimals, higher = _meta(name)
+        # Metadata rides along. Without it the dashboard had to fetch the
+        # whole health summary just to label a chart.
+        return {
+            "name": name, "range": range, "bucket": bucket, "points": points,
+            "label": label, "unit": unit, "decimals": decimals, "higher_is_better": higher,
+        }
+
+    @router.get("/metrics/series/batch")
+    async def metric_series_batch(
+        names: str = Query(..., description="comma-separated series names"),
+        range: str = Query("1m"),
+    ):
+        """Several series in one request.
+
+        Exists because the health page draws a sparkline per stat tile.
+        One request per tile meant six round trips to Sunny over Tailscale
+        for one page render, each carrying its own latency -- and the
+        tiles are all on screen together, so there is no reason to ask
+        for them separately.
+
+        Capped at 24 names so a hand-written URL cannot ask for the whole
+        store in one go.
+        """
+        start = None
+        if range != "all":
+            days = RANGE_DAYS.get(range.lower())
+            if days is None:
+                raise HTTPException(status_code=400, detail=f"Unknown range {range!r}")
+            start = (date.today() - timedelta(days=days)).isoformat()
+
+        wanted = [n.strip() for n in names.split(",") if n.strip()][:24]
+        out = {}
+        for name in wanted:
+            label, unit, decimals, higher = _meta(name)
+            out[name] = {
+                "points": metrics_store.series(name, start=start),
+                "label": label, "unit": unit, "decimals": decimals, "higher_is_better": higher,
+            }
+        return {"range": range, "series": out}
 
     @router.get("/metrics/series/window")
     async def metric_series_window(
@@ -167,26 +241,7 @@ def create_metrics_router() -> APIRouter:
         today = day_boundary.day_key()
 
         # (series name, label, unit, decimals, higher_is_better)
-        tracked = [
-            (readiness.M_SCORE, "Sunny Readiness", "", 0, True),
-            (garmin_client.M_TRAINING_READINESS, "Training readiness", "", 0, True),
-            (garmin_client.M_BODY_BATTERY_WAKE, "Body Battery at wake", "", 0, True),
-            (garmin_client.M_SLEEP_HOURS, "Sleep", "h", 1, True),
-            (garmin_client.M_SLEEP_SCORE, "Sleep score", "", 0, True),
-            (garmin_client.M_RESTING_HR, "Resting HR", "bpm", 0, False),
-            (garmin_client.M_HRV, "Overnight HRV", "ms", 0, True),
-            (garmin_client.M_STEPS, "Steps", "", 0, True),
-            (garmin_client.M_STRESS_AVG, "Average stress", "", 0, False),
-            (garmin_client.M_ACUTE_LOAD, "Acute load", "", 0, None),
-            (garmin_client.M_RESPIRATION, "Respiration", "br/min", 0, None),
-            (garmin_client.M_SPO2, "SpO₂", "%", 0, True),
-            (garmin_client.M_SKIN_TEMP, "Skin temp", "°C", 1, None),
-            (garmin_client.M_VO2MAX, "VO₂ max", "", 1, True),
-            (garmin_client.M_LOAD_AEROBIC_LOW, "Aerobic base load", "", 0, True),
-            (garmin_client.M_LOAD_AEROBIC_HIGH, "Aerobic high load", "", 0, True),
-            (garmin_client.M_LOAD_ANAEROBIC, "Anaerobic load", "", 0, True),
-            (daily_ingest.M_PRESSURE, "Pressure", "hPa", 0, None),
-        ]
+        tracked = [(k,) + v for k, v in METRIC_META.items()]
 
         out = {}
         any_data = False
@@ -247,7 +302,7 @@ def create_metrics_router() -> APIRouter:
     @router.get("/health/workouts")
     async def get_workout_windows(days_ahead: int = Query(2, ge=1, le=7)):
         """Free calendar windows ranked by readiness."""
-        return workouts.find_windows(days_ahead=days_ahead)
+        return await workouts.find_windows(days_ahead=days_ahead)
 
     @router.get("/health/garmin/status")
     async def garmin_status():

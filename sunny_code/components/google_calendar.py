@@ -11,6 +11,7 @@ the "fail quietly" principle in sunny-vault/docs/architecture/briefing-engine.md
 """
 
 import logging
+import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
@@ -61,7 +62,30 @@ def _list_calendar_ids(service) -> List[str]:
     return [c["id"] for c in result.get("items", [])]
 
 
-def get_events(day_offset: int = 0) -> Optional[List[Dict]]:
+# Short-lived cache of get_events results, keyed by day offset.
+#
+# One brief render asks for the same day more than once: the SCHEDULE
+# section fetches day 0, and the workout-window search fetches days 0 and
+# 1. Each miss is a real round trip to Google, and they were costing about
+# a second each -- measured 2.3s for the two-day window search alone on
+# 2026-09-21, which was most of the brief's latency.
+#
+# 90 seconds is short enough that an event added on your phone shows up in
+# the next brief you ask for, and long enough that one page render pays
+# for each day at most once. Deliberately not longer: a stale calendar
+# would make the workout suggester offer time that is no longer free,
+# which is the one thing it must never do.
+_EVENTS_TTL_SECONDS = 90
+_events_cache: Dict[int, tuple] = {}
+
+
+def clear_cache() -> None:
+    """Drop cached events. For tests and for anything that just wrote to
+    the calendar and needs to read its own change back."""
+    _events_cache.clear()
+
+
+def get_events(day_offset: int = 0, use_cache: bool = True) -> Optional[List[Dict]]:
     """Events for today (day_offset=0) or another day, across every calendar
     the account has — not just "primary". A personal Google account commonly
     has several (family, shared, subject-specific) with real events on them;
@@ -70,7 +94,15 @@ def get_events(day_offset: int = 0) -> Optional[List[Dict]]:
 
     None means "couldn't reach Calendar" (not connected, or a live error) —
     callers should treat that the same as the "not connected" case, never crash.
+
+    Results are cached for _EVENTS_TTL_SECONDS. Failures are NOT cached:
+    a transient error must not suppress the calendar for a minute and a
+    half, and retrying costs one request.
     """
+    if use_cache:
+        hit = _events_cache.get(day_offset)
+        if hit and (time.monotonic() - hit[0]) < _EVENTS_TTL_SECONDS:
+            return hit[1]
     # datetime.now() is naive local time; .astimezone() attaches the system's
     # actual local UTC offset. Building the day boundary from that produces a
     # correct offset-aware timestamp — appending a literal "Z" here would
@@ -86,10 +118,13 @@ def get_events(day_offset: int = 0) -> Optional[List[Dict]]:
 
     raw_events = get_events_range(time_min, time_max)
     if raw_events is None:
+        # Deliberately not cached -- see the docstring.
         return None
 
     raw_events.sort(key=_event_sort_key)
-    return [_format_event(e) for e in raw_events]
+    formatted = [_format_event(e) for e in raw_events]
+    _events_cache[day_offset] = (time.monotonic(), formatted)
+    return formatted
 
 
 def get_events_range(time_min: datetime, time_max: datetime) -> Optional[List[Dict]]:
