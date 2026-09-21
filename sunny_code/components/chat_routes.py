@@ -34,6 +34,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from sunny_code.components import chat_store
 from sunny_code.components.assistant import handle_message
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.calendar_engine import CalendarEngine
@@ -52,12 +53,21 @@ _REPLY_TIMEOUT_SECONDS = 180
 
 class ChatMessage(BaseModel):
     message: str
-    # One conversation per session id. Defaults to a single shared web
-    # session rather than a random one per request, so follow-ups
-    # ("why?", "the second one") resolve -- conversation_memory is keyed
-    # on this. A per-request id would silently disable memory while
-    # looking like it worked.
-    session_id: str = "web:chat"
+    # The durable conversation this message belongs to. Omitted means
+    # "start a new one" -- the id comes back on the `done` event so the
+    # client can keep using it. Everything is persisted against this (see
+    # chat_store), which is what makes a conversation survive a reload.
+    conversation_id: Optional[str] = None
+    # Kept for non-web callers (scripts, the Pi fallback) that want
+    # in-memory continuity without a stored transcript. When
+    # conversation_id is given, the session is derived from it instead,
+    # so each conversation gets its own prompt context rather than all
+    # of them sharing one.
+    session_id: Optional[str] = None
+
+
+class RenameRequest(BaseModel):
+    title: str
 
 
 def _sse(event: str, payload: dict) -> str:
@@ -79,6 +89,15 @@ def create_chat_router(
 
     @router.post("/chat/stream")
     async def chat_stream(body: ChatMessage):
+        conversation_id = chat_store.ensure_conversation(body.conversation_id)
+        session_id = body.session_id or f"web:{conversation_id}"
+
+        # Replay recent turns into conversation_memory before handling, so
+        # a conversation resumed after a restart actually resumes rather
+        # than just looking like it did.
+        chat_store.hydrate_memory(conversation_id, session_id)
+        chat_store.add_message(conversation_id, "user", body.message)
+
         queue: asyncio.Queue = asyncio.Queue()
         streamed = False
 
@@ -102,7 +121,7 @@ def create_chat_router(
                         project_engine,
                         spotify_engine,
                         calendar_engine,
-                        session_id=body.session_id,
+                        session_id=session_id,
                         on_chunk=on_chunk,
                         on_search_start=on_search_start,
                     ),
@@ -112,7 +131,13 @@ def create_chat_router(
                 # one chunk so the client has a single code path.
                 if reply and not streamed:
                     await queue.put(("chunk", {"text": reply}))
-                await queue.put(("done", {"text": reply or ""}))
+                # Persist after the reply is complete, not per chunk: a
+                # half-written answer in the transcript would be worse
+                # than none, and the write must not sit in the stream's
+                # critical path.
+                if reply:
+                    await asyncio.to_thread(chat_store.add_message, conversation_id, "assistant", reply)
+                await queue.put(("done", {"text": reply or "", "conversation_id": conversation_id}))
             except asyncio.TimeoutError:
                 logger.error(f"Chat timed out after {_REPLY_TIMEOUT_SECONDS}s: {body.message[:80]!r}")
                 await queue.put(("error", {"text": "That took too long — try again."}))
@@ -156,6 +181,10 @@ def create_chat_router(
     async def chat_once(body: ChatMessage):
         """Non-streaming equivalent, for callers that just want the reply
         (scripts, the Pi's fallback, a client that can't do SSE)."""
+        conversation_id = chat_store.ensure_conversation(body.conversation_id)
+        session_id = body.session_id or f"web:{conversation_id}"
+        chat_store.hydrate_memory(conversation_id, session_id)
+        chat_store.add_message(conversation_id, "user", body.message)
         try:
             reply = await asyncio.wait_for(
                 handle_message(
@@ -167,15 +196,50 @@ def create_chat_router(
                     project_engine,
                     spotify_engine,
                     calendar_engine,
-                    session_id=body.session_id,
+                    session_id=session_id,
                 ),
                 timeout=_REPLY_TIMEOUT_SECONDS,
             )
-            return {"ok": True, "reply": reply or "", "session_id": body.session_id}
+            if reply:
+                chat_store.add_message(conversation_id, "assistant", reply)
+            return {"ok": True, "reply": reply or "", "conversation_id": conversation_id}
         except asyncio.TimeoutError:
-            return {"ok": False, "reply": "That took too long — try again.", "session_id": body.session_id}
+            return {"ok": False, "reply": "That took too long — try again.", "conversation_id": conversation_id}
         except Exception as e:
             logger.error(f"Chat failed: {e}", exc_info=True)
-            return {"ok": False, "reply": f"Something went wrong: {type(e).__name__}", "session_id": body.session_id}
+            return {"ok": False, "reply": f"Something went wrong: {type(e).__name__}", "conversation_id": conversation_id}
+
+    # --- conversations ----------------------------------------------------
+
+    @router.get("/chat/conversations")
+    async def list_conversations(limit: int = 50):
+        """Sidebar list: newest first, with a preview of the last message."""
+        return {"conversations": chat_store.list_conversations(limit=limit)}
+
+    @router.get("/chat/conversations/{conversation_id}")
+    async def get_conversation(conversation_id: str, limit: int = 500):
+        """Full transcript, for rendering a conversation on page load."""
+        return {
+            "conversation_id": conversation_id,
+            "messages": chat_store.get_messages(conversation_id, limit=limit),
+        }
+
+    @router.post("/chat/conversations")
+    async def new_conversation():
+        return {"conversation_id": chat_store.create_conversation()}
+
+    @router.patch("/chat/conversations/{conversation_id}")
+    async def rename_conversation(conversation_id: str, body: RenameRequest):
+        return {"ok": chat_store.rename_conversation(conversation_id, body.title)}
+
+    @router.delete("/chat/conversations/{conversation_id}")
+    async def delete_conversation(conversation_id: str):
+        """Also clears the in-memory context, so a new conversation that
+        happens to reuse the session key cannot inherit deleted turns."""
+        from sunny_code.components import conversation_memory
+
+        conversation_memory._history.pop(f"web:{conversation_id}", None)
+        conversation_memory._last_touched.pop(f"web:{conversation_id}", None)
+        return {"ok": chat_store.delete_conversation(conversation_id)}
 
     return router
