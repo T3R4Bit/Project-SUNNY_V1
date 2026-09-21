@@ -106,12 +106,28 @@ class Panes:
 
         d = self.d
         d.header("HEALTH", BLUE)
-        y = int(d.size[1] * 0.16)
-        for label, value, unit in rows:
-            shown = f"{value:,.0f}{unit}" if float(value) >= 100 else f"{value:g}{unit}"
-            d.text(label, d.f_small, DIM, d.pad, y)
-            d.text(shown, d.f_big, WHITE, d.pad, y + int(d.size[1] * 0.075))
-            y += int(d.size[1] * 0.27)
+
+        def shown(value, unit):
+            return f"{value:,.0f}{unit}" if float(value) >= 100 else f"{value:g}{unit}"
+
+        if d.size[0] > d.size[1]:
+            # Landscape: three stats side by side. Stacked vertically they
+            # used a narrow left column and left most of an 800px-wide
+            # screen empty, which is the wrong shape for the panel.
+            column = d.size[0] // len(rows)
+            y = int(d.size[1] * 0.30)
+            for i, (label, value, unit) in enumerate(rows):
+                cx = column * i + column // 2
+                d.text(label, d.f_small, DIM, cx, y, center=True)
+                d.text(shown(value, unit), d.f_big, WHITE, cx,
+                       y + int(d.size[1] * 0.11), center=True,
+                       max_width=column - d.pad)
+        else:
+            y = int(d.size[1] * 0.16)
+            for label, value, unit in rows:
+                d.text(label, d.f_small, DIM, d.pad, y)
+                d.text(shown(value, unit), d.f_big, WHITE, d.pad, y + int(d.size[1] * 0.075))
+                y += int(d.size[1] * 0.27)
         return True
 
     def usage(self, data: Dict) -> bool:
