@@ -14,6 +14,10 @@ User=sunny
 WorkingDirectory=/home/sunny/Project-SUNNY/sunny-companion/pi-client
 Environment=SUNNY_URL=http://sunshine-m700.wahoo-sidewinder.ts.net:5000
 Environment=PYTHONUNBUFFERED=1
+# Screen rotation in degrees, counter-clockwise. 0 disables it entirely
+# (straight blit, no per-frame cost). Use 270 if the panel comes out
+# upside down relative to how it is mounted.
+Environment=SCREEN_ROTATE=90
 # Driver is auto-detected in app.py: X11 when DISPLAY is set, kmsdrm
 # otherwise. Left unset here so the same unit works in either mode.
 ExecStart=/usr/bin/python3 -m display
