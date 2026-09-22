@@ -217,9 +217,11 @@ async def find_windows(days_ahead: int = 2) -> Dict:
     "no free time" from "no calendar" -- the honest-gap contract every
     other data source here follows.
     """
-    current = readiness.score()
+    # The headline number (Garmin's when it exists) rather than the
+    # composite, so the advice here matches what every screen shows.
+    current = readiness.headline()
     load = readiness.load_gap()
-    readiness_value = current["score"] if current else None
+    readiness_value = current["value"] if current else None
 
     windows: List[Dict] = []
     calendar_available = False

@@ -322,7 +322,7 @@ Have a productive day!
             ("Sleep", garmin_client.M_SLEEP_HOURS, "{:.1f} h"),
             ("Sleep score", garmin_client.M_SLEEP_SCORE, "{:.0f}"),
             ("Body Battery at wake", garmin_client.M_BODY_BATTERY_WAKE, "{:.0f}"),
-            ("Training readiness", garmin_client.M_TRAINING_READINESS, "{:.0f}"),
+            ("Readiness", garmin_client.M_TRAINING_READINESS, "{:.0f}"),
             ("Resting HR", garmin_client.M_RESTING_HR, "{:.0f} bpm"),
             ("Steps", garmin_client.M_STEPS, "{:,.0f}"),
         ]

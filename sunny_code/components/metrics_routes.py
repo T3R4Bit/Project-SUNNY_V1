@@ -55,8 +55,8 @@ class BackfillRequest(BaseModel):
 # point -- purely to read one label, once per chart AND once per sparkline
 # tile. Rendering /health cost roughly twenty upstream requests as a result.
 METRIC_META = {
-    readiness.M_SCORE: ("Sunny Readiness", "", 0, True),
-    garmin_client.M_TRAINING_READINESS: ("Training readiness", "", 0, True),
+    garmin_client.M_TRAINING_READINESS: ("Readiness", "", 0, True),
+    readiness.M_SCORE: ("Sunny Readiness (blend)", "", 0, True),
     garmin_client.M_BODY_BATTERY_WAKE: ("Body Battery at wake", "", 0, True),
     garmin_client.M_SLEEP_HOURS: ("Sleep", "h", 1, True),
     garmin_client.M_SLEEP_SCORE: ("Sleep score", "", 0, True),

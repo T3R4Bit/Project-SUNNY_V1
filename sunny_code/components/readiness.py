@@ -218,15 +218,54 @@ def load_gap() -> Optional[Dict]:
     }
 
 
+def headline(day: Optional[str] = None) -> Optional[Dict]:
+    """The readiness number to LEAD with, and what it actually is.
+
+    Garmin's own Training Readiness when it exists, because that is the
+    figure also shown in the Garmin app -- two screens disagreeing about
+    "readiness" is worse than either number being slightly less
+    considered.
+
+    Falls back to the composite when Garmin has none for that day (it only
+    reports on recent days, and only on watches that support it). The
+    fallback is LABELLED differently rather than silently substituted:
+    showing a blended score under the same name Garmin uses would make
+    the series quietly mean two different things depending on the date.
+    """
+    from sunny_code.components import day_boundary, garmin_client, metrics_store
+
+    day = day or day_boundary.day_key()
+    garmin_value = metrics_store.get_for_day(garmin_client.M_TRAINING_READINESS, day)
+    if garmin_value is not None:
+        return {
+            "value": round(garmin_value),
+            "source": "garmin",
+            "label": "Training readiness",
+            "band": band(garmin_value),
+        }
+
+    composite = score(day)
+    if composite is None:
+        return None
+    return {
+        "value": composite["score"],
+        "source": "composite",
+        "label": "Sunny Readiness",
+        "band": composite["band"],
+    }
+
+
 def summary_line(day: Optional[str] = None) -> Optional[str]:
     """One line for a briefing, or None if there's nothing to say."""
-    result = score(day)
-    if result is None:
+    lead = headline(day)
+    if lead is None:
         return None
 
-    parts = [f"Readiness {result['score']}/100 ({result['band']})"]
-    if not result["complete"]:
-        parts.append(f"from {len(result['components'])} of {len(_weights())} signals")
+    parts = [f"{lead['label']} {lead['value']}/100 ({lead['band']})"]
+    if lead["source"] == "composite":
+        result = score(day)
+        if result and not result["complete"]:
+            parts.append(f"from {len(result['components'])} of {len(_weights())} signals")
 
     gap = load_gap()
     if gap and gap["under_target"]:
