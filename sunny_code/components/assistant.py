@@ -39,8 +39,8 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from sunny_code.components import (
-    build_info, category_store, checkin, class_setup_engine, exam_prep, health_check, service_registry,
-    setup_guides, token_tracker, trace,
+    build_info, category_store, checkin, class_setup_engine, exam_prep, health_check, memory_store,
+    service_registry, setup_guides, token_tracker, trace,
 )
 from sunny_code.components.briefing import BriefingEngine, OnChunk, OnSearchStart
 from sunny_code.components.calendar_engine import CalendarEngine
@@ -362,6 +362,55 @@ def _get_pending(session_id: str) -> Optional[Dict]:
     return entry
 
 
+_REMEMBER_PREFIXES = (
+    "remember that ", "remember, ", "remember ",
+    "make a note that ", "note that ", "don't forget that ", "dont forget that ",
+)
+_FORGET_PREFIXES = ("forget that ", "forget ")
+_MEMORY_QUERY_TRIGGERS = (
+    "what do you know about me", "what do you remember", "what do you remember about me",
+    "show my memory", "what's in your memory", "whats in your memory",
+)
+
+# Words that hint at what KIND of thing is being remembered, so a fact
+# gets filed usefully rather than everything landing in one bucket. Only a
+# hint -- an unmatched sentence is still stored, just as a plain fact.
+_MEMORY_TYPE_HINTS = (
+    ("preference", ("i prefer", "i like", "i hate", "i'd rather", "id rather", "always ", "never ")),
+    ("flaw", ("i'm bad at", "im bad at", "i struggle", "i tend to", "i forget", "i procrastinate")),
+    ("person", ("my mom", "my dad", "my brother", "my sister", "my friend", "my professor")),
+    ("decision", ("i decided", "we decided", "i chose", "going with")),
+)
+
+
+def _memory_kind(text: str) -> str:
+    lowered = text.lower()
+    for kind, hints in _MEMORY_TYPE_HINTS:
+        if any(h in lowered for h in hints):
+            return kind
+    return "fact"
+
+
+def _extract_remember(stripped: str, lowered: str) -> Optional[str]:
+    """The thing to remember out of "remember that X". Taken from
+    `stripped` so the stored text keeps its original capitalisation."""
+    for prefix in _REMEMBER_PREFIXES:
+        if not lowered.startswith(prefix):
+            continue
+        captured = stripped[len(prefix):].strip().strip("\"'")
+        if not captured:
+            return None
+        # "remember to call mom" is a REMINDER, not a fact about Keaton.
+        # The bare "remember " prefix would otherwise swallow it and file
+        # "to call mom" in long-term memory, where it would be useless and
+        # permanent. Left unmatched so it falls through to Claude, which
+        # can suggest the reminder phrasing.
+        if captured.lower().startswith("to "):
+            return None
+        return captured
+    return None
+
+
 def _set_pending(session_id: str, awaiting: str, **extra) -> None:
     _pending[session_id] = {"awaiting": awaiting, "ts": time.time(), **extra}
 
@@ -399,6 +448,8 @@ def _looks_like_a_command(stripped: str, lowered: str, categories: Optional[List
         return True
     if (lowered in _CATEGORY_LIST_TRIGGERS or _extract_category_add(stripped, lowered) is not None
             or _extract_category_remove(stripped, lowered) is not None):
+        return True
+    if lowered in _MEMORY_QUERY_TRIGGERS or _extract_remember(stripped, lowered) is not None:
         return True
     task_cmd_type, _, _ = TaskCommandParser.parse_command(stripped, categories)
     if task_cmd_type not in ("unknown", "add"):
@@ -960,6 +1011,32 @@ async def _handle_message_inner(
         )
         trace.mark_route("tasks_engine", cmd_type, confidence="exact", function="tasks_engine.execute_command")
         return message
+
+    if lowered in _MEMORY_QUERY_TRIGGERS:
+        facts = memory_store.all_facts()
+        profile = memory_store.profile_text()
+        trace.mark_route("memory", "list", confidence="exact", function="memory_store.all_facts")
+        if not facts and not profile:
+            return ("I don't have anything remembered yet. Tell me something with "
+                    '"remember that ...", or fill in sunny-vault/memory/profile.md.')
+        lines = []
+        if profile:
+            lines.append("From your profile:" + chr(10) + profile)
+        if facts:
+            lines.append(f"{len(facts)} things I've been told:")
+            lines.extend(f"  ({f['type']}) {f['text']}" for f in facts[:15])
+            if len(facts) > 15:
+                lines.append(f"  ...and {len(facts) - 15} more")
+        return (chr(10) * 2).join(lines)
+
+    remembered = _extract_remember(stripped, lowered)
+    if remembered:
+        kind = _memory_kind(remembered)
+        fact_id = memory_store.remember(remembered, kind=kind, source=source)
+        trace.mark_route("memory", "remember", confidence="heuristic", function="memory_store.remember")
+        if fact_id is None:
+            return "I couldn't store that — check the logs."
+        return f"Got it, I'll remember that ({kind})."
 
     if lowered in _MORNING_TRIGGERS:
         trace.mark_route("briefing", "morning", confidence="exact", function="briefing_engine.generate_morning_briefing")

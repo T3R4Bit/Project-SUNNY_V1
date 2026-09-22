@@ -22,7 +22,7 @@ from sunny_code.components.llm_client import ask_claude, ask_claude_stream
 from sunny_code.components.request_log import log_unfulfilled
 from sunny_code.components import (
     checkin, class_memory, conversation_memory, day_boundary, docs_search, google_calendar, google_gmail,
-    health_check, metrics_store, readiness, weather,
+    health_check, memory_store, metrics_store, readiness, weather,
 )
 
 OnChunk = Callable[[str], Awaitable[None]]
@@ -607,8 +607,13 @@ Total: {len(open_tasks) + len(in_progress)} tasks
         # prompt itself, sunny-vault/docs/instructions/general-chat.md.
         else:
             settings = get_settings()
+            # Order matters: what Sunny knows about Keaton, then what the
+            # docs say, then the live conversation, then the question. The
+            # standing context goes first so a follow-up cannot push it
+            # out of the model's attention.
             prompt = (
-                docs_search.format_for_prompt(docs_search.search(question))
+                memory_store.format_for_prompt(question)
+                + docs_search.format_for_prompt(docs_search.search(question))
                 + conversation_memory.format_for_prompt(session_id) + question
             )
             if on_chunk is not None:

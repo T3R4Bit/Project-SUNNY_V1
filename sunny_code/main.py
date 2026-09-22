@@ -39,8 +39,8 @@ from sunny_code.components.spotify_routes import create_spotify_auth_router
 from sunny_code.components.calendar_engine import CalendarEngine
 from sunny_code.components.crash_check import check_previous_crash
 from sunny_code.components import (
-    daily_ingest, health_check, notify, personality, push_service, rules_engine,
-    service_registry, token_tracker,
+    daily_ingest, health_check, memory_store, notify, personality, push_service,
+    rules_engine, service_registry, token_tracker,
 )
 from sunny_code.components.health_check import run_weekly_health_check
 from sunny_code.components.weather_routes import create_weather_router
@@ -111,6 +111,11 @@ class SunnyCore:
         # find by reading the source. Never overwrites an existing one --
         # see personality.py on why Sunny otherwise never writes this file.
         personality.ensure_exists()
+        # Same for the memory profile -- a scaffold in the vault is how
+        # the feature becomes discoverable in Obsidian rather than
+        # something you would only find by reading the source. Never
+        # overwrites; see memory_store on why Sunny must not author it.
+        memory_store.ensure_profile()
 
         self.app = self._create_app()
         self.discord_bot = self._create_discord_bot()
