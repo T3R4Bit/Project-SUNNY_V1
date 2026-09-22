@@ -1019,15 +1019,20 @@ async def _handle_message_inner(
         if not facts and not profile:
             return ("I don't have anything remembered yet. Tell me something with "
                     '"remember that ...", or fill in sunny-vault/memory/profile.md.')
-        lines = []
+        # Blocks are separated by a blank line; the facts inside a block
+        # are not. Joining everything with a double newline put a blank
+        # line between every single fact, which read as a list of
+        # unrelated fragments rather than one list.
+        blocks = []
         if profile:
-            lines.append("From your profile:" + chr(10) + profile)
+            blocks.append("From your profile:" + chr(10) + profile)
         if facts:
-            lines.append(f"{len(facts)} things I've been told:")
-            lines.extend(f"  ({f['type']}) {f['text']}" for f in facts[:15])
+            shown = [f"{len(facts)} things I've been told:"]
+            shown += [f"  ({f['type']}) {f['text']}" for f in facts[:15]]
             if len(facts) > 15:
-                lines.append(f"  ...and {len(facts) - 15} more")
-        return (chr(10) * 2).join(lines)
+                shown.append(f"  ...and {len(facts) - 15} more")
+            blocks.append(chr(10).join(shown))
+        return (chr(10) * 2).join(blocks)
 
     remembered = _extract_remember(stripped, lowered)
     if remembered:
