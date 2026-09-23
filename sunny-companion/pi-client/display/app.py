@@ -65,6 +65,20 @@ ROTATE = int(os.environ.get("SCREEN_ROTATE", "90")) % 360
 # normally carry -- this is for tuning without editing ratios.
 UI_SCALE = float(os.environ.get("UI_SCALE", "1.0"))
 
+# How the touch panel is mounted relative to the framebuffer. Video
+# reaches this screen over HDMI and touch over SPI from an ADS7846;
+# nothing makes the two agree about orientation, and on this unit they do
+# not -- config.txt drives 480x800 portrait timings on glass that is
+# natively 800x480 landscape, with swapxy off in the overlay.
+#
+# Measured rather than assumed: calibrate.py scores all eight possible
+# mountings against four real taps and prints the winner. Defaults are the
+# identity mapping, so an uncalibrated unit behaves exactly as before
+# rather than mysteriously differently.
+TOUCH_SWAP = os.environ.get("TOUCH_SWAP", "0") == "1"
+TOUCH_FLIP_X = os.environ.get("TOUCH_FLIP_X", "0") == "1"
+TOUCH_FLIP_Y = os.environ.get("TOUCH_FLIP_Y", "0") == "1"
+
 # A snapshot older than this is marked stale on screen rather than shown
 # as if it were current. Three missed polls -- enough to ride out one
 # blip, short enough that you are never misled for long.
@@ -356,11 +370,37 @@ class Display:
         touchscreen or a mouse, and a keyboard/mouse plugged in for
         debugging keeps working too.
         """
+        pw, ph = self.physical.get_size()
+
         if event.type == pygame.FINGERDOWN:
-            pw, ph = self.physical.get_size()
-            return self.to_canvas(event.x * pw, event.y * ph)
+            # SDL normalizes against the ADS7846's own ABS ranges, so these
+            # are 0..1 along the TOUCH axes, which are not necessarily the
+            # framebuffer's axes. Orient first, scale second -- scaling by
+            # the wrong edge length before swapping would squash the
+            # reading into the wrong aspect and no later fix recovers it.
+            nx, ny = event.x, event.y
+            if TOUCH_SWAP:
+                nx, ny = ny, nx
+            if TOUCH_FLIP_X:
+                nx = 1.0 - nx
+            if TOUCH_FLIP_Y:
+                ny = 1.0 - ny
+            return self.to_canvas(nx * pw, ny * ph)
+
         if event.type == pygame.MOUSEBUTTONDOWN:
-            return self.to_canvas(event.pos[0], event.pos[1])
+            # Already in framebuffer pixels. A real mouse needs no
+            # reorientation, but SDL also synthesizes these from the
+            # touchscreen, in which case it has applied its own mapping
+            # and the same correction applies.
+            x, y = event.pos
+            if TOUCH_SWAP:
+                x, y = y * (pw / ph), x * (ph / pw)
+            if TOUCH_FLIP_X:
+                x = pw - 1 - x
+            if TOUCH_FLIP_Y:
+                y = ph - 1 - y
+            return self.to_canvas(x, y)
+
         return None
 
     def text(self, surface_text, font, color, x, y, center=False, max_width=None):
@@ -383,12 +423,17 @@ class Display:
             value = value[:-1]
         return value + "…"
 
-    def header(self, label: str, color):
+    def header(self, label: str, color, stamp: bool = True):
         """Pane title on the left, date and time on the right.
 
         Uses f_small rather than f_tiny: this is read at desk distance,
         and the date in particular is the kind of thing you glance at
         rather than lean in for.
+
+        stamp=False drops the date/time. The clock pane passes it: showing
+        "Sep 23 · 9:07 AM" in 20px type directly above 9:07 AM in 80px
+        type is the same fact twice, and the small copy is the one that
+        adds nothing.
         """
         pygame.draw.rect(
             self.screen, color,
@@ -397,9 +442,11 @@ class Display:
         y = int(self.size[1] * 0.052)
         self.text(label, self.f_small, color, self.pad, y)
 
+        if not stamp:
+            return
         now = datetime.now()
         # .day rather than %-d/%#d, for the same portability reason as
         # time_12h above.
-        stamp = f"{now.strftime('%b')} {now.day} · {time_12h(now)}"
-        self.text(stamp, self.f_small, DIM,
-                  self.size[0] - self.pad - self.f_small.size(stamp)[0], y)
+        text = f"{now.strftime('%b')} {now.day} · {time_12h(now)}"
+        self.text(text, self.f_small, DIM,
+                  self.size[0] - self.pad - self.f_small.size(text)[0], y)

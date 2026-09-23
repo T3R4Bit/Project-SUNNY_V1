@@ -222,9 +222,24 @@ def create_pi_companion_router(
 
         def _tasks():
             open_tasks = tasks_engine.db.get_open_tasks()
+            # Dated tasks first, soonest first, then undated. A panel that
+            # shows five of five in arbitrary order buries the one that is
+            # actually due, which is the only reason to glance at it.
+            def sort_key(task):
+                due = task.get("due_date")
+                return (due is None, due or "")
+
+            open_tasks = sorted(open_tasks, key=sort_key)
             return {
                 "open": len(open_tasks),
-                "items": [{"title": t["title"], "tag": t.get("tag", "")} for t in open_tasks[:5]],
+                "items": [{
+                    "title": t["title"],
+                    "tag": t.get("tag", ""),
+                    # Carried so the device can show what is due and colour
+                    # it by urgency -- without this every task looks equally
+                    # pressing, which is the same as no information.
+                    "due_date": t.get("due_date"),
+                } for t in open_tasks[:5]],
             }
 
         def _usage():
@@ -241,8 +256,38 @@ def create_pi_companion_router(
             }
 
         def _health():
+            # Fall back to the most recent reading when today has none.
+            #
+            # Garmin data arrives once or twice a day and can simply fail
+            # to -- the pull was IP rate-limited overnight on 2026-09-22,
+            # and the result was a completely blank health pane on the Pi
+            # despite a year of history sitting in the database. A
+            # dashboard that shows nothing is indistinguishable from one
+            # that is broken, and it was reported as exactly that.
+            #
+            # The age is carried alongside so the device can say "as of
+            # yesterday" rather than implying the number is current.
+            # Showing a stale figure unlabelled would be worse than
+            # showing none.
+            stale_day = None
+
+            def recent(metric):
+                nonlocal stale_day
+                value = metrics_store.get_for_day(metric, day)
+                if value is not None:
+                    return value
+                latest = metrics_store.latest(metric)
+                if latest is None:
+                    return None
+                # Track the OLDEST day any fallback came from, so the label
+                # can't overstate freshness when metrics land on different
+                # days.
+                if stale_day is None or latest["ts"] < stale_day:
+                    stale_day = latest["ts"]
+                return latest["value"]
+
             score = readiness.score(day)
-            garmin_readiness = metrics_store.get_for_day(garmin_client.M_TRAINING_READINESS, day)
+            garmin_readiness = recent(garmin_client.M_TRAINING_READINESS)
 
             data = {
                 # Garmin's own Training Readiness, not the composite.
@@ -254,12 +299,18 @@ def create_pi_companion_router(
                 # The composite is still carried, so nothing is lost and
                 # the device can show both if it ever wants to.
                 "composite": score["score"] if score else None,
-                "sleep_hours": metrics_store.get_for_day(garmin_client.M_SLEEP_HOURS, day),
-                "sleep_score": metrics_store.get_for_day(garmin_client.M_SLEEP_SCORE, day),
-                "body_battery": metrics_store.get_for_day(garmin_client.M_BODY_BATTERY_WAKE, day),
-                "steps": metrics_store.get_for_day(garmin_client.M_STEPS, day),
+                "sleep_hours": recent(garmin_client.M_SLEEP_HOURS),
+                "sleep_score": recent(garmin_client.M_SLEEP_SCORE),
+                "body_battery": recent(garmin_client.M_BODY_BATTERY_WAKE),
+                "steps": recent(garmin_client.M_STEPS),
             }
-            return data if any(v is not None for v in data.values()) else None
+            if not any(v is not None for v in data.values()):
+                return None
+            # Only set once something was actually served from an older
+            # day -- present-and-null would read as "stale, day unknown".
+            if stale_day:
+                data["as_of"] = stale_day
+            return data
 
         def _checkin():
             question = checkin.next_question(day)

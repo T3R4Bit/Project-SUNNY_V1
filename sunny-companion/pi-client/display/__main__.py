@@ -309,6 +309,56 @@ class Companion:
         finally:
             self.display.screen = saved
 
+    def _draw_touch_hint(self) -> None:
+        """A small persistent "tap" pill in the bottom-right corner.
+
+        Without it the touch menu is completely invisible until touched,
+        which makes a deployed build indistinguishable from an old one --
+        the first question after shipping this was "the Pi hasn't
+        updated", because nothing on screen said otherwise. It doubles as
+        the affordance: nothing else about the panel suggests it responds
+        to a finger.
+
+        Dim and small on purpose. This sits on a desk all day and the
+        dashboard is the point; a bright control would compete with it.
+        """
+        display = self.display
+        saved, display.offset_y = display.offset_y, 0
+        try:
+            width, height = display.size
+            font = display.f_small
+            label = "MENU"
+            surf = font.render(label, True, WHITE)
+
+            # Sized as a real button, not a footnote. The first version was
+            # f_tiny in the corner and the immediate feedback was that it
+            # was too small to notice or aim at -- which it was, on a 4in
+            # panel read from two feet away with a fingertip covering
+            # roughly 40px of glass.
+            pad_x = int(width * 0.028)
+            pad_y = int(height * 0.022)
+            box = pygame.Rect(0, 0, surf.get_width() + pad_x * 2,
+                              surf.get_height() + pad_y * 2)
+            box.right = width - display.pad
+            box.bottom = height - int(height * 0.035)
+
+            pygame.draw.rect(display.screen, (26, 26, 30), box, border_radius=10)
+            pygame.draw.rect(display.screen, BLUE, box, width=2, border_radius=10)
+
+            # Three bars, the one symbol everyone already reads as "menu".
+            bar_w = int(surf.get_width() * 0.42)
+            bar_x = box.x + pad_x
+            bar_gap = max(4, int(box.height * 0.16))
+            bar_y = box.centery - bar_gap
+            for i in range(3):
+                pygame.draw.line(display.screen, BLUE, (bar_x, bar_y + i * bar_gap),
+                                 (bar_x + bar_w, bar_y + i * bar_gap), 2)
+
+            display.screen.blit(surf, surf.get_rect(
+                midleft=(bar_x + bar_w + pad_x // 2, box.centery)))
+        finally:
+            display.offset_y = saved
+
     def _draw_touch_debug(self) -> None:
         """Crosshair and coordinates at the last touch, for calibration.
 
@@ -432,6 +482,8 @@ class Companion:
             # Menu above the banner: it is the thing being interacted with,
             # and a notification arriving mid-tap must not cover the button
             # a finger is already on its way to.
+            if not self.menu.open and not note:
+                self._draw_touch_hint()
             self.menu.draw()
             self.menu.draw_status()
             if TOUCH_DEBUG:
