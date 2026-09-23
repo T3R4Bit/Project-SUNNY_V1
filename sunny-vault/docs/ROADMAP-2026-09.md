@@ -465,6 +465,29 @@ never move. A 970 spinning up inside an otherwise idle-efficient NAS costs power
 
 ---
 
+## Waiting on being at the device
+
+- [ ] **Pi touch calibration** — needs four taps on the physical panel, so it cannot be
+      done remotely. Video arrives over HDMI and touch over SPI from the ADS7846, and
+      nothing makes them agree: `config.txt` drives `hdmi_timings=480 … 800 …`
+      (portrait) on glass that is natively 800×480 landscape, and the overlay has
+      `swapxy = <0x00>`. Eight possible mappings; guessing wastes a test cycle each time.
+
+      ```
+      systemctl --user stop sunny-face
+      cd ~/Project-SUNNY/sunny-companion/pi-client && python3 calibrate.py
+      systemctl --user start sunny-face
+      ```
+
+      It scores all eight against the four taps and prints
+      `TOUCH_SWAP=… TOUCH_FLIP_X=… TOUCH_FLIP_Y=…`, which go in the service
+      environment — `app.py` already reads them, so it is a config line, not a code
+      change. Hardware is confirmed working (IRQ 185 on GPIO 25 counts up on touch).
+
+      If calibrate.py shows **no response at all**, the diagnosis changes: SDL is not
+      receiving events the kernel is generating, and the fix moves to SDL's input
+      backend rather than orientation.
+
 ## Open questions
 
 - [ ] Watch model — does it report HRV Status? (blocks part of Stage D's scoring)
