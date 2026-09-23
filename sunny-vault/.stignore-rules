@@ -1,0 +1,73 @@
+// Syncthing ignore rules for the Sunny vault.
+//
+// Audited 2026-09-23. The vault was 10MB, of which ~144KB (1.4%) was
+// actual notes. All 19 conflict files on record came from machine churn
+// or Obsidian's own per-device state -- NOT ONE came from a note edited
+// in two places. Conflicts by device: laptop 8, sunshine-m700 8 (Sunny
+// itself), Keaton-PC 3, iPad 0.
+//
+// So the fix is not a different sync tool. It is not syncing the 9.8MB
+// that has no business being synced.
+//
+// THIS FILE IS SYNCED. Every device pulls it in with a one-line
+// .stignore containing:  #include .stignore-rules
+//
+// .stignore itself is per-device and never syncs, which meant every rule
+// change had to be repeated by hand on four machines -- and two of them
+// (the laptop and the iPad) are routinely not reachable, so they simply
+// never got it. Keeping the rules in a synced file and the include in
+// the unsynced one fixes that: edit here, every device follows.
+//
+// The tradeoff is that a bad edit propagates everywhere too. It is a
+// short file and the alternative was devices silently drifting apart.
+
+// ---------------------------------------------------------------
+// Obsidian's own state. 12 of the 19 conflicts, and 4.6MB.
+// workspace.json records which panes are open, so it differs per device
+// by definition and is rewritten constantly. Plugin data.json is a local
+// cache. Syncing any of it guarantees conflicts forever.
+// Decision (2026-09-23): ignore the lot. Installing a plugin three times
+// is cheaper than this class of conflict existing at all.
+.obsidian
+
+// ---------------------------------------------------------------
+// Sunny's append-only logs. 4.5MB, including a 3.98MB suggestions.md,
+// rewritten continuously on the server and read on no other device.
+// health_check.py:97 and sensors.py:28 already exclude this directory
+// from what counts as "knowledge" -- the classification existed, it just
+// was never wired to the sync boundary.
+// Longer-term these move out of the vault entirely; until then, ignored.
+log
+
+// ---------------------------------------------------------------
+// Runtime cursors, rewritten every few minutes by the sensor loop.
+// Pure machine state: position markers, not content.
+data/state/*cursor*.json
+data/state/health-check.md
+
+// Mirror of scheduled.db. The file says so in its own header: "the real
+// data lives in SQLite, not here". Regenerated on every change, and the
+// source of one of the 19.
+data/state/alarms-reminders.md
+
+// ---------------------------------------------------------------
+// Stale top-level state/ tree, superseded by data/state/ in a path
+// migration. Files last touched 2026-08-27. Left on disk deliberately
+// rather than deleted -- ignoring it stops the churn, and deleting
+// someone else's leftovers is their call to make.
+state
+
+// ---------------------------------------------------------------
+// Syncthing's own furniture, and the wreckage of past conflicts.
+// (?d) lets Syncthing delete these when it needs the directory gone,
+// instead of refusing and leaving a half-removed tree behind.
+.stfolder
+(?d).stversions
+(?d)*.sync-conflict-*
+
+// Editor and OS noise.
+(?d).DS_Store
+(?d)Thumbs.db
+(?d)desktop.ini
+*.tmp
+*~
