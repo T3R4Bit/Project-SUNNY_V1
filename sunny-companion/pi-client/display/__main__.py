@@ -27,9 +27,11 @@ import pygame
 
 from display.app import (
     BG, BLUE, DIM, FPS, ORANGE, PANE_SECONDS, PINK, SUNNY_URL, WHITE, YELLOW,
-    Display, Notifications, Snapshot, poll_snapshot,
+    Display, Notifications, Snapshot, fetch_checkin, fetch_snapshot_once, poll_snapshot,
+    post_checkin_answer,
 )
 from display.face import Face
+from display.menu import Menu, MenuItem
 from display.panes import Panes
 
 logging.basicConfig(
@@ -54,10 +56,25 @@ IDLE_FPS = int(os.environ.get("IDLE_FPS", "4"))
 # when they drifted apart, pane content rendered underneath the banner.
 BANNER_FRACTION = 0.42
 
+# How long a pane tapped from the menu holds the screen before the
+# carousel resumes. Long enough to actually read a full task list.
+PANE_PIN_SECONDS = int(os.environ.get("PANE_PIN_SECONDS", "45"))
+
 # Pin the rotation to one pane by name, for development. Without it,
 # capturing a specific pane means guessing at rotation timing and taking
 # the same screenshot twice.
 PANE_ONLY = os.environ.get("PANE_ONLY", "")
+
+# Draws a crosshair and the coordinates wherever the screen is touched,
+# in both panel and canvas space. This panel is resistive and its driver
+# has no calibration applied, so if taps land off-target this is the only
+# way to see whether the problem is the rotation mapping or the panel's
+# own ranges -- without it, "the buttons don't work" has no next step.
+TOUCH_DEBUG = os.environ.get("TOUCH_DEBUG", "") == "1"
+
+# Open the menu at startup, so it can be screenshotted over SSH without
+# anyone physically touching the panel.
+MENU_OPEN = os.environ.get("MENU_OPEN", "") == "1"
 
 # Debug capture, off unless asked for. See the render loop for why reading
 # /dev/fb0 does not work under kmsdrm.
@@ -80,6 +97,16 @@ class Companion:
         self.pane_index = 0
         self.pane_started = time.time()
         self._started = time.time()
+
+        self.menu = Menu(self.display)
+        self.menu.set_builder(self._menu_items)
+        # Set by a pane-jump button. While it holds a name the carousel
+        # stops advancing and that pane stays up, so tapping "Tasks" means
+        # tasks are still there ten seconds later instead of having
+        # rotated away mid-read.
+        self.pinned_pane = ""
+        self.pinned_until = 0.0
+        self._last_touch = None
 
     # --- background ------------------------------------------------------
 
@@ -172,9 +199,93 @@ class Companion:
             d.text(message, d.f_tiny, color, d.size[0] // 2,
                    d.size[1] - int(d.size[1] * 0.045), center=True)
 
+    # --- menu ------------------------------------------------------------
+
+    def _menu_items(self):
+        """The menu, rebuilt each time it opens.
+
+        Ordered by what someone standing over this panel actually wants.
+        The check-in comes first and only exists while there is a question
+        outstanding -- it is the one thing here that cannot be done any
+        other way without picking up a phone, and it is answered at a time
+        of day when typing is unappealing.
+        """
+        items = []
+
+        pending = fetch_checkin()
+        question = (pending or {}).get("question")
+        if question and question.get("type") == "yes_no":
+            day = (pending or {}).get("day")
+            qid = question["id"]
+            prompt = question.get("prompt", "Check-in")
+            # The prompt goes in the title bar, so the buttons only carry
+            # the answer -- "Yes"/"No" at full size beats a two-line
+            # question squeezed into a button.
+            self.menu.title = prompt
+            items.append(MenuItem(
+                "Yes", lambda: self._answer_checkin(qid, "yes", day), PINK))
+            items.append(MenuItem(
+                "No", lambda: self._answer_checkin(qid, "no", day), BLUE))
+        else:
+            self.menu.title = "Sunny"
+
+        for label, pane in (("Calendar", "calendar"), ("Weather", "weather"),
+                            ("Tasks", "tasks"), ("Health", "health")):
+            items.append(MenuItem(label, lambda p=pane, l=label: self._pin_pane(p, l), BLUE))
+
+        items.append(MenuItem("Refresh", self._refresh, YELLOW))
+        items.append(MenuItem("Close", lambda: None, DIM))
+        return items
+
+    def _answer_checkin(self, question_id: str, answer: str, day):
+        """Log a check-in answer without blocking the render loop.
+
+        The POST happens on a thread and the confirmation is flashed from
+        there, so a slow or dead server leaves the screen animating rather
+        than frozen. The message distinguishes success from failure
+        because the server rejects an unparseable answer instead of
+        storing a zero -- claiming "logged" on a rejection would leave a
+        hole in the history that reads as a day never asked about.
+        """
+        def work():
+            ok = post_checkin_answer(question_id, answer, day)
+            self.menu.flash(f"Logged: {answer}" if ok else "Couldn't reach Sunny")
+
+        threading.Thread(target=work, daemon=True).start()
+        return None
+
+    def _pin_pane(self, pane_name: str, label: str):
+        panes = self.panes.all()
+        target = getattr(self.panes, pane_name, None)
+        if target is None or target not in panes:
+            return f"No {label} pane"
+        self.pinned_pane = pane_name
+        self.pinned_until = time.time() + PANE_PIN_SECONDS
+        self.pane_index = panes.index(target)
+        self.pane_started = time.time()
+        return None
+
+    def _refresh(self):
+        """Ask for fresh data now instead of waiting out the poll interval.
+
+        Fires a one-shot fetch on its own thread rather than poking the
+        polling thread, which is parked in a stop.wait() and has no way to
+        be woken early without a second synchronisation primitive for a
+        button pressed once a week.
+        """
+        threading.Thread(
+            target=fetch_snapshot_once, args=(self.snapshot,), daemon=True
+        ).start()
+        return "Refreshing…"
+
     def _advance_pane(self, data: dict) -> None:
         if PANE_ONLY:
             return
+        # A pane pinned from the menu holds the screen until it expires.
+        if self.pinned_pane:
+            if time.time() < self.pinned_until:
+                return
+            self.pinned_pane = ""
         panes = self.panes.all()
         if time.time() - self.pane_started < PANE_SECONDS:
             return
@@ -198,9 +309,44 @@ class Companion:
         finally:
             self.display.screen = saved
 
+    def _draw_touch_debug(self) -> None:
+        """Crosshair and coordinates at the last touch, for calibration.
+
+        Shows the raw panel point alongside the canvas point it mapped to,
+        because those are the two things that can independently be wrong:
+        a bad panel reading means the ADS7846 needs calibrating, while a
+        sane panel reading that maps to the wrong canvas point means the
+        rotation inverse is wrong. One number cannot tell those apart.
+        """
+        if not self._last_touch:
+            return
+        point, event, when = self._last_touch
+        display = self.display
+        saved, display.offset_y = display.offset_y, 0
+        try:
+            age = time.time() - when
+            if age > 6:
+                return
+            x, y = point
+            pygame.draw.line(display.screen, ORANGE, (x - 22, y), (x + 22, y), 2)
+            pygame.draw.line(display.screen, ORANGE, (x, y - 22), (x, y + 22), 2)
+            pygame.draw.circle(display.screen, ORANGE, (x, y), 16, 2)
+
+            if event.type == pygame.FINGERDOWN:
+                pw, ph = display.physical.get_size()
+                raw = f"finger {event.x * pw:.0f},{event.y * ph:.0f}"
+            else:
+                raw = f"mouse {event.pos[0]},{event.pos[1]}"
+            display.text(f"{raw}  ->  canvas {x},{y}", display.f_tiny, ORANGE,
+                         display.pad, display.size[1] - display.f_tiny.get_height() - 4)
+        finally:
+            display.offset_y = saved
+
     def run(self) -> None:
         clock = pygame.time.Clock()
         self.start_threads()
+        if MENU_OPEN:
+            self.menu.show()
 
         while True:
             # The face animates; the dashboard is static text that changes
@@ -208,8 +354,13 @@ class Companion:
             # of the CPU rotating identical frames, so idle drops to a
             # tenth of that. Rotation happens per frame, so this is where
             # its cost is actually paid or avoided.
+            # The menu runs at full frame rate. At IDLE_FPS the 0.18s press
+            # highlight lands inside a single frame and a tap looks like it
+            # did nothing -- on a resistive panel with no haptics that is
+            # the difference between "it works" and jabbing at it.
             talking_now = (time.time() - self.last_activity) < FACE_LINGER_SECONDS
-            dt = clock.tick(FPS if talking_now else IDLE_FPS) / 1000.0
+            interactive = talking_now or self.menu.open
+            dt = clock.tick(FPS if interactive else IDLE_FPS) / 1000.0
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -217,10 +368,28 @@ class Companion:
                 if event.type == pygame.KEYDOWN:
                     if event.key in (pygame.K_ESCAPE, pygame.K_q):
                         return
-                    # Any other key dismisses a banner -- the device has no
-                    # touchscreen input wired up, but a keyboard is often
-                    # plugged in while working on it.
+                    if event.key == pygame.K_m:
+                        # Keyboard equivalent of a tap, for working on the
+                        # menu over SSH with a keyboard plugged in.
+                        self.menu.toggle()
+                        continue
+                    # Any other key dismisses a banner -- a keyboard is
+                    # often plugged in while working on it.
                     self.notifications.dismiss()
+
+                point = self.display.touch_point(event)
+                if point is not None:
+                    self._last_touch = (point, event, time.time())
+                    # A banner is dismissed by the same tap that would
+                    # otherwise open the menu. Clearing an alert is the
+                    # more likely intent when one is on screen, and it
+                    # keeps "tap to acknowledge" working without a button.
+                    if self.notifications.current() and not self.menu.open:
+                        self.notifications.dismiss()
+                    else:
+                        self.menu.handle_tap(point)
+
+            self.menu.tick()
 
             data, _, _ = self.snapshot.read()
             self.display.screen.fill(BG)
@@ -260,6 +429,13 @@ class Companion:
                 self._draw_banner(note)
 
             self._draw_status()
+            # Menu above the banner: it is the thing being interacted with,
+            # and a notification arriving mid-tap must not cover the button
+            # a finger is already on its way to.
+            self.menu.draw()
+            self.menu.draw_status()
+            if TOUCH_DEBUG:
+                self._draw_touch_debug()
             self.display.present()
 
             # Debug capture. kmsdrm renders straight to the DRM plane and

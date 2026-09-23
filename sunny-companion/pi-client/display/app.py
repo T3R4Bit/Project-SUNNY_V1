@@ -177,21 +177,73 @@ class Notifications:
             self.shown_at = time.time()
 
 
+def fetch_snapshot_once(snapshot: Snapshot) -> None:
+    """One snapshot fetch. Split out of the poll loop so the menu's
+    Refresh button can force an update without either waiting out the
+    interval or starting a second permanent poller."""
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen(f"{SUNNY_URL}/api/companion/snapshot", timeout=10) as r:
+            snapshot.update(json.loads(r.read().decode("utf-8")))
+    except Exception as e:
+        snapshot.fail(f"{type(e).__name__}")
+        logger.warning(f"Snapshot fetch failed: {e}")
+
+
 def poll_snapshot(snapshot: Snapshot, stop: threading.Event) -> None:
     """Background poller. Runs in a thread so a slow or hung request can
     never stall the render loop -- a frozen screen reads as a crashed
     device even when only the network is at fault."""
-    import urllib.error
+    while not stop.is_set():
+        fetch_snapshot_once(snapshot)
+        stop.wait(SNAPSHOT_INTERVAL)
+
+
+def fetch_checkin() -> Optional[Dict]:
+    """Today's unanswered check-in question, or None.
+
+    Its own request rather than a field on the snapshot: the snapshot is
+    polled once a minute and cached, and an answer logged from the panel
+    has to disappear from the menu immediately rather than up to a minute
+    later. Called when the menu opens, not per frame.
+    """
     import urllib.request
 
-    while not stop.is_set():
-        try:
-            with urllib.request.urlopen(f"{SUNNY_URL}/api/companion/snapshot", timeout=10) as r:
-                snapshot.update(json.loads(r.read().decode("utf-8")))
-        except Exception as e:
-            snapshot.fail(f"{type(e).__name__}")
-            logger.warning(f"Snapshot fetch failed: {e}")
-        stop.wait(SNAPSHOT_INTERVAL)
+    try:
+        with urllib.request.urlopen(f"{SUNNY_URL}/api/checkin/pending", timeout=5) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except Exception as e:
+        logger.warning(f"Check-in fetch failed: {type(e).__name__}")
+        return None
+
+
+def post_checkin_answer(question_id: str, answer: str, day: Optional[str] = None) -> bool:
+    """Log an answer. True on success.
+
+    The server returns 422 for an answer it cannot parse rather than
+    storing a zero, so a False here means the answer genuinely did not
+    land and the caller must say so -- silently showing "logged" for a
+    rejected answer would leave a gap in the history that looks like a
+    day the question was never asked.
+    """
+    import urllib.request
+
+    payload = {"question_id": question_id, "answer": answer}
+    if day:
+        payload["day"] = day
+    request = urllib.request.Request(
+        f"{SUNNY_URL}/api/checkin/answer",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as r:
+            return r.status == 200
+    except Exception as e:
+        logger.warning(f"Check-in answer failed: {type(e).__name__}")
+        return False
 
 
 class Display:
@@ -261,6 +313,55 @@ class Display:
         else:
             self.physical.blit(self.canvas, (0, 0))
         pygame.display.flip()
+
+    def to_canvas(self, px: int, py: int):
+        """Map a touch from PANEL coordinates to CANVAS coordinates.
+
+        Rotating the display does not rotate the touchscreen. The ADS7846
+        reports where a finger landed on the physical panel, which after a
+        90 degree rotation is nowhere near the pixel the user was aiming
+        at -- taps land along the wrong axis entirely, and the failure
+        looks like "touch is broken" rather than "touch is rotated".
+
+        present() draws with pygame.transform.rotate, which turns
+        COUNTER-clockwise for a positive angle. This is exactly its
+        inverse, so the two have to be changed together:
+
+            rotate 90:  canvas(x,y) -> panel(y, cw-1-x)
+            so          panel(px,py) -> canvas(cw-1-py, px)
+
+        Returns a plain (x, y) tuple in canvas space. Coordinates are
+        clamped rather than rejected when out of range: a resistive panel
+        reports the odd reading a pixel or two past the edge, and dropping
+        those would silently eat taps aimed at a button on the border.
+        """
+        cw, ch = self.size
+        if self.rotate == 90:
+            x, y = cw - 1 - py, px
+        elif self.rotate == 270:
+            x, y = py, ch - 1 - px
+        elif self.rotate == 180:
+            x, y = cw - 1 - px, ch - 1 - py
+        else:
+            x, y = px, py
+        return max(0, min(cw - 1, int(x))), max(0, min(ch - 1, int(y)))
+
+    def touch_point(self, event):
+        """Canvas coordinates for a pygame touch or mouse event, or None.
+
+        SDL delivers this panel two ways at once under kmsdrm: real
+        FINGERDOWN events (normalized 0..1 against the panel) and
+        synthesized mouse clicks (already in pixels). Both are accepted so
+        the menu works whether SDL's evdev backend decides this is a
+        touchscreen or a mouse, and a keyboard/mouse plugged in for
+        debugging keeps working too.
+        """
+        if event.type == pygame.FINGERDOWN:
+            pw, ph = self.physical.get_size()
+            return self.to_canvas(event.x * pw, event.y * ph)
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            return self.to_canvas(event.pos[0], event.pos[1])
+        return None
 
     def text(self, surface_text, font, color, x, y, center=False, max_width=None):
         if max_width:
