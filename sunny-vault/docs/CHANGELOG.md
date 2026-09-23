@@ -12,6 +12,54 @@ Running log of real changes, most recent first. Not every commit — the milesto
 
 ---
 
+## 2026-09-23
+
+**Projects reworked into containers, with a red-team critique phase**
+- `project_store.py` + `project_work.py` replace the one-shot scaffolder. A project is now a folder read as one body of context — description, plan, critique, research, and anything dropped in by hand in Obsidian, cross-referenced into the prompt with no import step. `project <name>` scopes a conversation to it.
+- Three statuses in **one field** — `active` / `long-term` / `someday` — chosen over a horizon × state model. Two fields describe reality better, but every item then needs two decisions to file and two to find, and the filing gets skipped.
+- Phase is separate and independent: `idea → planning → critique → refined → building → done/parked`. A `someday` project can sit at `refined` with a finished plan waiting for time.
+- **The critique phase** sits between planning and refined on purpose: the first plan is written while you are still enthusiastic, so it gets attacked once while changing it is cheap. Every risk requires a concrete failure mode and a concrete fix; "be careful" is rejected by the prompt.
+- Archiving moves the folder to `data/projects/archive/`, same convention as tasks. `archived` is deliberately **not** in `STATUSES` — it is "not in the list at all", not a fourth peer. Archived projects stay readable via `get()`, `context()` and `resolve()`.
+- 16 projects imported from the Notion Projects database. Rows tagged `ARCHIVE` were skipped — Notion's `Status` was not trusted on its own, since 5 of the 7 rows marked *In progress* were also tagged `ARCHIVE`.
+- Two bugs caught by tests before deploy: `resolve()` excluded the archive, so `unarchive <name>` could never have matched; and `archive` triggered both the listing and the archive action, with the listing winning.
+- 77 assertions. See [[architecture/project-system]].
+
+**Capture — one structured extraction, three callers**
+- `extract.py`. "add quiz 3 in physics due friday" → `Quiz 3`, due 2026-09-25, `#School`, class Physics, in one turn. Previously produced a task literally titled "quiz 3 in physics due friday" with an empty date column and a "which category?" question.
+- Structured outputs (`output_config.format`), not the forced tool call the roadmap specified — the only reason to define a tool was to get JSON back, and forced `tool_choice` is rejected on some current models.
+- The category list is an `enum` **in the schema**, so an off-list value cannot be generated rather than being caught afterwards.
+- Calibration was a prompt bug: the first pass auto-filed 3/8 because the model scored *missing detail* as *uncertainty* ("buy milk" got 0.7). Fixed by judging what was stated rather than how much. Now 7/8. Deliberately not fixed by lowering the threshold.
+- `ask_claude_json()` now checks `stop_reason` before parsing — a response truncated at `max_tokens` was being reported as "not valid JSON", which points at the schema when the cause is the budget.
+- 42 tests, none calling the API. See [[architecture/capture]].
+
+**Pi companion — touch menu, and the panes that were dead**
+- The panel has had a working ADS7846 touchscreen all along; nothing was reading it. Tap anywhere for a menu: check-in Yes/No (one tap, the only daily input that otherwise needs a keyboard), pane jumps pinned 45s, refresh.
+- `Display.to_canvas()` inverts the display rotation for touch coordinates — rotating the display does not rotate the touchscreen. `test_touch.py` verifies it by round-tripping a real pixel through the actual rotation, so the two cannot drift apart. Zero drift at 0/90/180/270.
+- **The health pane was blank, not ugly**: `_health()` returned `None` whenever *today* had no Garmin row, and Garmin was IP rate-limited overnight — so a year of history rendered as a black screen. Now falls back to the most recent reading with an `as_of` label.
+- Tasks never sent due dates at all, so every task looked equally urgent. Now sent, sorted soonest-first, drawn as chips coloured by urgency.
+- Panes rebuilt on a two-column grid; the previous single-column layout left ~40% of an 800×480 screen empty while truncating content. The tasks pane showed 4 rows under a header saying "5 OPEN".
+- **Touch orientation is still uncalibrated** — video is HDMI and touch is SPI, and nothing makes them agree. `calibrate.py` measures it; needs someone at the panel. See [[architecture/pi-companion]].
+
+**Vault sync — the diagnosis was wrong, and the fix was not a new tool**
+- Audited rather than assumed: the iPad caused **0** of the 19 conflicts, and there is no iPhone in the folder. The iOS gap that justified replacing Syncthing with CouchDB is not what was breaking this vault.
+- The real cause: the vault was 10MB of which ~144KB (1.4%) was notes. `.obsidian/` was 4.6MB and 12 of 19 conflicts; `log/` 4.5MB and 3 more. **Not one conflict came from a note edited in two places.**
+- Synced set per device: 10MB/146 files → **0.56MB/61 files**, 19 conflicts → 0.
+- A whole class of those conflicts was **line endings** — `discord-bot.md` differed by 230 bytes across exactly 230 lines, CRLF against LF.
+- Rules live in a synced `.stignore-rules`, pulled in by a one-line per-device `.stignore`, because `.stignore` never syncs and the two devices that most needed it were the two rarely to hand.
+- **CouchDB dropped** — it would have prevented none of the 19. See [[architecture/vault-sync]].
+
+**Personality filled in, and memory documented**
+- `personality.md` now carries real settings rather than the default scaffold: terse (1), casual (2), gentle pushback (2), highly proactive (5). Two of those contradict, and the body text settles it rather than leaving the model to split the difference.
+- `humor: 3` emits no instruction at all — a dial at the midpoint is neutral by design, so "dry, occasional" lives in the body text.
+- See [[architecture/personality]] and [[architecture/memory]].
+
+**Docs**
+- New: [[COMMANDS.md]] (the usage reference), [[architecture/capture]], [[architecture/memory]], [[architecture/personality]], [[architecture/pi-companion]], [[architecture/vault-sync]].
+- Rewritten: [[architecture/project-system]], which still described the old wizard.
+- Updated: README, system-state, ROADMAP-2026-09.
+
+---
+
 ## 2026-09-13
 
 **Retired Sunny's own web console — `project-dashboard` now owns the web UI**

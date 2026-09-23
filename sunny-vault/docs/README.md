@@ -6,6 +6,12 @@ A self-hosted voice assistant for personal productivity and automation.
 
 Sunny is an always-on personal assistant that runs on a Lenovo mini PC today, reachable via Discord (text and live voice) and terminal chat, with a standalone `project-dashboard` app providing a web UI alongside it. Phone calls and home-device control are still planned, not built — see Core Features below. Real task/calendar/weather data drives fixed templates wherever a fact is a fact; Claude is only called for genuine judgment, all while prioritizing privacy and minimizing token usage.
 
+## Start here
+
+**[[COMMANDS.md]] — everything you can say to Sunny.** Plain language,
+no command syntax, identical across the website, Discord, terminal and
+voice.
+
 ## Core Features
 
 - **Discord Voice** — Persistent live voice conversation (wake-word-gated, no join command — Sunny just stays in a configured voice channel), fully local STT/TTS (Vosk + Piper), plus one-shot `/speak` TTS
@@ -16,6 +22,18 @@ Sunny is an always-on personal assistant that runs on a Lenovo mini PC today, re
 - **Bedside Clock + Alarm** — Battery-backed hardware device with wake word detection (not yet built — Discord voice already delivers the conversational half today)
 - **Phone Integration** — Answer calls via Twilio and execute voice commands (not yet built)
 - **Remote Power Control** — Wake desktop and control devices via Tailscale network (not yet built)
+- **Capture** — "add quiz 3 in physics due friday" becomes a titled task with
+  a real due date, category and class in one turn, no wizard ([[architecture/capture.md]])
+- **Projects** — folders read as one body of context, with a lifecycle that
+  puts a red-team critique between planning and building ([[architecture/project-system.md]])
+- **Memory** — a hand-edited profile plus dated facts, injected into every
+  prompt ([[architecture/memory.md]])
+- **Health** — Garmin metrics, a readiness score, and a daily check-in
+  answerable by tapping the Pi panel
+- **Pi companion** — a desk panel with a rotating dashboard and a touch menu
+  ([[architecture/pi-companion.md]])
+- **Tunable personality** — five dials in a vault file, hot-reloaded
+  ([[architecture/personality.md]])
 - **Smart Logging** — Discord activity channels (live) and Obsidian vault mirroring (live); Notion sync is not built
 
 Beyond the hardware Clock, phone integration, and remote power control, everything above is built and live — see Current Status below and [[./phases.md]] for the full built-vs-planned breakdown.

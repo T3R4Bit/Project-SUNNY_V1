@@ -20,6 +20,43 @@ There is no single state file. Each kind of state lives wherever fits it best, f
 
 `sunny.db`'s `scheduled_items` table (`scheduled_db.py`) is the real source of truth — it needs reliable writes from a 30-second background due-check loop, which doesn't suit a hand-editable markdown file. `sunny-vault/data/state/alarms-reminders.md` is a generated read-only snapshot (`scheduled_vault_mirror.py`) for visibility in Obsidian — nothing reads it back in.
 
+## Projects — vault folders, one directory per project
+
+`sunny-vault/data/projects/<slug>/` — `project.md` carries status and phase in
+frontmatter; every other readable file in the folder is context. Archived
+projects move to `data/projects/archive/<slug>/` rather than being flagged in
+place, the same convention tasks use. There is no index: the folder IS the
+database, so a project deleted by hand in Obsidian is immediately gone from
+listings. See [[architecture/project-system]].
+
+Which project a chat session is scoped to is held **in memory only**
+(`project_store._focus`). Focus is a property of a conversation, not of the
+project, and it should not survive a restart.
+
+## Memory — vault markdown, indexed in SQLite
+
+`sunny-vault/memory/profile.md` (hand-written, Sunny never writes it) and
+`sunny-vault/memory/facts/*.md` (one file per fact). SQLite holds only an index
+for retrieval; the **files win** — `reindex()` drops anything deleted by hand.
+See [[architecture/memory]].
+
+## Health metrics — SQLite, one generic series table
+
+`metric_series(name, ts, value)` in `sunny.db`, written by `metrics_store.py`
+with `INSERT OR REPLACE` — the upsert is load-bearing, since Garmin re-pulls
+overwrite the same day. Replaced a dead fixed-column `metrics` table. Check-in
+answers land in the same table.
+
+## Chat conversations — SQLite
+
+`chat_conversations` / `chat_messages` (`chat_store.py`). Timestamps use
+microsecond precision: second-precision produced ordering ties in the sidebar.
+
+## Personality — a vault file, read fresh every call
+
+`sunny-vault/personality.md`. Deliberately not cached, so a hand-edit takes
+effect on the next reply. See [[architecture/personality]].
+
 ## Categories — a small JSON file, not the vault
 
 `categories.json` at the project root (`category_store.py`) — the free-form task-category list (`General`/`School`/`Motorsports` by default), editable from any interface ("add category `<name>`"/"remove category `<name>`"/"my categories" in terminal chat, Discord text, or voice) as well as `/category` in Discord. Plain JSON, not frontmatter+markdown, since it's runtime config rather than vault content — same reasoning as `location_store.py`.
