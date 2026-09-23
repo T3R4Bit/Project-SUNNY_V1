@@ -574,6 +574,104 @@ async def _create_task_from_reply(reply: str, tasks_engine: TaskEngine, session_
     return message
 
 
+async def _handle_project_command(stripped: str, lowered: str,
+                                  session_id: str) -> Optional[str]:
+    """Project commands, or None to fall through to normal routing.
+
+    Returning None rather than a "didn't understand" message is what lets
+    this sit early in the chain without swallowing unrelated messages --
+    the same contract the task wizard steps use.
+
+    The long-running ones (plan, critique, research) are awaited rather
+    than backgrounded: they write a file into the project and the reply
+    has to be able to say whether that happened. A fire-and-forget here
+    would report success before the model had produced anything.
+    """
+    from sunny_code.components import project_store, project_work
+
+    body = stripped[8:].strip() if lowered.startswith("project ") else ""
+
+    if lowered in ("projects", "/projects", "list projects", "show projects",
+                   "what projects do i have", "my projects"):
+        lines = project_store.summary_lines()
+        trace.mark_route("projects", "list", confidence="exact", function="project_store.summary_lines")
+        if not lines:
+            return ('No projects yet. Say "new project <name>" to start one.')
+        focused = project_store.get_focus(session_id)
+        tail = f"\n\nIn focus: {focused['name']}" if focused else ""
+        return "\n".join(lines) + tail
+
+    if lowered in ("unfocus", "leave project", "clear project", "exit project"):
+        project_store.set_focus(session_id, None)
+        trace.mark_route("projects", "unfocus", confidence="exact", function="project_store.set_focus")
+        return "Out of the project. Back to general chat."
+
+    # "project <name>" scopes the conversation.
+    if body and not lowered.startswith("project new"):
+        project = project_store.resolve(body)
+        if project is None:
+            names = ", ".join(p["name"] for p in project_store.all_projects()) or "none yet"
+            trace.mark_route("projects", "focus_miss", confidence="exact", function="static:error")
+            return f'No single project matches "{body}". I have: {names}'
+        project_store.set_focus(session_id, project["slug"])
+        trace.mark_route("projects", "focus", confidence="heuristic", function="project_store.set_focus")
+        return (f"Now on **{project['name']}** — {project['status']}, {project['phase']}.\n"
+                f"Everything in its folder is loaded. "
+                f'Say "plan", "critique", "research <question>", or just ask.')
+
+    focused = project_store.get_focus(session_id)
+    if focused is None:
+        return None
+
+    slug = focused["slug"]
+
+    if lowered in ("plan", "draft a plan", "make a plan", "write the plan"):
+        trace.mark_route("projects", "plan", confidence="exact", function="project_work.draft_plan")
+        plan = await project_work.draft_plan(slug)
+        if plan is None:
+            return "Couldn't draft the plan — the LLM path is unavailable or over budget."
+        return (f"Plan drafted into {slug}/plan.md, phase now `planning`.\n\n{plan}\n\n"
+                'Say "critique" to have it attacked before you build anything.')
+
+    if lowered in ("critique", "red team", "attack the plan", "critique the plan",
+                   "poke holes in it"):
+        trace.mark_route("projects", "critique", confidence="exact", function="project_work.critique")
+        result = await project_work.critique(slug)
+        if result is None:
+            if not project_store.read_file(slug, project_store.PLAN_FILE):
+                return ('No plan to attack yet — say "plan" first. Critiquing a project '
+                        "with no plan just produces generic advice.")
+            return "Couldn't run the critique — the LLM path is unavailable or over budget."
+
+        risks = result.get("risks") or []
+        high = [r for r in risks if r.get("severity") == "high"]
+        head = (f"{result.get('verdict', '').strip()}\n\n"
+                f"{len(risks)} risk(s), {len(high)} high. Written to {slug}/critique.md.")
+        for risk in high[:3]:
+            head += f"\n\n**{risk.get('title')}** — {risk.get('failure_mode')}\n→ {risk.get('fix')}"
+        return head
+
+    if lowered.startswith("research "):
+        question = stripped[9:].strip()
+        trace.mark_route("projects", "research", confidence="exact", function="project_work.research")
+        answer = await project_work.research(slug, question)
+        if answer is None:
+            return "Couldn't run that research — the LLM path is unavailable or over budget."
+        return f"Filed under {slug}/research/.\n\n{answer}"
+
+    for status in project_store.STATUSES:
+        if lowered == status or lowered == f"mark {status}":
+            project_store.update(slug, status=status)
+            return f"{focused['name']} is now {status}."
+
+    for phase in project_store.PHASES:
+        if lowered == f"phase {phase}":
+            project_store.update(slug, phase=phase)
+            return f"{focused['name']} moved to `{phase}`."
+
+    return None
+
+
 async def _finish_task_with_category(
     reply: str, pending_data: Dict, tasks_engine: TaskEngine, session_id: str, source: str
 ) -> str:
@@ -1050,6 +1148,10 @@ async def _handle_message_inner(
         )
         trace.mark_route("tasks_engine", cmd_type, confidence="exact", function="tasks_engine.execute_command")
         return message
+
+    project_reply = await _handle_project_command(stripped, lowered, session_id)
+    if project_reply is not None:
+        return project_reply
 
     if lowered in _MEMORY_QUERY_TRIGGERS:
         facts = memory_store.all_facts()

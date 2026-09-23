@@ -345,13 +345,26 @@ async def ask_claude_json(
         cost=token_tracker.calculate_cost(model_id, response.usage.input_tokens, response.usage.output_tokens),
     )
 
+    # Check this BEFORE parsing. A response cut off at max_tokens is
+    # truncated valid JSON, and json.loads reports it as a syntax error at
+    # some character offset -- which reads as "the schema constraint
+    # broke" when the real cause is a budget that was set too low. That
+    # misdiagnosis cost a debugging cycle on the project critique, where
+    # the fix was one number and the error pointed somewhere else.
+    if getattr(response, "stop_reason", None) == "max_tokens":
+        logger.error(
+            f"ask_claude_json: hit max_tokens ({max_tokens}) for purpose={purpose!r} — "
+            f"the JSON is truncated, not malformed. Raise max_tokens."
+        )
+        await log_llm_call_async(purpose, model_id, prompt, status="truncated", response=text)
+        return None
+
     try:
         parsed = json.loads(text)
     except ValueError as e:
-        # Should be unreachable while output_config.format is honoured, but
-        # a malformed body must not become an exception in a caller that
-        # was promised None-on-failure. Logged loudly because if this ever
-        # fires the constraint itself has stopped working.
+        # Should be unreachable while output_config.format is honoured and
+        # the response wasn't truncated, but a malformed body must not
+        # become an exception in a caller that was promised None-on-failure.
         logger.error(f"ask_claude_json: response was not valid JSON despite the schema: {e}")
         await log_llm_call_async(purpose, model_id, prompt, status="bad_json", response=text)
         return None

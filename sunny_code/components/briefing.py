@@ -611,8 +611,17 @@ Total: {len(open_tasks) + len(in_progress)} tasks
             # docs say, then the live conversation, then the question. The
             # standing context goes first so a follow-up cannot push it
             # out of the model's attention.
+            # Project context sits between what Sunny knows about Keaton
+            # and what the docs say: when a conversation is scoped to a
+            # project, that project's files are more specific than a
+            # general doc search and should win where the two disagree.
+            # Empty string when no project is in focus, so the ordering
+            # costs nothing the rest of the time.
+            from sunny_code.components import project_store
+
             prompt = (
                 memory_store.format_for_prompt(question)
+                + project_store.focus_context(session_id)
                 + docs_search.format_for_prompt(docs_search.search(question))
                 + conversation_memory.format_for_prompt(session_id) + question
             )
