@@ -44,10 +44,25 @@ the thinking". They move independently: a `someday` project can sit at
 `refined` with a finished plan waiting for time, and an `active` one can
 still be at `idea`. Collapsing them would mean starting work on
 something forced it to look planned.
+
+ARCHIVING
+---------
+A finished project should leave the list, not sit in it at `done`
+forever. archive() moves the folder to data/projects/archive/ and records
+`archived` as the status -- the same move-the-folder convention tasks_db
+uses, which keeps the projects directory readable when browsing the vault
+in Obsidian.
+
+It stays fully readable: get(), context() and resolve() all fall back to
+the archive, so asking about something finished still works. Archiving
+removes it from the list, it does not hide it. The phase records WHY it
+left -- `done` for shipped, `parked` for abandoned -- because a year
+later that is the distinction you actually want.
 """
 
 import logging
 import re
+import shutil
 from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -68,6 +83,15 @@ STATUS_HELP = {
     LONG_TERM: "ongoing, no end date",
     SOMEDAY: "later, not started",
 }
+
+# Deliberately NOT in STATUSES. Archived is not a fourth kind of live
+# project competing with the other three -- it is "no longer in the list
+# at all". Putting it in STATUSES would make it appear in every filter
+# dropdown and every summary, which is the opposite of what archiving is
+# for. It is recorded in the file AND expressed by the folder's location,
+# so the two can be checked against each other.
+ARCHIVED = "archived"
+ARCHIVE_DIR = "archive"
 
 # How far along is the thinking? Ordered, and the order is the framework:
 # nothing reaches `building` without having been attacked at `critique`
@@ -113,13 +137,38 @@ def _projects_dir() -> Path:
     return get_settings().project_root / "sunny-vault" / "data" / "projects"
 
 
+def _archive_dir() -> Path:
+    return _projects_dir() / ARCHIVE_DIR
+
+
 def _dir_for(slug: str) -> Path:
-    return _projects_dir() / slug
+    """Where this project lives, live or archived.
+
+    Checks the live folder first and falls back to the archive, so get(),
+    context() and resolve() keep working on an archived project. Archiving
+    hides something from the list; it does not make it unreadable, and
+    "where did my finished project go" is a worse outcome than a slightly
+    longer lookup.
+    """
+    live = _projects_dir() / slug
+    if live.exists():
+        return live
+    archived = _archive_dir() / slug
+    if archived.exists():
+        return archived
+    return live  # the path a new project would take
+
+
+def is_archived(slug: str) -> bool:
+    return (_archive_dir() / slug).exists()
 
 
 def _unique_slug(name: str) -> str:
     base = vault_io.slugify(name) or "project"
     slug, n = base, 2
+    # _dir_for checks the archive too, so a new project cannot reuse the
+    # slug of an archived one -- unarchiving it later would otherwise
+    # collide with a live folder of the same name.
     while _dir_for(slug).exists():
         slug = f"{base}-{n}"
         n += 1
@@ -141,7 +190,9 @@ def create(name: str, description: str = "", status: str = ACTIVE,
     phase = phase if phase in PHASES else IDEA
 
     slug = _unique_slug(name)
-    folder = _dir_for(slug)
+    # Explicitly the live directory: _dir_for falls back to the archive,
+    # which is right for reads and wrong for creating something new.
+    folder = _projects_dir() / slug
     folder.mkdir(parents=True, exist_ok=True)
 
     vault_io.atomic_write_text(
@@ -190,7 +241,8 @@ def get(slug: str) -> Optional[Dict]:
 
 
 def all_projects(status: Optional[str] = None,
-                 phase: Optional[str] = None) -> List[Dict]:
+                 phase: Optional[str] = None,
+                 include_archived: bool = False) -> List[Dict]:
     """Every project, newest-updated first, optionally filtered.
 
     Reads the folder rather than an index, for the same reason
@@ -202,10 +254,12 @@ def all_projects(status: Optional[str] = None,
     if not root.exists():
         return []
 
+    folders = [f for f in root.iterdir() if f.is_dir() and f.name != ARCHIVE_DIR]
+    if include_archived and _archive_dir().exists():
+        folders += [f for f in _archive_dir().iterdir() if f.is_dir()]
+
     out = []
-    for folder in root.iterdir():
-        if not folder.is_dir():
-            continue
+    for folder in folders:
         project = get(folder.name)
         if project is None:
             continue
@@ -217,6 +271,96 @@ def all_projects(status: Optional[str] = None,
 
     out.sort(key=lambda p: p.get("updated") or "", reverse=True)
     return out
+
+
+def archived_projects() -> List[Dict]:
+    """Finished and abandoned projects, newest first."""
+    root = _archive_dir()
+    if not root.exists():
+        return []
+    out = [get(f.name) for f in root.iterdir() if f.is_dir()]
+    out = [p for p in out if p is not None]
+    out.sort(key=lambda p: p.get("updated") or "", reverse=True)
+    return out
+
+
+def archive(slug: str, reason: str = DONE) -> bool:
+    """Move a project out of the active list. True if it moved.
+
+    `reason` is the phase to record -- `done` for finished, `parked` for
+    stopped on purpose. The distinction is kept because "I shipped it" and
+    "I gave up on it" are different facts about a project, and a year later
+    that is exactly what you want to know when looking back.
+
+    The folder moves rather than the project merely being flagged, so the
+    projects directory stays readable in Obsidian. Same convention as
+    tasks_db's archive/.
+    """
+    if is_archived(slug):
+        return False
+    source = _projects_dir() / slug
+    if not source.exists():
+        return False
+
+    if reason not in (DONE, PARKED):
+        reason = DONE
+    # Record the state BEFORE moving: update() resolves the path itself,
+    # and doing it in this order means a failed move leaves a project
+    # that is merely mislabelled rather than one that has vanished.
+    update(slug, phase=reason)
+
+    destination = _archive_dir() / slug
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        logger.error(f"Archive collision for {slug}, refusing to overwrite")
+        return False
+
+    shutil.move(str(source), str(destination))
+    _set_status_raw(slug, ARCHIVED)
+    logger.info(f"Project archived: {slug} ({reason})")
+    return True
+
+
+def unarchive(slug: str, status: str = ACTIVE) -> bool:
+    """Bring an archived project back to the live list."""
+    if not is_archived(slug):
+        return False
+    if status not in STATUSES:
+        status = ACTIVE
+
+    source = _archive_dir() / slug
+    destination = _projects_dir() / slug
+    if destination.exists():
+        logger.error(f"Cannot unarchive {slug}: a live project already has that name")
+        return False
+
+    shutil.move(str(source), str(destination))
+    _set_status_raw(slug, status)
+    logger.info(f"Project unarchived: {slug} -> {status}")
+    return True
+
+
+def _set_status_raw(slug: str, status: str) -> None:
+    """Write `status` without the STATUSES validation update() applies.
+
+    Needed because ARCHIVED is deliberately not a member of STATUSES, so
+    update() rejects it -- which is the correct behaviour for a caller
+    passing user input, and the wrong behaviour for archive() itself.
+    """
+    path = _dir_for(slug) / PROJECT_FILE
+    if not path.exists():
+        return
+    try:
+        meta, body = vault_io.parse_frontmatter(path.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.warning(f"Could not set status on {slug}: {e}")
+        return
+    meta = dict(meta or {})
+    meta["status"] = status
+    meta["updated"] = _now()
+    vault_io.atomic_write_text(path, vault_io.serialize_frontmatter(
+        meta, body or "",
+        ["id", "name", "type", "status", "phase", "created", "updated"]))
 
 
 def update(slug: str, **fields) -> bool:
@@ -384,7 +528,12 @@ def resolve(query: str) -> Optional[Dict]:
     if not query:
         return None
 
-    projects = all_projects()
+    # Live projects first, archived second. Archived ones have to be
+    # findable at all -- "unarchive <name>" cannot work otherwise, and
+    # asking about finished work is a normal thing to do -- but a live
+    # project always wins a tie, because that is far more likely to be
+    # what was meant.
+    projects = all_projects() + archived_projects()
     for project in projects:
         if project["slug"] == query or project["name"].lower() == query:
             return project
@@ -450,8 +599,13 @@ def focus_context(session_id: str) -> str:
     return "".join(parts)
 
 
-def summary_lines() -> List[str]:
-    """One line per project, grouped by status, for chat and briefings."""
+def summary_lines(show_archived_count: bool = True) -> List[str]:
+    """One line per live project, grouped by status, for chat and briefings.
+
+    Archived projects are counted but not listed. The count exists so the
+    archive is discoverable -- an archive nobody remembers is the same as
+    having deleted the work.
+    """
     out = []
     for status in STATUSES:
         group = all_projects(status=status)
@@ -460,4 +614,18 @@ def summary_lines() -> List[str]:
         out.append(f"{status.upper()} ({STATUS_HELP[status]})")
         for project in group:
             out.append(f"  · {project['name']} — {project['phase']}")
+
+    if show_archived_count:
+        archived = archived_projects()
+        if archived:
+            done = sum(1 for p in archived if p["phase"] == DONE)
+            parked = len(archived) - done
+            bits = []
+            if done:
+                bits.append(f"{done} finished")
+            if parked:
+                bits.append(f"{parked} parked")
+            out.append("")
+            out.append(f"ARCHIVED — {', '.join(bits)} "
+                       '(say "archived" to see them)')
     return out

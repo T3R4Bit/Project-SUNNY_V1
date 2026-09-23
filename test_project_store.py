@@ -174,6 +174,86 @@ def test_summary_groups_by_status():
     check("explains what a status means", "on it now" in text)
 
 
+def test_archive_removes_from_list_but_not_from_reach():
+    print("\n-- archive --")
+    slug = ps.create("Shipped Thing", "It got finished.", ps.ACTIVE, ps.BUILDING)
+    check("starts in the live list", any(x["slug"] == slug for x in ps.all_projects()))
+
+    check("archive reports success", ps.archive(slug, ps.DONE) is True)
+    check("gone from the live list", not any(x["slug"] == slug for x in ps.all_projects()))
+    check("appears in the archive", any(x["slug"] == slug for x in ps.archived_projects()))
+    check("is_archived agrees", ps.is_archived(slug) is True)
+
+    # Archiving hides it from the list; it must not make the work unreadable.
+    project = ps.get(slug)
+    check("still readable by slug", project is not None)
+    check("status recorded as archived", project["status"] == ps.ARCHIVED)
+    check("phase records why it left", project["phase"] == ps.DONE)
+    check("context still works", "It got finished." in ps.context(slug))
+    check("resolve still finds it", ps.resolve("shipped thing") is not None)
+
+    check("include_archived brings it back",
+          any(x["slug"] == slug for x in ps.all_projects(include_archived=True)))
+    check("archiving twice is refused", ps.archive(slug) is False)
+
+
+def test_parked_is_distinct_from_finished():
+    print("\n-- parked vs finished --")
+    slug = ps.create("Abandoned Thing", "", ps.ACTIVE, ps.BUILDING)
+    ps.archive(slug, ps.PARKED)
+    check("parked recorded as parked, not done", ps.get(slug)["phase"] == ps.PARKED)
+    check("still archived", ps.is_archived(slug))
+
+    other = ps.create("Junk Reason", "", ps.ACTIVE)
+    ps.archive(other, "nonsense")
+    check("an invalid reason falls back to done", ps.get(other)["phase"] == ps.DONE)
+
+
+def test_unarchive():
+    print("\n-- unarchive --")
+    slug = ps.create("Came Back", "", ps.ACTIVE)
+    ps.archive(slug)
+    check("unarchive reports success", ps.unarchive(slug, ps.SOMEDAY) is True)
+    check("back in the live list", any(x["slug"] == slug for x in ps.all_projects()))
+    check("no longer archived", ps.is_archived(slug) is False)
+    check("status is what was asked for", ps.get(slug)["status"] == ps.SOMEDAY)
+    check("unarchiving a live project is refused", ps.unarchive(slug) is False)
+
+    # An invalid status must not write something outside STATUSES.
+    ps.archive(slug)
+    ps.unarchive(slug, "nonsense")
+    check("invalid status falls back to active", ps.get(slug)["status"] == ps.ACTIVE)
+
+
+def test_archive_does_not_collide_with_new_projects():
+    print("\n-- slug collisions --")
+    slug = ps.create("Collision Test", "original")
+    ps.archive(slug)
+    again = ps.create("Collision Test", "a new one with the same name")
+    check("new project of the same name gets a different slug", again != slug)
+    check("the archived one is untouched", "original" in ps.context(slug))
+    check("both are visible together",
+          len([x for x in ps.all_projects(include_archived=True)
+               if x["name"] == "Collision Test"]) == 2)
+
+
+def test_archived_is_not_a_status():
+    print("\n-- archived is not a status --")
+    check("ARCHIVED is not offered as a status", ps.ARCHIVED not in ps.STATUSES)
+    # update() takes user input, so it must keep rejecting it.
+    slug = ps.create("Status Guard")
+    check("update refuses to set archived directly",
+          ps.update(slug, status=ps.ARCHIVED) is False)
+    check("and the project is unchanged", ps.get(slug)["status"] == ps.ACTIVE)
+
+
+def test_summary_counts_the_archive():
+    print("\n-- summary mentions the archive --")
+    text = "\n".join(ps.summary_lines())
+    check("archive is discoverable from the summary", "ARCHIVED" in text)
+    check("says how many finished", "finished" in text)
+
+
 if __name__ == "__main__":
     test_create_and_read()
     test_invalid_values_fall_back()
@@ -186,6 +266,12 @@ if __name__ == "__main__":
     test_instructions_are_read_only()
     test_vault_is_source_of_truth()
     test_summary_groups_by_status()
+    test_archive_removes_from_list_but_not_from_reach()
+    test_parked_is_distinct_from_finished()
+    test_unarchive()
+    test_archive_does_not_collide_with_new_projects()
+    test_archived_is_not_a_status()
+    test_summary_counts_the_archive()
 
     print("\n" + "=" * 70)
     if FAILURES:

@@ -601,6 +601,31 @@ async def _handle_project_command(stripped: str, lowered: str,
         tail = f"\n\nIn focus: {focused['name']}" if focused else ""
         return "\n".join(lines) + tail
 
+    # Deliberately NOT "archive": that word means "archive the project I am
+    # in" when one is focused, and this listing runs before the focus check.
+    # Sharing the trigger would make the destructive-feeling command
+    # silently do nothing.
+    if lowered in ("archived", "show archive", "archived projects",
+                   "finished projects", "the archive"):
+        archived = project_store.archived_projects()
+        trace.mark_route("projects", "archived", confidence="exact", function="project_store.archived_projects")
+        if not archived:
+            return "Nothing archived yet."
+        lines = ["ARCHIVED"]
+        for project in archived:
+            lines.append(f"  · {project['name']} — {project['phase']}")
+        return "\n".join(lines) + '\n\nSay "unarchive <name>" to bring one back.'
+
+    if lowered.startswith("unarchive "):
+        target = stripped[10:].strip()
+        project = project_store.resolve(target)
+        if project is None or not project_store.is_archived(project["slug"]):
+            return f'No archived project matches "{target}".'
+        if project_store.unarchive(project["slug"]):
+            trace.mark_route("projects", "unarchive", confidence="exact", function="project_store.unarchive")
+            return f"**{project['name']}** is back, marked active."
+        return f"Couldn't unarchive {project['name']} — a live project may already have that name."
+
     if lowered in ("unfocus", "leave project", "clear project", "exit project"):
         project_store.set_focus(session_id, None)
         trace.mark_route("projects", "unfocus", confidence="exact", function="project_store.set_focus")
@@ -658,6 +683,23 @@ async def _handle_project_command(stripped: str, lowered: str,
         if answer is None:
             return "Couldn't run that research — the LLM path is unavailable or over budget."
         return f"Filed under {slug}/research/.\n\n{answer}"
+
+    if lowered in ("archive", "archive it", "finished", "mark finished", "done",
+                   "mark done", "shipped"):
+        if project_store.archive(slug, project_store.DONE):
+            project_store.set_focus(session_id, None)
+            return (f"**{focused['name']}** archived as finished. "
+                    'Say "unarchive <name>" if that was wrong.')
+        return f"Couldn't archive {focused['name']}."
+
+    if lowered in ("park", "park it", "parked", "give up on this", "stop this"):
+        if project_store.archive(slug, project_store.PARKED):
+            project_store.set_focus(session_id, None)
+            # Parked and finished are both archived, but the difference is
+            # the thing worth knowing a year later.
+            return (f"**{focused['name']}** parked and archived. "
+                    "Recorded as stopped on purpose, not finished.")
+        return f"Couldn't park {focused['name']}."
 
     for status in project_store.STATUSES:
         if lowered == status or lowered == f"mark {status}":
