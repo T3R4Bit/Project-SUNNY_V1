@@ -17,6 +17,7 @@ from sunny_code.components.dashboard import create_dashboard_app
 from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.briefing_api import create_briefing_router
 from sunny_code.components.dashboard_data_routes import create_dashboard_data_router
+from sunny_code.components.logs_routes import create_logs_router
 from sunny_code.components.metrics_routes import create_metrics_router
 from sunny_code.components.chat_routes import create_chat_router
 from sunny_code.components.push_routes import create_push_router
@@ -407,6 +408,12 @@ class SunnyCore:
         # Time-series + check-in endpoints -- /api/metrics/series,
         # /api/checkin/*, /api/health/garmin/* (see metrics_routes.py)
         app.include_router(create_metrics_router(), prefix="/api")
+
+        # Read-only log + routing-trace access -- /api/logs,
+        # /api/logs/{name}, /api/traces/recent (see logs_routes.py).
+        # traces.jsonl has been written with no reader since the console
+        # was retired 2026-09-13; this gives it one again.
+        app.include_router(create_logs_router(), prefix="/api")
 
         # Web Push subscription + send (see push_service.py)
         app.include_router(create_push_router(), prefix="/api")

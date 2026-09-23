@@ -6,9 +6,16 @@ comes from sunny_code.components.location_store (set via POST
 from settings, since it's meant to be changeable without a restart. Calendar/email check whether
 Google Sign-In is connected (sunny_code.components.google_auth) — see
 sunny-vault/docs/architecture/google-integration.md for what that does and
-doesn't cover. Commute/health/news/motorsports have no integration built yet
-(and commute/health aren't part of Google Sign-In even once other sources
-are wired up — see that doc). Tasks are always real — stored directly in
+doesn't cover. Commute/news/motorsports have no integration built yet (and commute
+isn't part of Google Sign-In even once other sources are wired up — see
+that doc).
+
+Health DOES have one now: Garmin, via garmin_client.py. It was left in
+this table as "no integration built yet" long after the ingest landed,
+which made the fallback note claim nothing was wired while a year of
+metrics sat in the database. The note only fires when there is no data
+for the day, but "not built" and "built, no data today" are different
+facts, and the first one is a lie. Tasks are always real — stored directly in
 the vault, no external API needed.
 """
 
@@ -20,7 +27,7 @@ _SOURCES = {
     "calendar": "GOOGLE_SIGN_IN",
     "email": "GOOGLE_SIGN_IN",
     "commute": None,
-    "health": None,
+    "health": "GARMIN",
     "news": None,
     "motorsports": None,
     "tasks": None,  # always configured, see is_configured()
@@ -35,6 +42,9 @@ def is_configured(source: str) -> bool:
     requirement = _SOURCES.get(source)
     if requirement is None:
         return False
+    if requirement == "GARMIN":
+        settings = get_settings()
+        return looks_configured(settings.garmin_email) and looks_configured(settings.garmin_password)
     if requirement == "GOOGLE_SIGN_IN":
         return google_auth.is_connected()
     if requirement == "OPENWEATHERMAP_API_KEY":
@@ -47,6 +57,15 @@ def is_configured(source: str) -> bool:
 def missing_requirement(source: str) -> str:
     """Human-readable description of what's needed to make a source real."""
     requirement = _SOURCES.get(source)
+    if requirement == "GARMIN":
+        settings = get_settings()
+        if not (looks_configured(settings.garmin_email)
+                and looks_configured(settings.garmin_password)):
+            return "needs GARMIN_EMAIL and GARMIN_PASSWORD in .env"
+        # Configured but nothing for this day. Garmin syncs once or twice a
+        # day and can be IP rate-limited, so this is normal rather than
+        # broken -- and saying so beats implying the feature is missing.
+        return "connected, but Garmin hasn't synced anything for today yet"
     if requirement == "GOOGLE_SIGN_IN":
         return "needs Google sign-in — connect at /auth/google/login"
     if requirement == "OPENWEATHERMAP_API_KEY":

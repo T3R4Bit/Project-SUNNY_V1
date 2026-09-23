@@ -151,6 +151,19 @@ until 5am so a late night still shows the right one.
 
 ---
 
+## The website
+
+`/logs` — every log Sunny writes, tailed from the end so a 4MB file costs
+the same as a small one. Sources: requests, LLM usage, rules engine,
+check-ins, health checks, suggestions, the app log, and **routing traces**
+(which feature answered each message and how confident the match was).
+
+Not auto-polling — a log that scrolls on its own is unreadable the moment
+you try to read a specific line. Refresh is a button.
+
+Other pages: `/sunny` (brief), `/chat`, `/health`, `/dashboard`, `/net`,
+`/warren`, `/portal`.
+
 ## The Pi panel
 
 The companion screen takes touch. See [[architecture/pi-companion.md]].
