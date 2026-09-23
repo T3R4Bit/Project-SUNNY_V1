@@ -15,10 +15,11 @@ on the first sentence instead of waiting for the whole reply.
 """
 
 import asyncio
+import json
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Awaitable, Callable, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, Optional, Tuple
 
 import anthropic
 
@@ -235,6 +236,128 @@ async def ask_claude(
     await log_llm_call_async(purpose, model_id, prompt, status="success", response=text)
 
     return text
+
+
+def _call_claude_json_sync(
+    api_key: str,
+    model_id: str,
+    max_tokens: int,
+    system: Optional[str],
+    prompt: str,
+    schema: Dict[str, Any],
+):
+    """The structured-output twin of _call_claude_sync. Same threading and
+    raw-response reasoning applies -- see that function's docstring.
+
+    WHY output_config.format AND NOT TOOL USE
+    -----------------------------------------
+    The obvious shape for "give me typed fields back" is a single forced
+    tool call, and that is what the roadmap originally specified. Structured
+    outputs is the better fit for the same job: the only reason to define a
+    tool here would be to get JSON back, there is nothing to *execute*, and
+    forced tool_choice is rejected outright on some current models while
+    output_config.format is not. The server constrains generation to the
+    schema either way, so what's lost is a layer of indirection, not a
+    guarantee.
+    """
+    client = _get_client(api_key)
+    kwargs = {
+        "model": model_id,
+        "max_tokens": max_tokens,
+        "messages": [{"role": "user", "content": prompt}],
+        "output_config": {"format": {"type": "json_schema", "schema": schema}},
+    }
+    if system:
+        kwargs["system"] = system
+    raw = client.messages.with_raw_response.create(**kwargs)
+    token_tracker.record_rate_limit_headers(raw.headers)
+    return raw.parse()
+
+
+async def ask_claude_json(
+    prompt: str,
+    schema: Dict[str, Any],
+    model: str = "sonnet",
+    max_tokens: int = 1024,
+    system: Optional[str] = None,
+    purpose: str = "extract",
+) -> Optional[Dict[str, Any]]:
+    """Ask Claude for a value matching `schema`, returned as a dict.
+
+    Same never-raises contract as ask_claude(): None on any failure — not
+    configured, over budget, rate limited, API error, or a response that
+    somehow isn't the JSON the schema demanded. Callers fall back to their
+    existing non-LLM path rather than crashing a request.
+
+    `schema` must be a JSON Schema object with "additionalProperties": false
+    and a "required" list, which is what lets the server constrain
+    generation rather than merely hope for valid output.
+
+    NO PERSONALITY HERE, DELIBERATELY
+    ---------------------------------
+    ask_claude() runs its system prompt through _with_personality() so every
+    spoken or written reply sounds the same. This function does not, and
+    must not. Personality shapes prose — "be terse", "lean casual", "dry
+    humour" — and none of that has any meaning for a JSON object whose
+    shape is already fixed by the schema. Injecting it would spend tokens
+    on instructions the output format makes unfollowable, and invites the
+    model to editorialize inside string fields that other code then parses.
+    """
+    global _auth_disabled
+
+    settings = get_settings()
+    model_id = MODELS.get(model, MODELS["sonnet"])
+
+    if await _preflight_refusal(purpose, model_id, prompt) is not None:
+        return None
+
+    async with _concurrency_guard:
+        try:
+            response = await asyncio.to_thread(
+                _call_claude_json_sync, settings.claude_api_key, model_id,
+                max_tokens, system, prompt, schema,
+            )
+        except anthropic.AuthenticationError:
+            _auth_disabled = True
+            logger.error("ask_claude_json: invalid Claude API key — disabling further calls until restart")
+            await log_llm_call_async(purpose, model_id, prompt, status="auth_error")
+            return None
+        except anthropic.RateLimitError:
+            logger.warning("ask_claude_json: rate limited — failing this call, a later message can retry")
+            await log_llm_call_async(purpose, model_id, prompt, status="rate_limited")
+            return None
+        except anthropic.APIStatusError as e:
+            logger.error(f"ask_claude_json: Claude API error ({e.status_code}): {e.message}")
+            await log_llm_call_async(purpose, model_id, prompt, status="api_error", detail=f"HTTP {e.status_code}: {e.message}")
+            return None
+        except anthropic.APIConnectionError as e:
+            # type(e).__name__ only, never str(e) — see ask_claude's handler.
+            logger.error(f"ask_claude_json: connection error: {type(e).__name__}")
+            await log_llm_call_async(purpose, model_id, prompt, status="connection_error", detail=type(e).__name__)
+            return None
+
+    text = "".join(block.text for block in response.content if block.type == "text")
+
+    token_tracker.record_usage(
+        model=model_id,
+        prompt_tokens=response.usage.input_tokens,
+        completion_tokens=response.usage.output_tokens,
+        cost=token_tracker.calculate_cost(model_id, response.usage.input_tokens, response.usage.output_tokens),
+    )
+
+    try:
+        parsed = json.loads(text)
+    except ValueError as e:
+        # Should be unreachable while output_config.format is honoured, but
+        # a malformed body must not become an exception in a caller that
+        # was promised None-on-failure. Logged loudly because if this ever
+        # fires the constraint itself has stopped working.
+        logger.error(f"ask_claude_json: response was not valid JSON despite the schema: {e}")
+        await log_llm_call_async(purpose, model_id, prompt, status="bad_json", response=text)
+        return None
+
+    await log_llm_call_async(purpose, model_id, prompt, status="success", response=text)
+    return parsed
 
 
 _SENTENCE_BREAK_RE = re.compile(r"[.!?]+(?=\s|$)")

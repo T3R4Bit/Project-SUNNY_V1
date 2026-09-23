@@ -39,8 +39,8 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from sunny_code.components import (
-    build_info, category_store, checkin, class_setup_engine, exam_prep, health_check, memory_store,
-    service_registry, setup_guides, token_tracker, trace,
+    build_info, category_store, checkin, class_setup_engine, exam_prep, extract, health_check,
+    memory_store, service_registry, setup_guides, token_tracker, trace,
 )
 from sunny_code.components.briefing import BriefingEngine, OnChunk, OnSearchStart
 from sunny_code.components.calendar_engine import CalendarEngine
@@ -1000,7 +1000,46 @@ async def _handle_message_inner(
 
     if cmd_type == "add" and success and "tag" not in task_data:
         # Title (and any --flags) resolved, but no category was stated or
-        # recognized inline — ask instead of silently defaulting to General.
+        # recognized inline. Try to infer one before asking -- "quiz 3 in
+        # physics" obviously belongs under School, and asking anyway is the
+        # friction that makes capture feel slow enough to not bother.
+        #
+        # Extraction fills gaps; it never overrules explicit syntax.
+        #
+        # TaskCommandParser only truly parses when --flags are present. Given
+        # "add quiz 3 in physics due friday" it returns the whole remainder
+        # as the title and no due date at all, so keeping its answer would
+        # file a task literally called "quiz 3 in physics due friday" with
+        # nothing in the date column. Given "--due 2026-09-25" it resolved a
+        # real date from unambiguous syntax and must be left alone.
+        #
+        # So: a due_date from the parser means flags were used -- trust the
+        # whole thing and take only the category. No due_date means the input
+        # was prose, and the title and date come back from the extractor
+        # together, because they were read out of the same sentence as a unit
+        # and mixing the two sources produces a title still carrying the date
+        # words that the date column now also holds.
+        inferred = await extract.capture(stripped)
+        if inferred is not None and "category" not in inferred["uncertain"]:
+            data = {**task_data, "tag": inferred["category"]}
+            used_flags = bool(task_data.get("due_date"))
+            if not used_flags and inferred["confidence"] >= extract.AUTO_FILE_THRESHOLD:
+                if inferred.get("title"):
+                    data["title"] = inferred["title"]
+                if inferred.get("due_date"):
+                    data["due_date"] = inferred["due_date"]
+            _, message = await tasks_engine.create_task_from_data(data, source=source)
+            trace.mark_route("extract", "category_inferred", confidence="heuristic", function="extract.capture")
+            # No readback line here: create_task_from_data already echoes the
+            # title, category and due date, which IS the readback that makes
+            # auto-filing safe. Adding extract.describe() on top restated the
+            # same three facts a second line down. The class name is the one
+            # thing the engine has no field for, so it is the only thing
+            # worth appending, and only when there is one.
+            if inferred.get("class_name"):
+                message += f"\nClass: {inferred['class_name']}"
+            return message
+
         _set_pending(session_id, "task_category", **task_data)
         trace.mark_route("wizard:task_category", "start", confidence="exact", function="_set_pending")
         return f'Got it — which category: {", ".join(categories)}? (or say "cancel")'
