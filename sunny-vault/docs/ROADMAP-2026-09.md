@@ -133,9 +133,44 @@ Sunny code, so the two don't collide.
 
 ### Why Syncthing is failing
 
+> **Audited live 2026-09-23, and cause 1 below was wrong for this setup.** Measured
+> on the Lenovo rather than reasoned from general facts:
+>
+> | Device | Conflicts created |
+> | --- | --- |
+> | `T3R4Bit laptop` | 8 |
+> | `sunshine-m700` (Sunny itself) | 8 |
+> | `Keaton-PC` | 3 |
+> | `Keatons-iPad` | **0** |
+>
+> The iPad is in the folder, unpaused, `sendreceive` — and has never caused a
+> conflict. There is no iPhone in Syncthing at all. The iOS gap is real in general
+> but is **not** what is breaking this vault.
+>
+> **The actual cause is what is being synced.** Vault is 10MB; real notes are ~144KB
+> of it (1.4%). `.obsidian/` is 4.6MB and 12 of the 19 conflicts; `log/` is 4.5MB
+> (incl. a 3.98MB `suggestions.md`) and 3 more. Sunny rewrites `data/state/*cursor*.json`
+> every few minutes. Every conflict came from machine or app churn — **none from a
+> note edited in two places.**
+>
+> `health_check.py:97` and `sensors.py:28` already exclude
+> `{.obsidian, archive, log, state, instructions}` from "knowledge". The
+> classification exists; it was never wired to the sync boundary.
+>
+> **Decided:** no CouchDB for now — it would not have prevented a single one of the
+> 19, and there is no evidence of the two-writer note conflict it solves. Revisit
+> only if conflicts appear on real notes after cleanup. `.obsidian/` to be ignored
+> entirely (per-device config; installing a plugin 3× is cheaper than this class of
+> conflict existing).
+>
+> **Still to do:** `.stignore`; move `log/` and `data/state/*cursor*` out of the
+> synced tree; clear the 19 conflict files (diff first, keep real divergence); delete
+> the stale `./state` tree superseded by `./data/state` in a past path migration.
+
 Two causes, and the first one is probably decisive:
 
-1. **No viable Syncthing client on iOS.** There is no official one. Möbius Sync is
+1. ~~**No viable Syncthing client on iOS.**~~ — *see the audit above; measured false
+   for this setup.* There is no official client. Möbius Sync is
    third-party, and iOS background execution limits mean it effectively only syncs
    while foregrounded. The phone drifts out of date, then reconciles a pile of stale
    edits against a moved-on desktop — which is exactly how `sync-conflict-*` files
@@ -188,15 +223,29 @@ and Sunny would otherwise both want to write.
 
 ## Stage B — Capture speed + brief windows · S · ~Sep 29-Oct 3
 
-- [ ] `components/extract.py` — one Claude tool-use call, JSON schema, returns typed
-      fields plus a confidence. Three callers land immediately:
-- [ ] **Assignment capture (#11)** — "quiz 3 in physics due friday" → one extraction →
-      `{title, due_date, category, class}` → Calendar all-day event + task, one turn,
-      no wizard
+- [x] `components/extract.py` — one constrained call, JSON schema, returns typed
+      fields plus a confidence. Built 2026-09-23. **Structured outputs
+      (`output_config.format`), not tool use** as originally specified: the only
+      reason to define a tool here was to get JSON back, there is nothing to
+      execute, and forced `tool_choice` is rejected on some current models. The
+      server constrains generation to the schema either way.
+- [x] **Assignment capture (#11)** — "quiz 3 in physics due friday" → `Quiz 3`,
+      due 2026-09-25, `#School`, class Physics, in one turn with no wizard.
+      Verified live.
 - [ ] **Reminders (#3)** — keep `scheduled_parser.py` regex as the fast path, add
-      extraction as the fallback instead of the current error
-- [ ] **Category (#3)** — infer from title against `category_store`, auto-file above
-      ~85% and say which one, ask only below that
+      extraction as the fallback instead of the current error. **Not yet wired** —
+      `extract.capture()` already returns `kind: "reminder"` with the date resolved,
+      so this is a call site, not new logic.
+- [x] **Category (#3)** — inferred from the text against `category_store` before
+      asking, auto-filed above 85% with the category named in the reply. Measured
+      7/8 on realistic inputs; the one ask was genuinely ambiguous.
+      - The category is an `enum` **in the schema**, so an off-list value cannot be
+        generated rather than being caught afterwards. Phantom categories stop being
+        representable. (Validated in code anyway — a schema is a promise about the
+        model, not about the network.)
+      - First pass auto-filed only 3/8. The model was scoring *missing detail* as
+        *uncertainty* — "buy milk" got 0.7. Fixed in the prompt, not by lowering the
+        threshold, which would also have let real errors through.
 - [x] **Brief windows (#12)** — one `active_brief_period(now)`: daily 05:00-18:30,
       nightly 18:30-05:00. Every consumer calls it instead of deriving its own edge.
       Fix the alarm-prewarm boundary in `scheduled_check_loop`.
@@ -236,11 +285,15 @@ structural fix. Personality proposals go to `memory/suggestions.md` for you to m
 
 ### Three real bugs in the category flow
 
-1. Asks on every add with no inline tag, even when obvious
-2. `_finish_task_with_category` (`assistant.py:539`) accepts any string — a typo
-   silently creates a phantom category
+1. ~~Asks on every add with no inline tag, even when obvious~~ — **fixed 2026-09-23.**
+   Inference runs before the question; it only asks when two categories genuinely
+   compete.
+2. ~~`_finish_task_with_category` accepts any string — a typo silently creates a
+   phantom category~~ — **already fixed** before this session; an unrecognized answer
+   re-asks rather than inventing. The schema enum now closes the same hole one layer
+   earlier, on the inference path.
 3. The `_looks_like_a_command` guard (`assistant.py:753`) can swallow your answer and
-   route it to an unrelated feature
+   route it to an unrelated feature — **still open.**
 
 ---
 
@@ -419,9 +472,14 @@ never move. A 970 spinning up inside an otherwise idle-efficient NAS costs power
 - [ ] Does the Waveshare screen need the GUI at runtime, or only for setup? (Stage F)
 - [ ] Readiness weights are a first guess — revisit after ~1 month of data
 - [ ] When does Discord actually get retired, if ever? (post-Stage E decision)
-- [ ] Sync: self-hosted LiveSync, or pay for Obsidian Sync and be done with it? (Stage A2)
-- [ ] Which existing vault files does Sunny currently write that I also hand-edit?
-      Audit before A2 — those are the actual conflict sources.
+- [x] ~~Sync: self-hosted LiveSync, or pay for Obsidian Sync?~~ — **neither, for now.**
+      Answered by the A2 audit: zero conflicts came from a note edited in two places,
+      so both tools would be solving a problem this vault does not have.
+- [x] ~~Which existing vault files does Sunny currently write that I also hand-edit?~~
+      — **answered 2026-09-23.** Effectively none. The conflict sources are not
+      shared files at all; they are machine churn (`log/`, `*cursor*.json`) and
+      Obsidian's own per-device config, neither of which should be synced. See the
+      A2 audit table.
 
 ## Morning decisions (2026-09-20 session)
 
