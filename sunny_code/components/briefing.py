@@ -145,7 +145,11 @@ class BriefingTemplates:
         summary = await asyncio.to_thread(google_gmail.get_summary)
         if summary is None:
             return "Gmail temporarily unavailable — check logs"
-        lines = [f"{summary['unread_count']} unread ({summary['urgent_count']} marked important)"]
+        # "N worth reading" rather than "N marked important": the count is
+        # now filtered (no promotions, no bulk), so it no longer matches
+        # Gmail's own "important" label and should not claim to.
+        total = f"{summary['unread_count']}{'+' if summary.get('unread_capped') else ''}"
+        lines = [f"{total} unread · {summary['urgent_count']} worth reading"]
         for s in summary["top_subjects"][:3]:
             lines.append(f" • {s['subject'] or '(no subject)'} — {s['from']}")
         return "\n ".join(lines)
