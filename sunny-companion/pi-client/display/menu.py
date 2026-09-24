@@ -36,6 +36,8 @@ from typing import Callable, List, Optional
 
 import pygame
 
+from display import icons
+
 logger = logging.getLogger("companion.menu")
 
 # Close on its own after this long untouched. Long enough to read the
@@ -49,10 +51,15 @@ PRESS_FLASH_SECONDS = 0.18
 # Grid. Four across on an 800-wide landscape canvas gives ~180px columns.
 COLUMNS = 4
 
-BG = (16, 16, 18)
-SCRIM = (0, 0, 0, 190)
+BG = (12, 12, 14)
+# OPAQUE. This was rgba(0,0,0,190) and the dashboard read straight
+# through it -- the clock, the pane header and the event list all ghosted
+# behind the buttons, which is what "looks phased" meant. A translucent
+# scrim is a desktop idiom; on a 4in panel at arm's length it just makes
+# both layers unreadable. The menu owns the screen while it is open.
+SCRIM = (12, 12, 14)
 LABEL = (240, 240, 240)
-IDLE_FILL = (34, 34, 38)
+IDLE_FILL = (26, 26, 30)
 BORDER = (70, 70, 78)
 
 
@@ -61,11 +68,15 @@ class MenuItem:
     status string to flash on screen after it runs."""
 
     def __init__(self, label: str, action: Callable[[], Optional[str]],
-                 color=(37, 150, 190), sublabel: str = ""):
+                 color=(37, 150, 190), sublabel: str = "", icon: str = "dot"):
         self.label = label
         self.action = action
         self.color = color
         self.sublabel = sublabel
+        # Icon NAME, not a function -- see icons.ICONS. An unknown name
+        # falls back to a dot rather than raising, so adding a menu item
+        # can never blank the screen.
+        self.icon = icon
         self.rect: Optional[pygame.Rect] = None
 
 
@@ -164,28 +175,37 @@ class Menu:
         saved_offset, display.offset_y = display.offset_y, 0
         try:
             width, height = display.size
-            scrim = pygame.Surface((width, height), pygame.SRCALPHA)
-            scrim.fill(SCRIM)
-            display.screen.blit(scrim, (0, 0))
 
-            pad = display.pad
-            top = pad
+            # A plain opaque fill, not an alpha blit. Nothing underneath
+            # should be visible at all.
+            display.screen.fill(SCRIM)
+
+            # Breathing room. The grid used to start at display.pad (~28px)
+            # on every side, which put buttons hard against the bezel and
+            # read as the whole thing being shoved into a corner.
+            margin = int(width * 0.05)
+            top = int(height * 0.06)
+
             if self.title:
-                display.text(self.title, display.f_small, LABEL, width // 2, top, center=True)
-                top += int(display.f_small.get_height() * 1.4)
+                surf = display.f_small.render(
+                    display._truncate(self.title, display.f_small, width - margin * 2),
+                    True, LABEL)
+                display.screen.blit(surf, surf.get_rect(center=(width // 2, top)))
+                top += int(display.f_small.get_height() * 0.9)
+            else:
+                top = int(height * 0.04)
 
-            self._layout(top)
+            self._layout(top, margin)
             for item in self.items:
                 self._draw_item(item)
         finally:
             display.offset_y = saved_offset
 
-    def _layout(self, top: int) -> None:
+    def _layout(self, top: int, margin: int) -> None:
         """Assign each item a rect. Recomputed per frame so the grid
         follows the canvas rather than assuming 800x480."""
         width, height = self.display.size
-        pad = self.display.pad
-        gap = max(6, pad // 2)
+        gap = max(8, int(width * 0.018))
 
         count = len(self.items)
         if not count:
@@ -193,8 +213,9 @@ class Menu:
         columns = min(COLUMNS, count)
         rows = (count + columns - 1) // columns
 
-        usable_w = width - pad * 2 - gap * (columns - 1)
-        usable_h = height - top - pad - gap * (rows - 1)
+        bottom_margin = int(height * 0.06)
+        usable_w = width - margin * 2 - gap * (columns - 1)
+        usable_h = height - top - bottom_margin - gap * (rows - 1)
         cell_w = usable_w // columns
         cell_h = usable_h // rows
 
@@ -212,28 +233,44 @@ class Menu:
             )
 
     def _draw_item(self, item: MenuItem) -> None:
+        """One button: icon above, label below.
+
+        The icon carries the meaning at a glance and the word confirms it.
+        Icon-only would need a legend on a panel this size; text-only is
+        what the first version was, and four words in a row all look the
+        same from across a desk.
+        """
         display = self.display
         pressed = (item is self._pressed
                    and time.time() - self._pressed_at < PRESS_FLASH_SECONDS)
 
+        rect = item.rect
         fill = item.color if pressed else IDLE_FILL
-        pygame.draw.rect(display.screen, fill, item.rect, border_radius=10)
-        pygame.draw.rect(display.screen, item.color if not pressed else LABEL,
-                         item.rect, width=2, border_radius=10)
+        edge = LABEL if pressed else item.color
+        content = LABEL if pressed else item.color
+
+        pygame.draw.rect(display.screen, fill, rect, border_radius=14)
+        pygame.draw.rect(display.screen, edge, rect, width=2, border_radius=14)
 
         font = display.f_small
-        label = display._truncate(item.label, font, item.rect.width - 12)
-        surf = font.render(label, True, LABEL)
-        centre_y = item.rect.centery
-        if item.sublabel:
-            centre_y -= display.f_tiny.get_height() // 2
-        display.screen.blit(surf, surf.get_rect(center=(item.rect.centerx, centre_y)))
+        label = display._truncate(item.label, font, rect.width - 14)
+        label_surf = font.render(label, True, LABEL)
+
+        # Icon sized off the button, so it stays proportional whether the
+        # grid is four wide or two.
+        icon_size = int(min(rect.width, rect.height) * 0.42)
+        block_h = icon_size + int(font.get_height() * 1.15)
+        icon_cy = rect.centery - block_h // 2 + icon_size // 2
+        icons.draw(item.icon, display.screen, (rect.centerx, icon_cy), icon_size, content)
+
+        display.screen.blit(label_surf, label_surf.get_rect(
+            center=(rect.centerx, icon_cy + icon_size // 2 + int(font.get_height() * 0.62))))
 
         if item.sublabel:
-            sub = display._truncate(item.sublabel, display.f_tiny, item.rect.width - 12)
+            sub = display._truncate(item.sublabel, display.f_tiny, rect.width - 14)
             sub_surf = display.f_tiny.render(sub, True, BORDER if not pressed else LABEL)
             display.screen.blit(sub_surf, sub_surf.get_rect(
-                center=(item.rect.centerx, centre_y + font.get_height() - 2)))
+                center=(rect.centerx, rect.bottom - int(display.f_tiny.get_height() * 0.9))))
 
     def draw_status(self) -> None:
         """The post-action confirmation. Separate from draw() because it

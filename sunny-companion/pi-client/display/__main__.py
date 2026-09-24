@@ -223,18 +223,23 @@ class Companion:
             # question squeezed into a button.
             self.menu.title = prompt
             items.append(MenuItem(
-                "Yes", lambda: self._answer_checkin(qid, "yes", day), PINK))
+                "Yes", lambda: self._answer_checkin(qid, "yes", day), PINK,
+                icon="check"))
             items.append(MenuItem(
-                "No", lambda: self._answer_checkin(qid, "no", day), BLUE))
+                "No", lambda: self._answer_checkin(qid, "no", day), BLUE,
+                icon="cross"))
         else:
             self.menu.title = "Sunny"
 
-        for label, pane in (("Calendar", "calendar"), ("Weather", "weather"),
-                            ("Tasks", "tasks"), ("Health", "health")):
-            items.append(MenuItem(label, lambda p=pane, l=label: self._pin_pane(p, l), BLUE))
+        for label, pane, icon in (("Calendar", "calendar", "calendar"),
+                                  ("Weather", "weather", "cloud"),
+                                  ("Tasks", "tasks", "checklist"),
+                                  ("Health", "health", "heart")):
+            items.append(MenuItem(label, lambda p=pane, l=label: self._pin_pane(p, l),
+                                  BLUE, icon=icon))
 
-        items.append(MenuItem("Refresh", self._refresh, YELLOW))
-        items.append(MenuItem("Close", lambda: None, DIM))
+        items.append(MenuItem("Refresh", self._refresh, YELLOW, icon="refresh"))
+        items.append(MenuItem("Close", lambda: None, DIM, icon="back"))
         return items
 
     def _answer_checkin(self, question_id: str, answer: str, day):
@@ -430,14 +435,16 @@ class Companion:
                 point = self.display.touch_point(event)
                 if point is not None:
                     self._last_touch = (point, event, time.time())
-                    # A banner is dismissed by the same tap that would
-                    # otherwise open the menu. Clearing an alert is the
-                    # more likely intent when one is on screen, and it
-                    # keeps "tap to acknowledge" working without a button.
-                    if self.notifications.current() and not self.menu.open:
+                    # A touch ALWAYS opens the menu. It used to be swallowed
+                    # while a notification was up, on the theory that
+                    # dismissing the alert was the likelier intent -- but
+                    # that made the one rule anyone has to remember ("touch
+                    # the screen, get the menu") conditional on something
+                    # invisible until it happens. A banner now clears AND
+                    # the menu opens, which serves both intents in one tap.
+                    if self.notifications.current():
                         self.notifications.dismiss()
-                    else:
-                        self.menu.handle_tap(point)
+                    self.menu.handle_tap(point)
 
             self.menu.tick()
 
