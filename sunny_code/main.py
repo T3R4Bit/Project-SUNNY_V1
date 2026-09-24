@@ -329,6 +329,15 @@ class SunnyCore:
                     self.discord_bot.start(self.settings.discord_bot_token)
                 )
 
+            # Watch Warren and notify on status change. Warren's own
+            # alerting is Pushover, which was never configured, so every
+            # halt it has raised (2026-09-14, 2026-09-23) went to a log
+            # nobody reads. Same double-start guard as everything else here.
+            if not getattr(self, "_warren_watch_started", False):
+                self._warren_watch_started = True
+                from sunny_code.components import warren_watch
+                asyncio.create_task(warren_watch.watch())
+
             # Same double-start hazard as the Discord bot above (HTTP + HTTPS
             # servers both fire this hook against the same app) — same guard.
             if not self._health_check_started:
