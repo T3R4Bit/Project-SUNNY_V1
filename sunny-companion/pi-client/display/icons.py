@@ -159,6 +159,42 @@ def refresh(surface, center: Tuple[int, int], size: int, color) -> None:
     ])
 
 
+def question(surface, center: Tuple[int, int], size: int, color) -> None:
+    """Check-in. A question mark.
+
+    Needed its own glyph because the check-in button was reusing the
+    checklist icon, which Tasks also uses -- two buttons with identical
+    icons in one grid is worse than no icons, since it actively suggests
+    they do the same thing.
+
+    The hook is a run of dots for the same reason arcs are everywhere
+    else here: pygame.draw.arc is thin and aliased at this size.
+    """
+    cx, cy = center
+    w = max(2, int(size * 0.1))
+    radius = size * 0.22
+    hook_cy = cy - size * 0.16
+
+    # Open arc from lower-left, over the top, round to the right.
+    start, end = math.radians(160), math.radians(370)
+    steps = max(12, int(size * 0.7))
+    for i in range(steps):
+        angle = start + (end - start) * (i / (steps - 1))
+        pygame.draw.circle(
+            surface, color,
+            (int(cx + radius * math.cos(angle)), int(hook_cy + radius * math.sin(angle))),
+            max(1, w // 2))
+
+    # Stem down from where the arc ends, into the centre.
+    tail_x = cx + radius * math.cos(end)
+    tail_y = hook_cy + radius * math.sin(end)
+    pygame.draw.line(surface, color, (int(tail_x), int(tail_y)),
+                     (int(cx), int(cy + size * 0.14)), w)
+    # The dot.
+    pygame.draw.circle(surface, color, (int(cx), int(cy + size * 0.36)),
+                       max(2, int(w * 0.72)))
+
+
 def back(surface, center: Tuple[int, int], size: int, color) -> None:
     """Close / dismiss. A left chevron reads as "out of here" better than
     another X, which would collide with the No button."""
@@ -188,6 +224,7 @@ ICONS = {
     "checklist": checklist,
     "heart": heart,
     "refresh": refresh,
+    "question": question,
     "back": back,
     "dot": dot,
 }

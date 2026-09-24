@@ -181,6 +181,7 @@ def create_metrics_router() -> APIRouter:
         5am boundary instead of using its own midnight."""
         day = day_boundary.day_key()
         question = checkin.next_question(day)
+        outstanding = checkin.pending(day)
         return {
             "day": day,
             "question": {
@@ -188,6 +189,14 @@ def create_metrics_router() -> APIRouter:
                 "prompt": question["prompt"],
                 "type": question["type"],
             } if question else None,
+            # The FULL list, not just the next one. A client showing a
+            # "check-in" button needs to know how many are waiting to
+            # label it, and a client that answers them in sequence needs
+            # all of them without re-polling between each answer.
+            "pending": [
+                {"id": q["id"], "prompt": q["prompt"], "type": q["type"]}
+                for q in outstanding
+            ],
             "answered": checkin.answered(day),
         }
 

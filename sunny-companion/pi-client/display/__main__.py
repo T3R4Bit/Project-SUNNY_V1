@@ -74,7 +74,9 @@ TOUCH_DEBUG = os.environ.get("TOUCH_DEBUG", "") == "1"
 
 # Open the menu at startup, so it can be screenshotted over SSH without
 # anyone physically touching the panel.
-MENU_OPEN = os.environ.get("MENU_OPEN", "") == "1"
+# "1" opens the top-level menu; "checkin" opens the check-in page under
+# it, so both can be screenshotted without anyone touching the panel.
+MENU_OPEN = os.environ.get("MENU_OPEN", "")
 
 # Debug capture, off unless asked for. See the render loop for why reading
 # /dev/fb0 does not work under kmsdrm.
@@ -107,6 +109,10 @@ class Companion:
         self.pinned_pane = ""
         self.pinned_until = 0.0
         self._last_touch = None
+        # Filled by _menu_items each time the menu opens, so the check-in
+        # page always reflects what was outstanding at that moment.
+        self._checkin_pending = []
+        self._checkin_day = None
 
     # --- background ------------------------------------------------------
 
@@ -202,34 +208,32 @@ class Companion:
     # --- menu ------------------------------------------------------------
 
     def _menu_items(self):
-        """The menu, rebuilt each time it opens.
+        """The top-level menu, rebuilt each time it opens.
 
-        Ordered by what someone standing over this panel actually wants.
-        The check-in comes first and only exists while there is a question
-        outstanding -- it is the one thing here that cannot be done any
-        other way without picking up a phone, and it is answered at a time
-        of day when typing is unappealing.
+        The check-in is ONE button here, not a Yes and a No. Those two
+        took a quarter of an eight-slot grid for a single question, and
+        would have taken half of it the moment a second question existed
+        -- checkin.pending() already returns a list. The button opens its
+        own page instead, which also gives room to show the question in
+        full rather than squeezed into a title.
         """
         items = []
 
-        pending = fetch_checkin()
-        question = (pending or {}).get("question")
-        if question and question.get("type") == "yes_no":
-            day = (pending or {}).get("day")
-            qid = question["id"]
-            prompt = question.get("prompt", "Check-in")
-            # The prompt goes in the title bar, so the buttons only carry
-            # the answer -- "Yes"/"No" at full size beats a two-line
-            # question squeezed into a button.
-            self.menu.title = prompt
-            items.append(MenuItem(
-                "Yes", lambda: self._answer_checkin(qid, "yes", day), PINK,
-                icon="check"))
-            items.append(MenuItem(
-                "No", lambda: self._answer_checkin(qid, "no", day), BLUE,
-                icon="cross"))
-        else:
-            self.menu.title = "Sunny"
+        pending = fetch_checkin() or {}
+        outstanding = [q for q in (pending.get("pending") or [])
+                       if q.get("type") == "yes_no"]
+        self._checkin_day = pending.get("day")
+        self._checkin_pending = outstanding
+
+        self.menu.title = "Sunny"
+        if outstanding:
+            # A COUNT, not the question text. The prompt truncated to
+            # "Did you have a mi…" in the button width, which tells you
+            # less than a number does and looks broken doing it. The
+            # question itself is the title of the page behind this.
+            sub = f"{len(outstanding)} waiting"
+            items.append(MenuItem("Check-in", self._open_checkin, PINK,
+                                  sublabel=sub, icon="question", closes=False))
 
         for label, pane, icon in (("Calendar", "calendar", "calendar"),
                                   ("Weather", "weather", "cloud"),
@@ -241,6 +245,45 @@ class Companion:
         items.append(MenuItem("Refresh", self._refresh, YELLOW, icon="refresh"))
         items.append(MenuItem("Close", lambda: None, DIM, icon="back"))
         return items
+
+    def _open_checkin(self):
+        """Push the check-in page for the first outstanding question."""
+        self._show_checkin_question(0)
+        return None
+
+    def _show_checkin_question(self, index: int):
+        """One question per page: prompt as the title, Yes / No / Back.
+
+        Answering advances to the next outstanding question rather than
+        dropping back to the top, so several can be cleared in a row
+        without reopening the menu each time.
+        """
+        questions = getattr(self, "_checkin_pending", [])
+        if index >= len(questions):
+            self.menu.close()
+            return
+
+        question = questions[index]
+        qid = question["id"]
+        day = getattr(self, "_checkin_day", None)
+        position = f"{index + 1} of {len(questions)}" if len(questions) > 1 else ""
+
+        def answer(value):
+            self._answer_checkin(qid, value, day)
+            remaining = index + 1
+            if remaining < len(questions):
+                self._show_checkin_question(remaining)
+            else:
+                self.menu.close()
+            return None
+
+        self.menu.push(question["prompt"], [
+            MenuItem("Yes", lambda: answer("yes"), PINK, sublabel=position,
+                     icon="check", closes=False),
+            MenuItem("No", lambda: answer("no"), BLUE, sublabel=position,
+                     icon="cross", closes=False),
+            MenuItem("Back", self.menu.pop, DIM, icon="back", closes=False),
+        ])
 
     def _answer_checkin(self, question_id: str, answer: str, day):
         """Log a check-in answer without blocking the render loop.
@@ -402,6 +445,8 @@ class Companion:
         self.start_threads()
         if MENU_OPEN:
             self.menu.show()
+            if MENU_OPEN == "checkin":
+                self._open_checkin()
 
         while True:
             # The face animates; the dashboard is static text that changes

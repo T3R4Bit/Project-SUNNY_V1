@@ -68,11 +68,15 @@ class MenuItem:
     status string to flash on screen after it runs."""
 
     def __init__(self, label: str, action: Callable[[], Optional[str]],
-                 color=(37, 150, 190), sublabel: str = "", icon: str = "dot"):
+                 color=(37, 150, 190), sublabel: str = "", icon: str = "dot",
+                 closes: bool = True):
         self.label = label
         self.action = action
         self.color = color
         self.sublabel = sublabel
+        # False for an item that opens a submenu -- otherwise _run would
+        # close the whole menu the instant the submenu was pushed.
+        self.closes = closes
         # Icon NAME, not a function -- see icons.ICONS. An unknown name
         # falls back to a dot rather than raising, so adding a menu item
         # can never blank the screen.
@@ -95,6 +99,10 @@ class Menu:
         # is a check-in to answer changes during the day, and a menu that
         # offers yesterday's question is worse than one that offers none.
         self._build: Optional[Callable[[], List[MenuItem]]] = None
+        # Parent pages, innermost last. A submenu pushes the current page
+        # here and restores it on back, so "back" never has to know what
+        # it came from.
+        self._stack: List[tuple] = []
 
     def set_builder(self, build: Callable[[], List[MenuItem]]) -> None:
         self._build = build
@@ -104,13 +112,38 @@ class Menu:
 
     def show(self) -> None:
         self.items = self._build() if self._build else []
+        self._stack = []
         self.open = True
         self._opened_at = time.time()
         self._pressed = None
 
+    def push(self, title: str, items: List[MenuItem]) -> None:
+        """Open a submenu, remembering the page it came from."""
+        self._stack.append((self.title, self.items))
+        self.title = title
+        self.items = items
+        self._pressed = None
+        # Reset the idle timer: arriving at a submenu is activity, and
+        # inheriting the parent's timer could close it mid-read.
+        self._opened_at = time.time()
+
+    def pop(self) -> None:
+        """Back one level, or close if already at the top."""
+        if not self._stack:
+            self.close()
+            return
+        self.title, self.items = self._stack.pop()
+        self._pressed = None
+        self._opened_at = time.time()
+
+    @property
+    def depth(self) -> int:
+        return len(self._stack)
+
     def close(self) -> None:
         self.open = False
         self._pressed = None
+        self._stack = []
 
     def flash(self, message: str, seconds: float = 2.5) -> None:
         """Show a short confirmation over the dashboard after the menu
@@ -142,9 +175,10 @@ class Menu:
                 self._run(item)
                 return True
 
-        # A tap on empty space closes. On a panel this small the gap
-        # between buttons is the only "cancel" that needs no button.
-        self.close()
+        # A tap on empty space goes BACK one level rather than closing
+        # outright. In a submenu, closing the lot would throw away the
+        # step you were halfway through answering.
+        self.pop()
         return True
 
     def _run(self, item: MenuItem) -> None:
@@ -157,7 +191,8 @@ class Menu:
             return
         if result:
             self.flash(result)
-        self.close()
+        if item.closes:
+            self.close()
 
     # --- drawing ---------------------------------------------------------
 
