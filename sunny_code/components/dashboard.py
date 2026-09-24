@@ -231,12 +231,19 @@ class DashboardAPI:
         async def spend_month():
             """Get this month's cumulative LLM spend against the monthly cap."""
             settings = get_settings()
-            cost = token_tracker.get_month_cost()
+            usage = token_tracker.get_month_usage()
+            cost = usage["cost"]
             return {
-                "month": datetime.now().date().isoformat()[:7],
+                "month": usage["month"],
                 "cost": cost,
                 "cap": settings.monthly_spend_cap,
                 "remaining": max(0.0, settings.monthly_spend_cap - cost),
+                # Added so the dashboard can break the month down by model.
+                # A one-day split is mostly noise -- a single long
+                # conversation dominates it -- while a month's is the
+                # number that says where the money actually goes.
+                "tokens": usage["total_tokens"],
+                "by_model": usage["by_model"],
             }
 
         @self.router.get("/usage/live")

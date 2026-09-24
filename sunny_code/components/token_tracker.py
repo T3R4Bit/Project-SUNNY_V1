@@ -222,6 +222,61 @@ def get_daily_costs(days: int = 30) -> List[Dict]:
     return result
 
 
+def get_month_usage() -> Dict:
+    """This month's totals, with the per-model breakdown summed across
+    every day in it.
+
+    Same shape as get_today_usage() so callers can render either without
+    branching. The breakdown exists because a by-model split over a
+    single day is mostly noise -- one long conversation on one model
+    dominates it -- while the same split over a month is the number that
+    actually tells you where the spend goes.
+
+    by_model is stored as a JSON blob per day rather than in its own
+    table, so this sums in Python. At ~31 rows a month that is cheaper
+    than the schema change it would take to do it in SQL.
+    """
+    month_prefix = date.today().isoformat()[:7]
+    conn = _connect()
+    with conn:
+        rows = conn.execute(
+            "SELECT prompt_tokens, completion_tokens, total_cost, by_model "
+            "FROM token_usage WHERE date LIKE ?",
+            (f"{month_prefix}-%",),
+        ).fetchall()
+
+    prompt = completion = 0
+    cost = 0.0
+    by_model: Dict[str, float] = {}
+    for row in rows:
+        prompt += row["prompt_tokens"] or 0
+        completion += row["completion_tokens"] or 0
+        cost += row["total_cost"] or 0.0
+        try:
+            day_models = json.loads(row["by_model"] or "{}")
+        except (TypeError, ValueError):
+            # One malformed day must not cost the whole month's breakdown.
+            continue
+        for model, value in (day_models or {}).items():
+            # Tolerates both {model: cost} and {model: {"cost": ...}},
+            # the same shapes the dashboard already defends against.
+            if isinstance(value, dict):
+                value = value.get("cost", 0.0)
+            try:
+                by_model[model] = by_model.get(model, 0.0) + float(value)
+            except (TypeError, ValueError):
+                continue
+
+    return {
+        "month": month_prefix,
+        "prompt_tokens": prompt,
+        "completion_tokens": completion,
+        "total_tokens": prompt + completion,
+        "cost": cost,
+        "by_model": by_model,
+    }
+
+
 def get_month_cost() -> float:
     month_prefix = date.today().isoformat()[:7]  # YYYY-MM
     conn = _connect()
