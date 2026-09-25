@@ -18,6 +18,7 @@ from sunny_code.components.briefing import BriefingEngine
 from sunny_code.components.briefing_api import create_briefing_router
 from sunny_code.components.dashboard_data_routes import create_dashboard_data_router
 from sunny_code.components.logs_routes import create_logs_router
+from sunny_code.components.project_routes import create_project_router
 from sunny_code.components.metrics_routes import create_metrics_router
 from sunny_code.components.chat_routes import create_chat_router
 from sunny_code.components.push_routes import create_push_router
@@ -423,6 +424,11 @@ class SunnyCore:
         # traces.jsonl has been written with no reader since the console
         # was retired 2026-09-13; this gives it one again.
         app.include_router(create_logs_router(), prefix="/api")
+
+        # Projects over HTTP -- /api/projects, /api/projects/{slug}, plus
+        # status/archive changes. Read-mostly on purpose: creating,
+        # planning and critiquing stay in chat, where they belong.
+        app.include_router(create_project_router(), prefix="/api")
 
         # Web Push subscription + send (see push_service.py)
         app.include_router(create_push_router(), prefix="/api")
