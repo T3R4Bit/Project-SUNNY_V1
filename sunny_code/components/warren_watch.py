@@ -34,7 +34,9 @@ because a single missed poll during a restart is not news.
 """
 
 import asyncio
+import json
 import logging
+from pathlib import Path
 from typing import Dict, Optional
 
 import httpx
@@ -64,6 +66,41 @@ EXEC_STALE_MINUTES = 90
 
 _last: Optional[Dict] = None
 _failures = 0
+
+
+def _state_path() -> Path:
+    return get_settings().project_root / "sunny-vault" / "data" / "state" / "warren-watch.json"
+
+
+def _load_last() -> Optional[Dict]:
+    """Last observed status from the previous run.
+
+    Held on disk, not just in memory, because otherwise EVERY restart of
+    sunny.service is a fresh first poll -- and a first poll on a halted
+    bot alerts. Measured: 9 identical "Warren is halted" notifications in
+    24 hours, one per deploy, none of them news. An alert that fires on
+    something you did yourself is how people learn to ignore alerts.
+    """
+    path = _state_path()
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        logger.warning(f"warren watch state unreadable, starting fresh: {e}")
+        return None
+
+
+def _save_last(status: Optional[Dict]) -> None:
+    from sunny_code.components import vault_io
+
+    try:
+        _state_path().parent.mkdir(parents=True, exist_ok=True)
+        vault_io.atomic_write_text(_state_path(), json.dumps(status or {}, indent=2))
+    except OSError as e:
+        # Losing this costs one spurious notification after the next
+        # restart, never correctness -- so it must not break the watcher.
+        logger.warning(f"Could not persist warren watch state: {e}")
 
 
 async def fetch_status() -> Optional[Dict]:
@@ -154,6 +191,12 @@ async def poll_once() -> Optional[str]:
     """One poll. Returns the message it sent, or None."""
     global _last, _failures
 
+    if _last is None:
+        # First poll of this process: adopt whatever the previous run
+        # last saw, so a restart compares against reality rather than
+        # against nothing.
+        _last = _load_last()
+
     current = await fetch_status()
 
     if current is None:
@@ -171,6 +214,7 @@ async def poll_once() -> Optional[str]:
     _failures = 0
     message = _changed(_last, current)
     _last = current
+    _save_last(current)
 
     if message:
         await notify.send("Warren", message, url="/warren", tag="warren",

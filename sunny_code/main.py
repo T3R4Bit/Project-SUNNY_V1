@@ -506,9 +506,19 @@ class SunnyCore:
         # reaches sunny.log — the process dies before Python logging runs.
         # This is the one place that gap is closed, so it's logged locally
         # even when Discord isn't configured — see crash_check.py.
-        crash_signature = check_previous_crash()
-        if crash_signature:
-            self.logger.warning(f"Previous run crashed: {crash_signature}")
+        # A deliberate restart consumes its marker here and stays quiet --
+        # you already know, you did it. Only an unexplained start falls
+        # through to the crash check, so a deploy stops reading as an
+        # incident. See restart_marker.py and restart-sunny.sh.
+        from sunny_code.components import restart_marker
+
+        restart_reason = restart_marker.consume()
+        if restart_reason is not None:
+            self.logger.info(f"Started after an intentional restart ({restart_reason})")
+        else:
+            crash_signature = check_previous_crash()
+            if crash_signature:
+                self.logger.warning(f"Previous run crashed: {crash_signature}")
 
         # Run FastAPI server. The Discord bot (if configured) starts from the
         # FastAPI lifespan hook in _create_app(), not here — see the comment
