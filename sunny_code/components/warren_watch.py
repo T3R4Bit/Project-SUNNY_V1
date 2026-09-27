@@ -57,12 +57,16 @@ POLL_SECONDS = 120
 # poll is noise, three in a row over six minutes is real.
 UNREACHABLE_AFTER = 3
 
-# execd is expected to beat during market hours. Well past this and it
-# is stale, which is the condition Warren's own riskd halts on -- but
-# riskd only notices while it is itself running, and it crash-looped 32
-# times before the halt that started this. Checking independently means
-# a silent execd is caught even if riskd is the thing that died.
-EXEC_STALE_MINUTES = 90
+# No independent execd-staleness check lives here. There was a
+# 90-minute EXEC_STALE_MINUTES constant, never referenced by anything,
+# whose comment claimed execd "is expected to beat during market
+# hours". It is not: execd is a WEEKLY scheduled action (Wed 10:00 ET),
+# so a 90-minute threshold would have been true for about ten minutes a
+# week and wrong the rest of the time. Warren's own riskd gates its
+# EXEC_STALE trip on exposure and on execd not having cleanly finished
+# (warren.risk.watchdog.execd_has_settled) for exactly that reason, and
+# the execd phase carried in the status below is what actually surfaces
+# whether it ran.
 
 _last: Optional[Dict] = None
 _failures = 0
