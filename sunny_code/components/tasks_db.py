@@ -25,7 +25,12 @@ logger = logging.getLogger(__name__)
 # beyond dashboard sort order); a task file written before the removal
 # that still has a "priority:" line in its frontmatter just has it ignored
 # on the next read/write, nothing rewrites old files to strip it.
-_FIELD_ORDER = ["id", "tag", "status", "due_date", "source", "created_at", "updated_at"]
+# `project` is last so it appends to existing task files rather than
+# reordering their frontmatter -- every task written before this existed
+# simply has no project key, and _document_to_task defaults it to None.
+# No migration needed, and an old file stays valid.
+_FIELD_ORDER = ["id", "tag", "status", "due_date", "source", "created_at",
+                "updated_at", "project"]
 
 
 class TaskDB:
@@ -130,6 +135,7 @@ class TaskDB:
         description: str = None,
         due_date: str = None,
         source: str = None,
+        project: str = None,
     ) -> str:
         """Create a new task. Returns task ID."""
         if not tag or not tag.strip():
@@ -158,6 +164,11 @@ class TaskDB:
             "updated_at": now,
             "due_date": due_date,
             "source": source,
+            # Project slug, or None. A task belongs to at most one project
+            # -- a task shared between two projects is a sign the projects
+            # are really one, and supporting it would mean every "what's
+            # left on X" answer needing to explain itself.
+            "project": project,
         }
 
         slug = self._unique_slug(title)
@@ -189,6 +200,18 @@ class TaskDB:
     def get_tasks_by_tag(self, tag: str) -> List[Dict]:
         """Get all tasks with a specific tag."""
         return self.get_all_tasks(tag=tag)
+
+    def get_tasks_by_project(self, project: str, status: str = None) -> List[Dict]:
+        """Every task belonging to `project`, soonest due first.
+
+        Dated tasks sort before undated ones: "what's left on Warren" is
+        asked to find out what is pressing, and an undated task at the top
+        answers a different question.
+        """
+        tasks = [t for t in self._iter_tasks() if t.get("project") == project]
+        if status:
+            tasks = [t for t in tasks if t.get("status") == status]
+        return sorted(tasks, key=lambda t: (t.get("due_date") is None, t.get("due_date") or ""))
 
     def get_open_tasks(self) -> List[Dict]:
         """Get all open tasks."""

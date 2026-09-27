@@ -27,7 +27,8 @@ class TaskEngine:
         self.on_change = None
 
     async def execute_command(
-        self, command: str, source: str = None, known_categories: Optional[List[str]] = None
+        self, command: str, source: str = None, known_categories: Optional[List[str]] = None,
+        project: Optional[str] = None,
     ) -> Tuple[bool, str]:
         """Execute a task command and return (success, message). `source` (web/discord/api)
         is only used for "add" — it's recorded on the created task for future reference.
@@ -44,6 +45,14 @@ class TaskEngine:
                 return False, f"{error}"
 
             if cmd_type == "add":
+                # This method RE-PARSES the command string, so anything the
+                # caller resolved on its own copy of the parse is lost here.
+                # The focused project is exactly that: assistant.py knows
+                # it, the parser cannot, and without this every task added
+                # with an inline category ("...to my general tasks") landed
+                # with no project at all.
+                if project:
+                    data = {**data, "project": project}
                 result = await self._execute_add(data, source=source)
             elif cmd_type == "update":
                 result = await self._execute_update(data)
@@ -123,6 +132,7 @@ class TaskEngine:
                 description=data.get("description"),
                 due_date=data.get("due_date"),
                 source=source,
+                project=data.get("project"),
             )
 
             message = f"""Task created: {data['title']}
@@ -130,6 +140,11 @@ Category: {data.get('tag', 'General')}"""
 
             if data.get("due_date"):
                 message += f"\nDue: {data['due_date']}"
+            if data.get("project"):
+                # Named in the reply for the same reason the category is:
+                # a task filed under the wrong project is invisible until
+                # you go looking for it.
+                message += f"\nProject: {data['project']}"
 
             return True, message
 

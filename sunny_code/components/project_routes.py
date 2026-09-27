@@ -77,6 +77,33 @@ def _summary(project: Dict) -> Dict:
     }
 
 
+def _tasks_for(slug: str) -> List[Dict]:
+    """Open tasks belonging to this project, soonest due first.
+
+    Built here rather than passed in because the router has no engine
+    handle -- and reading the vault directly is what tasks_db does
+    anyway, so there is no state to be out of step with.
+
+    Detail only. The list view does NOT call this: it renders every
+    project, and scanning the whole task tree per card would make the
+    page cost proportional to everything ever filed.
+    """
+    from sunny_code.components.tasks_db import TaskDB
+    from sunny_code.config import get_settings
+
+    try:
+        db = TaskDB(get_settings().project_root / "sunny-vault" / "data" / "state" / "tasks")
+        return [
+            {"id": t["id"], "title": t["title"], "due_date": t.get("due_date"),
+             "tag": t.get("tag")}
+            for t in db.get_tasks_by_project(slug, status="open")
+        ]
+    except Exception as e:
+        # A project page is still worth showing without its task list.
+        logger.warning(f"Could not read tasks for {slug}: {e}")
+        return []
+
+
 def create_project_router() -> APIRouter:
     router = APIRouter()
 
@@ -146,6 +173,7 @@ def create_project_router() -> APIRouter:
             "description": project["description"],
             "path": project["path"],
             "files": files,
+            "tasks": _tasks_for(slug),
         }
 
     @router.post("/projects/{slug}/status")

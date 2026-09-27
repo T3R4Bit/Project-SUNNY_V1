@@ -650,6 +650,38 @@ async def _handle_project_command(stripped: str, lowered: str,
 
     slug = focused["slug"]
 
+    if lowered in ("tasks", "what's left", "whats left", "what is left",
+                   "open tasks", "todo", "what's left on this"):
+        # Scoped to the focused project. The same word outside a project
+        # still lists everything -- this branch is only reachable with one
+        # in focus, which is what makes "tasks" mean two sensible things
+        # rather than one ambiguous one.
+        from sunny_code.components.tasks_db import TaskDB
+        from sunny_code.config import get_settings
+
+        db = TaskDB(get_settings().project_root / "sunny-vault" / "data" / "state" / "tasks")
+        open_tasks = db.get_tasks_by_project(slug, status="open")
+        trace.mark_route("projects", "tasks", confidence="exact", function="tasks_db.get_tasks_by_project")
+        if not open_tasks:
+            return (f"Nothing open on {focused['name']}. "
+                    "Anything you add while this project is in focus lands here.")
+
+        from datetime import date as _date
+        lines = [f"{focused['name']} — {len(open_tasks)} open"]
+        for task in open_tasks:
+            due = task.get("due_date")
+            mark = ""
+            if due:
+                try:
+                    delta = (_date.fromisoformat(due) - _date.today()).days
+                    mark = (f"  ({-delta}d overdue)" if delta < 0
+                            else "  (today)" if delta == 0
+                            else f"  (in {delta}d)")
+                except (TypeError, ValueError):
+                    mark = f"  ({due})"
+            lines.append(f"  · {task['title']}{mark}")
+        return "\n".join(lines)
+
     if lowered in ("plan", "draft a plan", "make a plan", "write the plan"):
         trace.mark_route("projects", "plan", confidence="exact", function="project_work.draft_plan")
         plan = await project_work.draft_plan(slug)
@@ -1121,6 +1153,16 @@ async def _handle_message_inner(
         trace.mark_route("category_store", "remove", confidence="heuristic", function="category_store.remove_category")
         return message
 
+    # BEFORE the task parser. "tasks" matches both this and
+    # TaskCommandParser's natural list pattern, and whichever runs first
+    # wins -- with the parser first, "tasks" inside a project listed every
+    # task in the vault, which is the opposite of what focusing a project
+    # is for. This handler returns None for anything it does not
+    # recognise, so nothing else is affected by running it earlier.
+    project_reply = await _handle_project_command(stripped, lowered, session_id)
+    if project_reply is not None:
+        return project_reply
+
     cmd_type, success, task_data = TaskCommandParser.parse_command(stripped, categories)
 
     if cmd_type == "add" and not success:
@@ -1137,6 +1179,17 @@ async def _handle_message_inner(
         _set_pending(session_id, "task_title")
         trace.mark_route("wizard:task_title", "start", confidence="exact", function="_set_pending")
         return 'Sure — what should I call it? (or say "cancel")'
+
+    # Attach the focused project to EVERY add, before any branching. It
+    # was originally set only on the auto-filed path, so a task whose
+    # category had to be asked about lost its project on the way through
+    # the wizard -- the one case where you are most obviously mid-thought
+    # about a specific project.
+    if cmd_type == "add" and success:
+        from sunny_code.components import project_store as _ps
+        _focused = _ps.get_focus(session_id)
+        if _focused is not None:
+            task_data["project"] = _focused["slug"]
 
     if cmd_type == "add" and success and "tag" not in task_data:
         # Title (and any --flags) resolved, but no category was stated or
@@ -1162,6 +1215,12 @@ async def _handle_message_inner(
         inferred = await extract.capture(stripped)
         if inferred is not None and "category" not in inferred["uncertain"]:
             data = {**task_data, "tag": inferred["category"]}
+            # A task added while a project is in focus belongs to it. This
+            # is the whole reason focus exists -- otherwise "project warren"
+            # then "add fix the halt" files the task nowhere in particular
+            # and "what's left on Warren" can never answer.
+            # `project` already rode in on task_data above, for both this
+            # path and the wizard's.
             used_flags = bool(task_data.get("due_date"))
             if not used_flags and inferred["confidence"] >= extract.AUTO_FILE_THRESHOLD:
                 if inferred.get("title"):
@@ -1186,14 +1245,14 @@ async def _handle_message_inner(
 
     if cmd_type != "unknown":
         _, message = await tasks_engine.execute_command(
-            stripped, source=source, known_categories=categories
+            stripped, source=source, known_categories=categories,
+            # execute_command re-parses `stripped` from scratch, so the
+            # focused project has to be handed over explicitly or it is
+            # lost on this path.
+            project=task_data.get("project"),
         )
         trace.mark_route("tasks_engine", cmd_type, confidence="exact", function="tasks_engine.execute_command")
         return message
-
-    project_reply = await _handle_project_command(stripped, lowered, session_id)
-    if project_reply is not None:
-        return project_reply
 
     if lowered in _MEMORY_QUERY_TRIGGERS:
         facts = memory_store.all_facts()
