@@ -558,15 +558,65 @@ class Companion:
 
 
 def main() -> int:
+    """Entry point, with crash reporting wired around the render loop.
+
+    crash_reporter.py has existed since the Pi client was built and had
+    NO callers -- mark_running, mark_clean_shutdown and
+    report_crash_if_needed were never invoked from anywhere, so the
+    device has never reported a crash in its life. It was written for the
+    wake-word listener, which is not running yet; the display is the
+    process that actually needs it.
+
+    Order matters: report BEFORE marking, or this run's own marker is the
+    one it finds.
+    """
+    import crash_reporter
+    import signal
+
+    # systemd stops a unit with SIGTERM, whose default handler exits the
+    # process WITHOUT raising anything -- so the clean-shutdown marker
+    # never got cleared and every `systemctl restart` would still be
+    # reported as a crash. Translating it into KeyboardInterrupt routes a
+    # deliberate stop down the same path as Ctrl-C, which is what it is.
+    def _on_sigterm(signum, frame):
+        raise KeyboardInterrupt()
+
+    try:
+        signal.signal(signal.SIGTERM, _on_sigterm)
+    except (ValueError, OSError):
+        # Not the main thread, or a platform without SIGTERM. Worst case
+        # is the old behaviour.
+        pass
+
+    service = "sunny-face"
+    try:
+        crash_reporter.report_crash_if_needed(service, SUNNY_URL)
+        crash_reporter.mark_running(service)
+    except Exception as e:
+        # A reporting failure must never stop the display starting. The
+        # screen being up matters more than knowing why it went down.
+        logger.warning(f"crash reporting unavailable: {e}")
+
+    clean = False
     try:
         Companion().run()
+        clean = True
     except KeyboardInterrupt:
-        pass
+        # Ctrl-C and `systemctl stop` are deliberate. Marking clean here
+        # is what stops a restart being reported as a crash next time --
+        # without it, every restart looks like one, which is how the
+        # signal becomes noise.
+        clean = True
     except Exception as e:
         logger.error(f"Display crashed: {e}", exc_info=True)
         return 1
     finally:
         pygame.quit()
+        if clean:
+            try:
+                crash_reporter.mark_clean_shutdown(service)
+            except Exception:
+                pass
     return 0
 
 

@@ -25,15 +25,34 @@ Usage in each Pi service's entry point:
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import requests
 
 logger = logging.getLogger(__name__)
 
-MARKER_DIR = Path("/run/sunny-companion")  # tmpfs on the Pi -- cleared on power loss too,
-# which is fine: a power-loss reboot isn't a "crash to alert on" in the sense this cares
-# about, and there's no server to report to during the boot that would detect it anyway.
+def _marker_dir() -> Path:
+    """Where the running-markers live.
+
+    Was a hardcoded /run/sunny-companion, which the `sunny` user cannot
+    create -- /run is root-owned. So mark_running() raised PermissionError
+    on every start and the whole mechanism was dead. It never reported a
+    crash in its life, and nothing surfaced the reason.
+
+    $XDG_RUNTIME_DIR (/run/user/1000) has the semantics this actually
+    wants: tmpfs, per-user, writable, and cleared on reboot -- a
+    power-loss reboot is not a crash to alert on, and there is no server
+    to report to mid-boot anyway. Falls back to ~/.cache for a context
+    with no runtime dir (a bare ssh session, a container).
+    """
+    runtime = os.environ.get("XDG_RUNTIME_DIR")
+    if runtime:
+        return Path(runtime) / "sunny-companion"
+    return Path.home() / ".cache" / "sunny-companion"
+
+
+MARKER_DIR = _marker_dir()
 
 
 def _marker_path(service_name: str) -> Path:
