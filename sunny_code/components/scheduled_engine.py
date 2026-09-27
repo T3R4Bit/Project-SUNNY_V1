@@ -6,7 +6,8 @@ which only runs once the Discord bot is connected.
 """
 
 import logging
-from datetime import datetime
+import re
+from datetime import date, datetime, time
 from typing import Dict, Optional, Tuple
 
 from sunny_code.components.scheduled_db import ScheduledDB
@@ -23,6 +24,32 @@ def _format_when(iso_str: str, fmt: str) -> str:
     return dt.strftime(fmt).replace(" 0", " ")
 
 
+
+# Cheap prefilter for the extraction fallback below. try_execute() runs on
+# every message that reaches it, so calling the LLM whenever the regex
+# missed would mean an API call per unmatched message -- most of which are
+# ordinary chat. This only has to be generous: a false positive costs one
+# extraction that returns kind != "reminder" and falls through, while a
+# false negative costs the whole feature.
+# Hour used when a reminder has a date but no time. 9am is the start of
+# a working day rather than a neutral midnight, which would fire while
+# asleep and be missed.
+DEFAULT_REMINDER_HOUR = 9
+
+_REMINDER_HINT = re.compile(
+    r"(remind|reminder|wake me|alarm|don'?t let me forget|ping me|nudge me)",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_a_reminder(text: str) -> bool:
+    return bool(_REMINDER_HINT.search(text or ""))
+
+
+
+
+
+
 class ScheduledEngine:
     """High-level alarm/reminder management with command execution."""
 
@@ -37,12 +64,30 @@ class ScheduledEngine:
         """Returns (handled, success, message). handled=False means this wasn't
         recognized as an alarm/reminder command at all."""
         parsed = ScheduledCommandParser.parse(command)
+
         if parsed is None:
-            return False, False, None
+            # The regex is the fast path and stays the fast path. Only when
+            # it misses AND the text mentions reminding does extraction get
+            # a turn -- "remind me to call mom tomorrow at 7pm" used to
+            # become a TASK with a due date, which never fires. A reminder
+            # that silently becomes a note is worse than one that errors.
+            if not _looks_like_a_reminder(command):
+                return False, False, None
+            recovered = await self._extract_reminder(command, source)
+            if recovered is None:
+                return False, False, None
+            return recovered
 
         action, data = parsed
 
         if "error" in data:
+            # A partial match: it read as a reminder but the time didn't
+            # parse. Extraction resolves relative dates the regex cannot
+            # ("a week friday", "after my last class"), so it gets a turn
+            # here too before the error is returned.
+            recovered = await self._extract_reminder(command, source)
+            if recovered is not None:
+                return recovered
             log_unfulfilled("scheduled_command", f'"{command}" — {data["error"]}')
             return True, False, f"{data['error']}"
 
@@ -96,6 +141,64 @@ class ScheduledEngine:
         self.db.create_item("alarm", data["label"], trigger_at, recurrence=data.get("recurrence"), source=source)
         when = trigger_at.strftime("%A, %B %d at %I:%M %p").replace(" 0", " ")
         return True, f'Alarm "{data["label"]}" set for {when}{self._recur_note(data)}'
+
+    async def _extract_reminder(self, command: str, source: Optional[str]):
+        """Try to recover a reminder the regex could not read.
+
+        Returns a (handled, success, message) tuple, or None to let the
+        caller fall through unchanged. None rather than a failure tuple
+        matters: an extraction that comes back as a task, or does not come
+        back at all, must leave the message available to every other
+        feature rather than consuming it.
+        """
+        from sunny_code.components import extract
+
+        result = await extract.capture(command)
+        if result is None or result.get("kind") != "reminder":
+            return None
+        if not result.get("due_date"):
+            # A reminder with no time is not a reminder. Let it fall
+            # through -- the capture path will file it as a task, which is
+            # the honest outcome for "remind me to buy milk".
+            return None
+
+        # Built directly from the structured fields. The first version
+        # formatted them back into a string and handed it to
+        # parse_time_expression, which is a parser for HUMAN expressions
+        # ("at 5pm", "in 30 minutes") and returned None for a bare ISO
+        # date -- so every date-only reminder silently fell through.
+        # Re-parsing data you already have structured is a bug waiting to
+        # happen, and this was it.
+        try:
+            day = date.fromisoformat(result["due_date"])
+        except (TypeError, ValueError):
+            logger.warning(f"extraction produced a bad date: {result['due_date']!r}")
+            return None
+
+        assumed_time = False
+        if result.get("due_time"):
+            hour, _, minute = result["due_time"].partition(":")
+            trigger_at = datetime.combine(day, time(int(hour), int(minute or 0)))
+        else:
+            # A reminder needs a time; extract deliberately never invents
+            # one. Rather than failing, assume a sensible hour and SAY so
+            # in the reply -- an assumption you can see and correct beats
+            # an error that drops the reminder entirely.
+            trigger_at = datetime.combine(day, time(DEFAULT_REMINDER_HOUR, 0))
+            assumed_time = True
+
+        if trigger_at < datetime.now():
+            logger.info(f"extraction produced a past time: {trigger_at}")
+            return None
+
+        title = result.get("title") or command
+        self.db.create_item("reminder", title, trigger_at, source=source)
+        stamp = trigger_at.strftime("%A, %B %d at %I:%M %p").replace(" 0", " ")
+        trace.mark_route("scheduled_engine", "extracted", confidence="heuristic",
+                         function="extract.capture")
+        logger.info(f"Reminder recovered by extraction: {title!r} at {trigger_at}")
+        note = " — you didn't say a time, so I picked one" if assumed_time else ""
+        return True, True, f"I'll remind you to {title} on {stamp}{note}"
 
     def _create_reminder(self, data: Dict, source: Optional[str]) -> Tuple[bool, str]:
         trigger_at = parse_time_expression(data["time_expr"])
