@@ -574,6 +574,118 @@ async def _create_task_from_reply(reply: str, tasks_engine: TaskEngine, session_
     return message
 
 
+_DEBRIEF_TRIGGERS = (
+    "debrief", "/debrief", "debrief me", "lets debrief", "let's debrief",
+    "daily debrief", "dump", "brain dump",
+)
+
+
+async def _start_debrief(stripped: str, tasks_engine, session_id: str) -> str:
+    """Begin a debrief. `stripped` may carry the dump already ("debrief: the
+    lab ran long") or be the bare trigger, in which case we ask for it."""
+    from sunny_code.components import debrief
+
+    dump = stripped
+    for trigger in sorted(_DEBRIEF_TRIGGERS, key=len, reverse=True):
+        if stripped.lower().startswith(trigger):
+            dump = stripped[len(trigger):].lstrip(" :،,-—")
+            break
+
+    if not dump.strip():
+        _set_pending(session_id, "debrief_dump")
+        return ("Go ahead — what happened? Dump it however it comes out, "
+                "I'll ask at most a couple of questions.")
+
+    return await _run_debrief_analysis(dump, tasks_engine, session_id)
+
+
+async def _run_debrief_analysis(dump: str, tasks_engine, session_id: str) -> str:
+    from sunny_code.components import debrief
+
+    analysis = await debrief.analyse(dump)
+    if analysis is None:
+        return "Couldn't read that — the LLM path is unavailable or over budget."
+
+    questions = analysis.get("questions") or []
+    if not questions:
+        # No questions is the good outcome, not a failure -- go straight
+        # to proposing.
+        from sunny_code.components.device import device_from_session
+        return await _finish_debrief(
+            dump, [], session_id, tasks_engine=tasks_engine,
+            source=f"debrief:{device_from_session(session_id)}")
+
+    _set_pending(session_id, "debrief_answer", dump=dump,
+                 questions=questions, answers=[], index=0)
+    summary = (analysis.get("summary") or "").strip()
+    head = f"{summary}\n\n" if summary else ""
+    counter = f" (1 of {len(questions)})" if len(questions) > 1 else ""
+    return f"{head}{questions[0]['question']}{counter}"
+
+
+async def _advance_debrief(reply: str, tasks_engine, session_id: str, source: str) -> str:
+    """Record an answer and either ask the next question or file."""
+    pending = _get_pending(session_id) or {}
+    questions = pending.get("questions") or []
+    answers = list(pending.get("answers") or [])
+    index = pending.get("index", 0)
+
+    if index < len(questions):
+        answers.append({"question": questions[index]["question"], "answer": reply})
+    index += 1
+
+    if index < len(questions):
+        _set_pending(session_id, "debrief_answer", dump=pending.get("dump", ""),
+                     questions=questions, answers=answers, index=index)
+        counter = f" ({index + 1} of {len(questions)})"
+        return f"{questions[index]['question']}{counter}"
+
+    _pending.pop(session_id, None)
+    # "debrief:api", not "api". The device alone loses the fact that this
+    # was filed by the debrief flow rather than typed directly -- and for
+    # memory in particular, how a fact got there is what lets you decide
+    # whether to trust it later.
+    return await _finish_debrief(pending.get("dump", ""), answers, session_id,
+                                 tasks_engine=tasks_engine, source=f"debrief:{source}")
+
+
+async def _finish_debrief(dump: str, answers, session_id: str,
+                          tasks_engine=None, source: str = "debrief") -> str:
+    from sunny_code.components import debrief
+
+    proposal = await debrief.propose(dump, answers)
+    if proposal is None:
+        return "Couldn't work out what to file from that."
+
+    tasks_db = getattr(tasks_engine, "db", None)
+    written = debrief.commit(proposal, tasks_db=tasks_db, source=source)
+    trace.mark_route("debrief", "filed", confidence="exact", function="debrief.commit")
+
+    # Reports what was WRITTEN, not what was proposed -- memory_store
+    # rejects junk and a task can fail validation, and claiming otherwise
+    # is the one lie this flow cannot afford.
+    lines = []
+    if written["facts"]:
+        lines.append("**Remembered**")
+        for fact in written["facts"]:
+            lines.append(f"  · {fact['text']}  _{fact['kind']}_")
+    if written["tasks"]:
+        if lines:
+            lines.append("")
+        lines.append("**Tasks added**")
+        for task in written["tasks"]:
+            due = f" — due {task['due_date']}" if task.get("due_date") else ""
+            lines.append(f"  · {task['title']}{due}")
+
+    if not lines:
+        return ("Nothing durable in that one — no facts worth keeping, no actions. "
+                "That's normal for most days.")
+
+    note = (proposal.get("note") or "").strip()
+    tail = f"\n\n{note}" if note else ""
+    return "\n".join(lines) + tail
+
+
 async def _handle_project_command(stripped: str, lowered: str,
                                   session_id: str) -> Optional[str]:
     """Project commands, or None to fall through to normal routing.
@@ -980,6 +1092,27 @@ async def _handle_message_inner(
     categories = category_store.get_categories()
 
     pending = _get_pending(session_id)
+    if pending and pending.get("awaiting") == "debrief_dump":
+        if lowered in _CANCEL_WORDS:
+            _pending.pop(session_id, None)
+            return "No worries — cancelled."
+        _pending.pop(session_id, None)
+        trace.mark_route("debrief", "dump", confidence="exact", function="_run_debrief_analysis")
+        return await _run_debrief_analysis(stripped, tasks_engine, session_id)
+
+    if pending and pending.get("awaiting") == "debrief_answer":
+        if lowered in _CANCEL_WORDS:
+            _pending.pop(session_id, None)
+            trace.mark_route("debrief", "cancel", confidence="exact", function="cancel")
+            return "Dropped it. Nothing filed."
+        # Deliberately NO _looks_like_a_command guard here, unlike the task
+        # wizards. An answer to "was that the essay due Friday?" is very
+        # often "add it for friday then" -- which reads exactly like a task
+        # command and would be swallowed by that guard, losing the debrief
+        # mid-flow. The cancel words are the only escape, and the questions
+        # are direct enough that an unrelated message here is unlikely.
+        return await _advance_debrief(stripped, tasks_engine, session_id, source)
+
     if pending and pending.get("awaiting") == "task_title":
         if lowered in _CANCEL_WORDS:
             _pending.pop(session_id, None)
@@ -1152,6 +1285,16 @@ async def _handle_message_inner(
         _, message = category_store.remove_category(category_to_remove)
         trace.mark_route("category_store", "remove", confidence="heuristic", function="category_store.remove_category")
         return message
+
+    # Before the task parser too: "dump" and "debrief" are not task
+    # commands, but a bare "debrief" would otherwise fall through to the
+    # LLM and get an answer ABOUT debriefing rather than starting one.
+    if lowered in _DEBRIEF_TRIGGERS or any(
+        lowered.startswith(t + " ") or lowered.startswith(t + ":")
+        for t in _DEBRIEF_TRIGGERS
+    ):
+        trace.mark_route("debrief", "start", confidence="exact", function="_start_debrief")
+        return await _start_debrief(stripped, tasks_engine, session_id)
 
     # BEFORE the task parser. "tasks" matches both this and
     # TaskCommandParser's natural list pattern, and whichever runs first
