@@ -67,6 +67,7 @@ in Obsidian. See [[architecture/project-system.md]].
 | `park` | Stopped on purpose — recorded differently from finished. |
 | `archived` · `show archive` | What's in the archive. |
 | `unarchive <name>` | Bring one back. |
+| `tasks` · `what's left` | Open tasks **for this project**. |
 | `unfocus` | Leave the project, back to general chat. |
 
 ### The three statuses
@@ -87,12 +88,40 @@ idea → planning → critique → refined → building → done / parked
 Status and phase move **independently**. A `someday` project can sit at
 `refined` — plan finished, waiting on time.
 
+**Tasks added while a project is in focus belong to it**, so `what's left on Warren` answers. Outside a project, `tasks` still lists everything.
+
 **`critique` is the one worth using.** It sits between planning and
 refined on purpose: the first plan gets written while you're still
 enthusiastic, so it gets attacked once while changing it is cheap. Every
 risk it raises comes with a concrete failure mode and a concrete fix.
 
 ---
+
+## Debrief
+
+Dump what happened. Sunny asks at most two questions, then files it.
+
+| Say | What happens |
+| --- | --- |
+| `debrief` | Asks for the dump. |
+| `debrief: the lab ran long again, never got to the essay` | Goes straight in. |
+| `cancel` | Drops it. Nothing filed. |
+
+It asks **at most two** questions, and only where the answer changes what
+gets filed — whether something becomes a dated task or a standing fact,
+which of two things you meant. Often it asks none.
+
+Two destinations, kept separate:
+
+- **Facts** → long-term memory. Written as facts about *you*, not about
+  today: "loses focus in long afternoon labs", not "the lab ran long".
+- **Tasks** → the task list, with a due date where one was actually stated.
+
+Everything filed is listed back, and the reply reports what was **written**,
+not what was proposed. Filing nothing is a normal outcome and it says so.
+
+See [[architecture/debrief.md]].
+
 
 ## Memory
 
@@ -141,7 +170,7 @@ until 5am so a late night still shows the right one.
 | --- | --- |
 | `my lists` · `what's on my <name> list` | Lists. |
 | `show my alarms` · `show my reminders` | Scheduled items. |
-| `remind me to <thing>` | Set one. |
+| `remind me to <thing> <when>` | Set one. Falls back to extraction when the regex can't read the time, so "monday morning" works. |
 | `my classes` · `set up my classes` | Class setup from a syllabus. |
 | `what's the weather` | Current conditions. |
 | `what's my usage` | Claude spend against the caps. |
@@ -160,6 +189,10 @@ check-ins, health checks, suggestions, the app log, and **routing traces**
 
 Not auto-polling — a log that scrolls on its own is unreadable the moment
 you try to read a specific line. Refresh is a button.
+
+`/projects` — every project grouped by status, with its plan, critique and
+open tasks. Read-mostly: creating, planning and critiquing stay in chat,
+where they need a conversation rather than a form.
 
 Other pages: `/sunny` (brief), `/chat`, `/health`, `/dashboard`, `/net`,
 `/warren`, `/portal`.

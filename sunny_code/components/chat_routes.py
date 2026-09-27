@@ -104,6 +104,7 @@ SLASH_COMMANDS = [
     {"name": "critique", "description": "Attack the plan (inside a project)", "phrase": "critique"},
     {"name": "research", "description": "Research a question (inside a project)", "phrase": "research {}", "takes_argument": True},
     {"name": "archived", "description": "Finished and parked projects", "phrase": "archived"},
+    {"name": "debrief", "description": "Dump the day, get it filed", "phrase": "debrief", "takes_argument": True},
     {"name": "remember", "description": "Remember something about you", "phrase": "remember that {}", "takes_argument": True},
     {"name": "memory", "description": "What Sunny remembers", "phrase": "what do you remember"},
     {"name": "checkin", "description": "Today's check-in question", "phrase": "check in"},
